@@ -1,0 +1,33 @@
+services:
+  mediastack-rad:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mediastack-rad
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8090}:8090"
+    volumes:
+      # Read-only Docker socket access — required for real container data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8090/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      # Traefik — only active when TRAEFIK_ENABLE=true
+      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.mediastack-rad.rule=Host(`${TRAEFIK_HOST:-mediastack-rad.localhost}`)"
+      - "traefik.http.routers.mediastack-rad.entrypoints=websecure"
+      - "traefik.http.routers.mediastack-rad.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mediastack-rad.loadbalancer.server.port=8090"
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK:-mediastack-rad}
+    external: ${NETWORK_EXTERNAL:-false}
