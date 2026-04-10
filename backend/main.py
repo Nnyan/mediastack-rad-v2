@@ -6,16 +6,21 @@ FastAPI + docker-py: real container management via Docker socket.
 import asyncio
 import json
 import logging
+import os
 from typing import Any
 
 import docker
 import docker.errors
+import yaml
 from docker.models.containers import Container
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import os
+
+import troubleshoot
+import stack_health
+import compose_import
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("mediastack-rad")
@@ -28,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+CATEGORIES_FILE = os.path.join(os.path.dirname(__file__), "categories.json")
 
 # ── Docker client ─────────────────────────────────────────────────────────────
 
@@ -42,7 +49,6 @@ def get_docker() -> docker.DockerClient:
             detail=f"Cannot connect to Docker socket: {e}. "
                    "Ensure /var/run/docker.sock is mounted.",
         )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,13 +86,11 @@ def _container_summary(container: Container) -> dict[str, Any]:
 
 
 def _container_stats_once(container: Container) -> dict[str, Any]:
-    """Pull one stats sample (non-streaming) and compute CPU + memory."""
     try:
         raw = container.stats(stream=False)
     except Exception:
         return {"cpu_percent": 0.0, "memory_mb": 0.0, "memory_limit_mb": 0.0}
 
-    # CPU %
     cpu_delta = (
         raw["cpu_stats"]["cpu_usage"]["total_usage"]
         - raw["precpu_stats"]["cpu_usage"]["total_usage"]
@@ -100,7 +104,6 @@ def _container_stats_once(container: Container) -> dict[str, Any]:
     )
     cpu_pct = (cpu_delta / system_delta * num_cpus * 100.0) if system_delta > 0 else 0.0
 
-    # Memory
     mem = raw.get("memory_stats", {})
     usage = mem.get("usage", 0) - mem.get("stats", {}).get("cache", 0)
     limit = mem.get("limit", 0)
@@ -110,7 +113,6 @@ def _container_stats_once(container: Container) -> dict[str, Any]:
         "memory_mb": round(usage / 1024 / 1024, 1),
         "memory_limit_mb": round(limit / 1024 / 1024, 1),
     }
-
 
 # ── REST API ─────────────────────────────────────────────────────────────────
 
@@ -163,7 +165,6 @@ def start_container(container_id: str):
     try:
         container = client.containers.get(container_id)
         container.start()
-        log.info("Started container: %s", container.name)
         return {"ok": True, "name": container.name, "status": "running"}
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail=f"Container '{container_id}' not found")
@@ -177,7 +178,6 @@ def stop_container(container_id: str):
     try:
         container = client.containers.get(container_id)
         container.stop(timeout=10)
-        log.info("Stopped container: %s", container.name)
         return {"ok": True, "name": container.name, "status": "exited"}
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail=f"Container '{container_id}' not found")
@@ -191,7 +191,6 @@ def restart_container(container_id: str):
     try:
         container = client.containers.get(container_id)
         container.restart(timeout=10)
-        log.info("Restarted container: %s", container.name)
         return {"ok": True, "name": container.name, "status": "running"}
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail=f"Container '{container_id}' not found")
@@ -221,6 +220,12 @@ def get_stats(container_id: str):
         return _container_stats_once(container)
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail=f"Container '{container_id}' not found")
+
+
+@app.get("/api/containers/{container_id}/troubleshoot")
+def troubleshoot_container(container_id: str):
+    client = get_docker()
+    return troubleshoot.diagnose(client, container_id)
 
 
 @app.get("/api/networks")
@@ -255,16 +260,62 @@ def list_images():
     return result
 
 
+# ── Stack health ──────────────────────────────────────────────────────────────
+
+@app.get("/api/stack/health")
+def get_stack_health():
+    client = get_docker()
+    return stack_health.check_stack(client)
+
+
+# ── Compose import ────────────────────────────────────────────────────────────
+
+@app.post("/api/compose/parse")
+def parse_compose(payload: dict = Body(...)):
+    text = payload.get("yaml", "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="No YAML content provided")
+    try:
+        services = compose_import.parse_yaml_text(text)
+        return {"services": services, "count": len(services)}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post("/api/compose/github")
+def import_from_github(payload: dict = Body(...)):
+    url = payload.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="No URL provided")
+    try:
+        services, raw_text = compose_import.fetch_from_github(url)
+        return {"services": services, "count": len(services), "source_url": url}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+# ── Categories ────────────────────────────────────────────────────────────────
+
+@app.get("/api/categories")
+def get_categories():
+    if os.path.isfile(CATEGORIES_FILE):
+        with open(CATEGORIES_FILE) as f:
+            return json.load(f)
+    return {"assignments": {}, "enabled": True}
+
+
+@app.post("/api/categories")
+def save_categories(payload: dict = Body(...)):
+    with open(CATEGORIES_FILE, "w") as f:
+        json.dump(payload, f, indent=2)
+    return {"ok": True}
+
+
 # ── WebSocket: live stats stream ──────────────────────────────────────────────
 
 @app.websocket("/ws/stats")
 async def stats_stream(websocket: WebSocket):
-    """
-    Streams CPU + memory stats for all running containers every 2 seconds.
-    Client receives: { "container_id": { cpu_percent, memory_mb, memory_limit_mb } }
-    """
     await websocket.accept()
-    log.info("WebSocket stats client connected")
     try:
         while True:
             try:
