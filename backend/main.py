@@ -401,3 +401,66 @@ def get_traefik_compose():
     containers = client.containers.list(all=True)
     snippet = traefik_mod.generate_full_compose_snippet(containers, config)
     return {"yaml": snippet}
+
+
+# ── Traefik auto-apply ────────────────────────────────────────────────────────
+
+import apply as apply_mod
+
+@app.get("/api/traefik/system")
+def get_system_status():
+    return apply_mod.system_status()
+
+
+@app.post("/api/traefik/apply/{container_id}")
+def apply_container(container_id: str, payload: dict = Body(default={})):
+    dry_run = payload.get("dry_run", False)
+    status = apply_mod.system_status()
+    if not status["ready"] and not dry_run:
+        raise HTTPException(status_code=503, detail={"issues": status["issues"]})
+
+    client = get_docker()
+    config = traefik_mod.load_config()
+    compose_path = apply_mod.find_compose_file()
+
+    try:
+        container = client.containers.get(container_id)
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail="Container not found")
+
+    labels = traefik_mod.generate_labels(container, config)
+    return apply_mod.apply_labels(container, compose_path, labels, dry_run=dry_run)
+
+
+@app.post("/api/traefik/apply-all")
+def apply_all_containers(payload: dict = Body(default={})):
+    dry_run = payload.get("dry_run", False)
+    status = apply_mod.system_status()
+    if not status["ready"] and not dry_run:
+        raise HTTPException(status_code=503, detail={"issues": status["issues"]})
+
+    client = get_docker()
+    config = traefik_mod.load_config()
+    compose_path = apply_mod.find_compose_file()
+    containers = [c for c in client.containers.list(all=True) if not traefik_mod._is_traefik(c)]
+
+    return apply_mod.apply_all_labels(
+        containers,
+        compose_path,
+        lambda c: traefik_mod.generate_labels(c, config),
+        dry_run=dry_run,
+    )
+
+
+@app.post("/api/traefik/restore/{container_id}")
+def restore_compose_backup(container_id: str):
+    """Restore the .bak file created before the last apply."""
+    compose_path = apply_mod.find_compose_file()
+    if not compose_path:
+        raise HTTPException(status_code=503, detail="Compose file not found")
+    backup = compose_path + ".bak"
+    if not os.path.isfile(backup):
+        raise HTTPException(status_code=404, detail="No backup file found")
+    import shutil
+    shutil.copy2(backup, compose_path)
+    return {"ok": True, "restored_from": backup}

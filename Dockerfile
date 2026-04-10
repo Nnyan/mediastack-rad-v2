@@ -7,19 +7,32 @@ RUN npm install --ignore-scripts
 
 COPY frontend/ ./
 RUN npm run build
-# dist/ is now at /frontend/dist
 
-# ── Stage 2: Python backend + serve frontend ──────────────────────────────────
+# ── Stage 2: Docker CLI (for compose auto-apply feature) ──────────────────────
+FROM docker:27-cli AS docker-cli
+
+# ── Stage 3: Python backend + serve frontend ──────────────────────────────────
 FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
+# Copy docker binary + compose plugin from official docker:cli image
+COPY --from=docker-cli /usr/local/bin/docker                  /usr/local/bin/docker
+COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins  /usr/local/libexec/docker/cli-plugins
+
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/main.py ./
+# Copy all backend modules
+COPY backend/main.py \
+     backend/troubleshoot.py \
+     backend/stack_health.py \
+     backend/compose_import.py \
+     backend/traefik.py \
+     backend/apply.py \
+     ./
 
-# Copy built Vue assets so FastAPI's StaticFiles serves them
+# Copy built Vue assets so FastAPI serves them
 COPY --from=frontend-builder /frontend/dist ./static
 
 EXPOSE 8090

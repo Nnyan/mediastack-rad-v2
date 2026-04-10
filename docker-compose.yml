@@ -8,10 +8,20 @@ services:
     ports:
       - "${PORT:-8090}:8090"
     volumes:
-      # Read-only Docker socket access — required for real container data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket — write access required for the "Apply & recreate" feature.
+      # If you only need read-only monitoring, change back to :ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Mount your stack's compose directory so the app can patch labels and
+      # run `docker compose up`. Set COMPOSE_DIR to the folder containing your
+      # docker-compose.yml (the one that manages your media stack).
+      - ${COMPOSE_DIR:-/opt/mediastack}:/compose
+
     environment:
       - PYTHONUNBUFFERED=1
+      # Path to your compose file inside the container (after the mount above)
+      - COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-/compose/docker-compose.yml}
+
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8090/api/health')"]
@@ -20,7 +30,6 @@ services:
       retries: 3
       start_period: 15s
     labels:
-      # Traefik — only active when TRAEFIK_ENABLE=true
       - "traefik.enable=${TRAEFIK_ENABLE:-false}"
       - "traefik.http.routers.mediastack-rad.rule=Host(`${TRAEFIK_HOST:-mediastack-rad.localhost}`)"
       - "traefik.http.routers.mediastack-rad.entrypoints=websecure"
