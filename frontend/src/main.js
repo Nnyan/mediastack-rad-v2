@@ -4,6 +4,7 @@ import App from "./App.vue";
 import Dashboard from "./components/Dashboard.vue";
 import ContainerDetail from "./components/ContainerDetail.vue";
 import StackHealth from "./components/StackHealth.vue";
+import TraefikManager from "./components/TraefikManager.vue";
 import "./style.css";
 
 const router = createRouter({
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: "/",              component: Dashboard },
     { path: "/container/:id", component: ContainerDetail },
     { path: "/health",        component: StackHealth },
+    { path: "/traefik",       component: TraefikManager },
   ],
 });
 

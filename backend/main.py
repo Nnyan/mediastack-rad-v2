@@ -352,3 +352,52 @@ if os.path.isdir(FRONTEND_DIST):
         if os.path.isfile(index):
             return FileResponse(index)
         raise HTTPException(status_code=404, detail="Frontend not built")
+
+
+# ── Traefik ────────────────────────────────────────────────────────────────────
+
+import traefik as traefik_mod
+
+@app.get("/api/traefik/config")
+def get_traefik_config():
+    return traefik_mod.load_config()
+
+
+@app.post("/api/traefik/config")
+def save_traefik_config(payload: dict = Body(...)):
+    traefik_mod.save_config(payload)
+    return {"ok": True}
+
+
+@app.get("/api/traefik/status")
+def get_traefik_status():
+    client = get_docker()
+    config = traefik_mod.load_config()
+    return traefik_mod.get_status(client, config)
+
+
+@app.get("/api/traefik/labels/{container_id}")
+def get_traefik_labels(container_id: str):
+    client = get_docker()
+    config = traefik_mod.load_config()
+    try:
+        container = client.containers.get(container_id)
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail="Container not found")
+    labels = traefik_mod.generate_labels(container, config)
+    return {
+        "labels": labels,
+        "yaml": traefik_mod.labels_to_yaml_block(labels),
+        "router_name": traefik_mod._router_name(container.name),
+        "port": traefik_mod._container_port(container),
+        "expected_url": f"https://{traefik_mod._router_name(container.name)}.{config.get('domain','')}" if config.get('domain') else None,
+    }
+
+
+@app.get("/api/traefik/compose")
+def get_traefik_compose():
+    client = get_docker()
+    config = traefik_mod.load_config()
+    containers = client.containers.list(all=True)
+    snippet = traefik_mod.generate_full_compose_snippet(containers, config)
+    return {"yaml": snippet}

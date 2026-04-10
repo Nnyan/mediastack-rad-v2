@@ -6,8 +6,9 @@
         <span class="topbar-sub">v2 · live</span>
 
         <nav style="display:flex;gap:2px;margin-left:16px">
-          <router-link to="/" class="nav-link" active-class="nav-link-active" exact>Containers</router-link>
-          <router-link to="/health" class="nav-link" active-class="nav-link-active">Stack health</router-link>
+          <router-link to="/"        class="nav-link" active-class="nav-link-active" exact>Containers</router-link>
+          <router-link to="/traefik" class="nav-link" active-class="nav-link-active">Traefik</router-link>
+          <router-link to="/health"  class="nav-link" active-class="nav-link-active">Stack health</router-link>
         </nav>
 
         <div class="topbar-spacer" />
@@ -20,7 +21,8 @@
         </div>
         <div v-else-if="dockerError" style="font-size:11px;color:var(--danger)">Docker unavailable</div>
 
-        <button class="btn btn-sm" @click="toggleTheme" style="margin-left:8px" :title="theme==='dark'?'Switch to light mode':'Switch to dark mode'">
+        <button class="btn btn-sm" @click="toggleTheme" style="margin-left:8px"
+          :title="theme==='dark'?'Switch to light mode':'Switch to dark mode'">
           {{ theme === 'dark' ? '☀ Light' : '☾ Dark' }}
         </button>
       </div>
@@ -37,8 +39,7 @@ import { ref, onMounted } from "vue";
 import { useTheme } from "@/composables/useTheme.js";
 
 const { theme, toggle: toggleTheme } = useTheme();
-
-const dockerInfo = ref(null);
+const dockerInfo  = ref(null);
 const dockerError = ref(false);
 
 onMounted(async () => {
@@ -46,8 +47,6 @@ onMounted(async () => {
     const res = await fetch("/api/docker/info");
     if (!res.ok) throw new Error();
     dockerInfo.value = await res.json();
-  } catch {
-    dockerError.value = true;
-  }
+  } catch { dockerError.value = true; }
 });
 </script>

@@ -1,0 +1,10 @@
+{
+  "domain": "test.com",
+  "cert_type": "http",
+  "certresolver": "letsencrypt",
+  "entrypoint_http": "web",
+  "entrypoint_https": "websecure",
+  "traefik_api_url": "http://traefik:8080",
+  "network": "mediastack",
+  "middleware": ""
+}
