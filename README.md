@@ -263,3 +263,39 @@ npm run dev   # http://localhost:5173 — proxies /api and /ws to :8090
 ## License
 
 MIT
+
+---
+
+## Deploy with Portainer
+
+**Stacks → Add stack → Web editor**
+
+Paste the contents of `docker-compose.portainer.yml` directly into the editor.
+Edit the two values that need changing before you click Deploy:
+
+| Line | Default | Change to |
+|---|---|---|
+| `/opt/mediastack:/compose` | `/opt/mediastack` | Path to your stack compose folder |
+| `rad.yourdomain.com` | `rad.yourdomain.com` | Your actual domain (or leave if not using Traefik) |
+
+Click **Deploy the stack**. No `.env` file needed — all variables are inline.
+
+To update the image later: **Stacks → mediastack-rad → Editor → Pull and redeploy**
+
+---
+
+## Deploy with Dockhand / Watchtower (auto-updates)
+
+Use `docker-compose.dockhand.yml`. It adds two labels that tell Dockhand
+(or Watchtower) to monitor this container and update it automatically when
+a new image is published to GHCR:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nnyan/mediastack-rad-v2/main/docker-compose.dockhand.yml -o docker-compose.yml
+# edit the volume path and optionally the Traefik hostname
+nano docker-compose.yml
+docker compose up -d
+```
+
+The update schedule label `0 0 3 * * *` checks for a new image every night at 3 AM.
+Change the time or remove the label to use Dockhand's global poll interval instead.

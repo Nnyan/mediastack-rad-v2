@@ -1,0 +1,54 @@
+# MediaStack-RAD v2 — Dockhand / Watchtower Stack
+#
+# This file is identical to docker-compose.portainer.yml but with
+# auto-update labels enabled for Dockhand (or Watchtower).
+#
+# Dockhand will check for a newer ghcr.io/nnyan/mediastack-rad-v2:latest
+# image and recreate the container automatically when one is found.
+#
+# DEPLOY:
+#   CLI:      docker compose -f docker-compose.dockhand.yml up -d
+#   Portainer: Stacks → Add stack → Web editor → paste → Deploy
+
+services:
+  mediastack-rad:
+    image: ghcr.io/nnyan/mediastack-rad-v2:latest
+    container_name: mediastack-rad
+    restart: unless-stopped
+
+    ports:
+      - "8090:8090"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/mediastack:/compose    # CHANGE to your stack compose folder
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - COMPOSE_FILE_PATH=/compose/docker-compose.yml
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8090/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    labels:
+      # ── Dockhand / Watchtower auto-update ──────────────────────────────
+      - "com.centurylinklabs.watchtower.enable=true"
+      # Update schedule: check every night at 3 AM (cron format)
+      - "com.centurylinklabs.watchtower.schedule=0 0 3 * * *"
+
+      # ── Traefik ─────────────────────────────────────────────────────────
+      - "traefik.enable=false"
+      - "traefik.http.routers.mediastack-rad.rule=Host(`rad.yourdomain.com`)"
+      - "traefik.http.routers.mediastack-rad.entrypoints=websecure"
+      - "traefik.http.routers.mediastack-rad.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mediastack-rad.loadbalancer.server.port=8090"
+
+networks:
+  default:
+    name: mediastack-rad
+    external: false

@@ -1,25 +1,35 @@
+# docker-compose.yml — for CLI, Portainer, or Dockhand
+# Pull the pre-built image: ghcr.io/nnyan/mediastack-rad-v2:latest
+# No build step required.
+
 services:
   mediastack-rad:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/nnyan/mediastack-rad-v2:latest
+
+    # ── To build from source instead ────────────────────────────────────────
+    # Comment the image: line above and uncomment these two lines:
+    # build:
+    #   context: .
+
     container_name: mediastack-rad
     restart: unless-stopped
+
     ports:
       - "${PORT:-8090}:8090"
+
     volumes:
-      # Docker socket — write access required for the "Apply & recreate" feature.
-      # If you only need read-only monitoring, change back to :ro
+      # Docker socket — required for container monitoring and control.
+      # Write access (no :ro) is needed for the Traefik auto-apply feature.
+      # Change to :ro if you only need read-only monitoring.
       - /var/run/docker.sock:/var/run/docker.sock
 
-      # Mount your stack's compose directory so the app can patch labels and
-      # run `docker compose up`. Set COMPOSE_DIR to the folder containing your
-      # docker-compose.yml (the one that manages your media stack).
+      # Your media stack compose folder, mounted at /compose inside the container.
+      # The Traefik page can read, patch, and recreate services using this file.
+      # Set COMPOSE_DIR to the host path containing your docker-compose.yml.
       - ${COMPOSE_DIR:-/opt/mediastack}:/compose
 
     environment:
       - PYTHONUNBUFFERED=1
-      # Path to your compose file inside the container (after the mount above)
       - COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-/compose/docker-compose.yml}
 
     healthcheck:
@@ -29,12 +39,20 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
     labels:
+      # ── Traefik (optional) ───────────────────────────────────────────────
+      # Set TRAEFIK_ENABLE=true and TRAEFIK_HOST to your domain to route this
+      # container through Traefik with a TLS certificate.
       - "traefik.enable=${TRAEFIK_ENABLE:-false}"
       - "traefik.http.routers.mediastack-rad.rule=Host(`${TRAEFIK_HOST:-mediastack-rad.localhost}`)"
       - "traefik.http.routers.mediastack-rad.entrypoints=websecure"
       - "traefik.http.routers.mediastack-rad.tls.certresolver=letsencrypt"
       - "traefik.http.services.mediastack-rad.loadbalancer.server.port=8090"
+
+      # ── Dockhand / Watchtower (optional) ────────────────────────────────
+      # Uncomment to let Dockhand or Watchtower auto-update this container.
+      # - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   default:
