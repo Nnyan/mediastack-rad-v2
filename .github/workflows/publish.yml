@@ -11,10 +11,6 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/mediastack-rad-v2
-  DH_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mediastack-rad-v2
-
 jobs:
   build:
     name: Build & push
@@ -27,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (for multi-arch builds)
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -41,19 +37,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Generate image tags
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.GHCR_IMAGE }}
-            ${{ secrets.DOCKERHUB_USERNAME != '' && env.DH_IMAGE || '' }}
+            ghcr.io/${{ github.repository_owner }}/mediastack-rad-v2
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=branch
@@ -64,9 +59,7 @@ jobs:
             type=sha,prefix=sha-,format=short
           labels: |
             org.opencontainers.image.title=MediaStack-RAD v2
-            org.opencontainers.image.description=Real-time Docker container dashboard for self-hosted media stacks
-            org.opencontainers.image.url=https://github.com/${{ github.repository }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Real-time Docker dashboard for self-hosted media stacks
             org.opencontainers.image.licenses=MIT
 
       - name: Build and push
@@ -80,10 +73,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Write job summary
+      - name: Summary
         if: ${{ github.event_name != 'pull_request' }}
         run: |
-          echo "## Published image" >> $GITHUB_STEP_SUMMARY
+          echo "## Image published" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.GHCR_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/mediastack-rad-v2:latest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
