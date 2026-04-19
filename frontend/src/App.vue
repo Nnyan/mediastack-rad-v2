@@ -7,6 +7,7 @@
 
         <nav style="display:flex;gap:2px;margin-left:16px">
           <router-link to="/"        class="nav-link" active-class="nav-link-active" exact>Containers</router-link>
+          <router-link to="/builder" class="nav-link" active-class="nav-link-active">Stack builder</router-link>
           <router-link to="/traefik" class="nav-link" active-class="nav-link-active">Traefik</router-link>
           <router-link to="/health"  class="nav-link" active-class="nav-link-active">Stack health</router-link>
         </nav>

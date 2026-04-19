@@ -464,3 +464,79 @@ def restore_compose_backup(container_id: str):
     import shutil
     shutil.copy2(backup, compose_path)
     return {"ok": True, "restored_from": backup}
+
+
+# ── Stack generator ────────────────────────────────────────────────────────────
+
+import generator as generator_mod
+
+@app.get("/api/generator/catalog")
+def get_catalog():
+    return {
+        svc_id: {
+            "id": svc_id,
+            "image": svc["image"],
+            "category": svc["category"],
+            "description": svc["description"],
+            "ports": svc["ports"],
+            "depends_on": svc.get("depends_on", []),
+        }
+        for svc_id, svc in generator_mod.SERVICE_CATALOG.items()
+    }
+
+
+@app.post("/api/generator/preview")
+def preview_compose(payload: dict = Body(...)):
+    selected = payload.get("selected", [])
+    options  = payload.get("options", {})
+    if not selected:
+        raise HTTPException(status_code=400, detail="No services selected")
+    try:
+        content = generator_mod.generate_compose(
+            selected,
+            network_name = options.get("network", "mediastack"),
+            base_data    = options.get("base_data", "/opt/mediastack"),
+            media_path   = options.get("media_path", "/mnt/media"),
+            timezone     = options.get("timezone", "UTC"),
+            puid         = int(options.get("puid", 1000)),
+            pgid         = int(options.get("pgid", 1000)),
+        )
+        ordered = generator_mod.resolve_deps(selected)
+        return {"yaml": content, "services": ordered}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generator/deploy")
+def deploy_stack(payload: dict = Body(...)):
+    selected = payload.get("selected", [])
+    options  = payload.get("options", {})
+    dry_run  = payload.get("dry_run", False)
+    if not selected:
+        raise HTTPException(status_code=400, detail="No services selected")
+
+    status = apply_mod.system_status()
+    compose_dir = os.environ.get("COMPOSE_FILE_PATH", "/compose/docker-compose.yml")
+    output_path = compose_dir if not dry_run else None
+
+    try:
+        content = generator_mod.generate_compose(
+            selected,
+            network_name = options.get("network", "mediastack"),
+            base_data    = options.get("base_data", "/opt/mediastack"),
+            media_path   = options.get("media_path", "/mnt/media"),
+            timezone     = options.get("timezone", "UTC"),
+            puid         = int(options.get("puid", 1000)),
+            pgid         = int(options.get("pgid", 1000)),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if dry_run:
+        return {"dry_run": True, "yaml": content,
+                "services": generator_mod.resolve_deps(selected)}
+
+    saved_path = generator_mod.save_compose(content, compose_dir)
+    result = generator_mod.deploy_compose(saved_path)
+    return {**result, "saved_path": saved_path,
+            "services": generator_mod.resolve_deps(selected)}

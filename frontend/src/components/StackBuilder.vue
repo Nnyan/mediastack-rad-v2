@@ -1,0 +1,267 @@
+<template>
+  <div class="page">
+
+    <div class="page-header flex items-center gap-3">
+      <div class="page-title">Stack builder</div>
+      <div style="flex:1" />
+      <span style="font-size:11px;color:var(--muted)">
+        {{ selected.size }} service{{ selected.size !== 1 ? 's' : '' }} selected
+      </span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start">
+
+      <!-- ── LEFT: service picker ── -->
+      <div>
+        <div v-for="cat in CATEGORY_ORDER" :key="cat">
+          <div v-if="byCategory[cat]?.length" class="cat-header">
+            {{ CAT_LABELS[cat] }}
+            <span style="font-size:10px;font-weight:400">({{ byCategory[cat].length }})</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:4px">
+            <div v-for="svc in byCategory[cat]" :key="svc.id"
+              :style="`background:var(--surface);border:1px solid ${selected.has(svc.id)?'var(--primary)':'var(--border)'};border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color 0.15s`"
+              @click="toggleService(svc.id)">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <div :style="`width:14px;height:14px;border-radius:3px;border:2px solid ${selected.has(svc.id)?'var(--primary)':'var(--border)'};background:${selected.has(svc.id)?'var(--primary)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center`">
+                  <span v-if="selected.has(svc.id)" style="color:#fff;font-size:10px;line-height:1">✓</span>
+                </div>
+                <span style="font-family:var(--mono);font-size:12px;font-weight:600">{{ svc.id }}</span>
+                <span v-if="isAutoAdded(svc.id)" style="font-size:9px;color:var(--muted);margin-left:auto">auto</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);line-height:1.4;padding-left:22px">{{ svc.description }}</div>
+              <div v-if="svc.ports.length" style="padding-left:22px;margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                <span v-for="p in svc.ports.slice(0,2)" :key="p" class="port-pill">:{{ p.split(':')[0] }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RIGHT: options + deploy panel ── -->
+      <div style="position:sticky;top:70px;display:grid;gap:12px">
+
+        <!-- Options -->
+        <div class="card">
+          <div class="section-title" style="margin-bottom:10px">Options</div>
+
+          <label style="display:block;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Data directory</div>
+            <input v-model="opts.base_data" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="/opt/mediastack" />
+          </label>
+          <label style="display:block;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Media directory</div>
+            <input v-model="opts.media_path" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="/mnt/media" />
+          </label>
+          <label style="display:block;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Network name</div>
+            <input v-model="opts.network" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="mediastack" />
+          </label>
+          <label style="display:block;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Timezone</div>
+            <input v-model="opts.timezone" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="UTC" />
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <label style="display:block">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">PUID</div>
+              <input v-model="opts.puid" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="1000" type="number" />
+            </label>
+            <label style="display:block">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">PGID</div>
+              <input v-model="opts.pgid" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="1000" type="number" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+          <div class="section-title" style="margin-bottom:10px">Deploy</div>
+
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+            Generates a complete <code>docker-compose.yml</code> and saves it to
+            <code>{{ composePath }}</code>, then runs <code>docker compose up -d</code>.
+          </div>
+
+          <div style="display:grid;gap:6px">
+            <button class="btn btn-sm" :disabled="!selected.size || previewing" @click="doPreview">
+              <span v-if="previewing" class="spinner" style="width:11px;height:11px" />
+              Preview YAML
+            </button>
+            <button class="btn btn-primary btn-sm" :disabled="!selected.size || deploying || !sys?.compose_found" @click="confirmDeploy=true">
+              <span v-if="deploying" class="spinner" style="width:11px;height:11px" />
+              Save &amp; deploy stack
+            </button>
+            <div v-if="!sys?.compose_found" style="font-size:10px;color:var(--warning);margin-top:2px">
+              ⚠ Compose directory not mounted — COMPOSE_DIR not set
+            </div>
+          </div>
+
+          <!-- Confirm -->
+          <div v-if="confirmDeploy" style="margin-top:10px;padding:10px;background:#d2992218;border:1px solid #d2992240;border-radius:6px;font-size:11px;line-height:1.6">
+            <strong style="color:var(--warning)">⚠ This will write and start {{ resolvedServices.length }} containers.</strong>
+            Any existing compose file at that path will be backed up to <code>.bak</code>.
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-danger btn-sm" @click="doDeploy">Confirm &amp; deploy</button>
+              <button class="btn btn-sm" @click="confirmDeploy=false">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected list -->
+        <div v-if="resolvedServices.length" class="card">
+          <div class="section-title" style="margin-bottom:8px">Will deploy ({{ resolvedServices.length }})</div>
+          <div style="display:grid;gap:3px">
+            <div v-for="id in resolvedServices" :key="id"
+              style="font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:6px">
+              <span :style="`color:${isAutoAdded(id)?'var(--muted)':'var(--primary)'}`">{{ isAutoAdded(id) ? '↳' : '✓' }}</span>
+              <span>{{ id }}</span>
+              <span v-if="isAutoAdded(id)" style="font-size:9px;color:var(--muted)">(required dep)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output terminal -->
+    <div v-if="output" style="margin-top:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:8px 14px;background:var(--surface2);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;font-family:var(--mono);font-weight:600;flex:1">Output</span>
+        <span v-if="output.success!=null" :style="`font-size:11px;font-weight:700;color:${output.success?'var(--primary)':'var(--danger)'}`">
+          {{ output.success ? '✓ success' : '✗ failed' }}
+        </span>
+        <button class="btn btn-sm" style="font-size:10px;padding:2px 8px" @click="output=null">✕</button>
+      </div>
+      <div class="log-viewer" style="max-height:200px;border-radius:0">
+        <div v-if="output.command" style="color:#58a6ff;margin-bottom:6px">$ {{ output.command }}</div>
+        <div v-if="output.stdout" style="white-space:pre-wrap">{{ output.stdout }}</div>
+        <div v-if="output.stderr" style="color:#ff8080;white-space:pre-wrap">{{ output.stderr }}</div>
+        <div v-if="output.error"  style="color:#ff8080">Error: {{ output.error }}</div>
+      </div>
+      <div v-if="output.saved_path" style="padding:6px 14px;font-size:10px;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)">
+        Saved to: <code>{{ output.saved_path }}</code>
+      </div>
+    </div>
+
+    <!-- YAML preview modal -->
+    <div v-if="previewYaml" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:200;padding:24px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;width:100%;max-width:800px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--mono);font-size:13px;font-weight:600;flex:1">docker-compose.yml preview</span>
+          <button class="btn btn-sm" style="font-size:10px;padding:2px 10px" @click="copyYaml">{{ copied?'✓ Copied':'Copy' }}</button>
+          <button class="btn btn-sm" @click="previewYaml=null">✕ Close</button>
+        </div>
+        <pre style="flex:1;overflow-y:auto;padding:14px 16px;font-size:10px;font-family:var(--mono);line-height:1.7;margin:0;background:var(--bg);white-space:pre">{{ previewYaml }}</pre>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import { API } from "@/composables/useApi.js";
+
+const catalog  = ref({});
+const selected = ref(new Set());
+const opts     = ref({ base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000 });
+const sys      = ref(null);
+const previewing   = ref(false);
+const deploying    = ref(false);
+const confirmDeploy= ref(false);
+const previewYaml  = ref(null);
+const output       = ref(null);
+const copied       = ref(false);
+
+const CATEGORY_ORDER = ["infrastructure", "media", "management", "download"];
+const CAT_LABELS = {
+  infrastructure: "Infrastructure",
+  media:          "Media servers",
+  management:     "Media management",
+  download:       "Download clients",
+};
+
+const composePath = computed(() =>
+  import.meta.env?.VITE_COMPOSE_PATH || "/compose/docker-compose.yml"
+);
+
+const byCategory = computed(() => {
+  const groups = {};
+  for (const svc of Object.values(catalog.value)) {
+    if (!groups[svc.category]) groups[svc.category] = [];
+    groups[svc.category].push(svc);
+  }
+  return groups;
+});
+
+const resolvedServices = computed(() => {
+  if (!selected.value.size) return [];
+  const all = new Set(selected.value);
+  for (const id of selected.value) {
+    for (const dep of (catalog.value[id]?.depends_on || [])) {
+      if (catalog.value[dep]) all.add(dep);
+    }
+  }
+  return [...all];
+});
+
+function isAutoAdded(id) {
+  return resolvedServices.value.includes(id) && !selected.value.has(id);
+}
+
+function toggleService(id) {
+  const s = new Set(selected.value);
+  s.has(id) ? s.delete(id) : s.add(id);
+  selected.value = s;
+}
+
+async function doPreview() {
+  previewing.value = true;
+  try {
+    const r = await API.post("/generator/preview", {
+      selected: [...selected.value],
+      options: opts.value,
+    });
+    previewYaml.value = r.yaml;
+  } catch (e) {
+    output.value = { success: false, error: e.message };
+  } finally {
+    previewing.value = false;
+  }
+}
+
+async function doDeploy() {
+  confirmDeploy.value = false;
+  deploying.value = true;
+  try {
+    const r = await API.post("/generator/deploy", {
+      selected: [...selected.value],
+      options: opts.value,
+      dry_run: false,
+    });
+    output.value = r;
+  } catch (e) {
+    output.value = { success: false, error: e.message };
+  } finally {
+    deploying.value = false;
+  }
+}
+
+async function copyYaml() {
+  try { await navigator.clipboard.writeText(previewYaml.value); } catch {}
+  copied.value = true;
+  setTimeout(() => { copied.value = false; }, 2000);
+}
+
+onMounted(async () => {
+  try {
+    const [cat, s] = await Promise.all([
+      API.get("/generator/catalog"),
+      API.get("/traefik/system"),
+    ]);
+    catalog.value = cat;
+    sys.value = s;
+  } catch (e) {
+    console.error(e);
+  }
+});
+</script>
