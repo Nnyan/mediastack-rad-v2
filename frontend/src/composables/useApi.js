@@ -30,6 +30,7 @@ export const API = {
     logs:    (id, tail=200)  => API.get(`/containers/${id}/logs?tail=${tail}`),
     stats:   (id)            => API.get(`/containers/${id}/stats`),
     troubleshoot: (id)       => API.get(`/containers/${id}/troubleshoot`),
+    bulk:    (action, ids=[]) => API.post(`/containers/bulk/${action}`, { ids }),
   },
 
   stack: {

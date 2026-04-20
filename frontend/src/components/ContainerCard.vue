@@ -1,6 +1,11 @@
 <template>
-  <div class="container-card" @click="$emit('select')">
+  <div class="container-card" :style="selected?'border-color:var(--primary);background:var(--surface2)':''" @click="$emit('select')">
     <div class="container-card-header">
+      <!-- Selection checkbox -->
+      <div style="display:flex;align-items:center" @click.stop>
+        <input type="checkbox" :checked="selected" @change="$emit('toggle-select')"
+          style="cursor:pointer;accent-color:var(--primary);width:13px;height:13px;margin-right:4px" />
+      </div>
       <div class="container-card-name">{{ container.name }}</div>
       <StatusBadge :status="container.status" />
 
@@ -62,8 +67,9 @@ const props = defineProps({
   container: Object,
   stats: Object,
   categories: Array,
+  selected: { type: Boolean, default: false },
 });
-const emit = defineEmits(["select", "recategorize"]);
+const emit = defineEmits(["select", "recategorize", "toggle-select"]);
 
 const showMenu = ref(false);
 

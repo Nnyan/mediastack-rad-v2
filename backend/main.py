@@ -588,3 +588,70 @@ def catalog_port_conflicts():
             if svc["ports"]
         },
     }
+
+
+# ── Bulk operations ────────────────────────────────────────────────────────────
+
+@app.post("/api/containers/bulk/{action}")
+def bulk_action(action: str, payload: dict = Body(...)):
+    """
+    action: restart | stop | start | update
+    payload: { "ids": ["id1", "id2", ...] }  — empty list = all containers
+    """
+    if action not in ("restart", "stop", "start", "update"):
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
+    client = get_docker()
+    ids = payload.get("ids", [])
+
+    # Resolve containers — empty ids means all
+    try:
+        all_containers = client.containers.list(all=True)
+    except docker.errors.DockerException as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    targets = [c for c in all_containers if not ids or c.short_id in ids or c.name in ids]
+
+    results = []
+    for c in targets:
+        try:
+            if action == "restart":
+                c.restart(timeout=10)
+                results.append({"name": c.name, "ok": True, "action": "restarted"})
+            elif action == "stop":
+                c.stop(timeout=10)
+                results.append({"name": c.name, "ok": True, "action": "stopped"})
+            elif action == "start":
+                c.start()
+                results.append({"name": c.name, "ok": True, "action": "started"})
+            elif action == "update":
+                # Pull latest image then recreate via docker compose
+                image_name = c.attrs.get("Config", {}).get("Image", "")
+                if image_name:
+                    try:
+                        client.images.pull(image_name)
+                        results.append({"name": c.name, "ok": True, "action": "image pulled", "image": image_name})
+                    except Exception as pull_err:
+                        results.append({"name": c.name, "ok": False, "action": "pull failed", "error": str(pull_err)})
+                else:
+                    results.append({"name": c.name, "ok": False, "action": "update", "error": "Could not determine image name"})
+        except docker.errors.APIError as e:
+            results.append({"name": c.name, "ok": False, "action": action, "error": str(e)})
+
+    # After update, run docker compose up -d if compose file exists
+    if action == "update":
+        compose_path = apply_mod.find_compose_file()
+        if compose_path:
+            run_result = apply_mod.run_compose_up(compose_path)
+            return {
+                "results": results,
+                "compose_up": run_result,
+                "total": len(results),
+                "ok": sum(1 for r in results if r["ok"]),
+            }
+
+    return {
+        "results": results,
+        "total": len(results),
+        "ok": sum(1 for r in results if r["ok"]),
+    }
