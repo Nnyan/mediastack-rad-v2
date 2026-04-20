@@ -61,7 +61,7 @@
             <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Timezone</div>
             <input v-model="opts.timezone" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="UTC" />
           </label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
             <label style="display:block">
               <div style="font-size:11px;color:var(--muted);margin-bottom:3px">PUID</div>
               <input v-model="opts.puid" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="1000" type="number" />
@@ -70,6 +70,23 @@
               <div style="font-size:11px;color:var(--muted);margin-bottom:3px">PGID</div>
               <input v-model="opts.pgid" class="search-input" style="width:100%;max-width:none;font-size:11px" placeholder="1000" type="number" />
             </label>
+          </div>
+
+          <!-- External Plex -->
+          <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+              <input type="checkbox" v-model="opts.use_external_plex" style="cursor:pointer" />
+              <span style="font-size:11px;color:var(--text);font-weight:500">Use existing Plex server</span>
+            </label>
+            <template v-if="opts.use_external_plex">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Plex server URL</div>
+              <input v-model="opts.external_plex_url" class="search-input" style="width:100%;max-width:none;font-size:11px"
+                placeholder="http://10.0.1.60:32400 or http://plex:32400" />
+              <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">
+                Plex will not be added as a container. Overseerr will be configured to connect to this URL.
+                Use the server's IP if Plex is on a different machine.
+              </div>
+            </template>
           </div>
         </div>
 
@@ -110,6 +127,9 @@
         <!-- Selected list -->
         <div v-if="resolvedServices.length" class="card">
           <div class="section-title" style="margin-bottom:8px">Will deploy ({{ resolvedServices.length }})</div>
+          <div v-if="opts.use_external_plex && opts.external_plex_url" style="font-size:10px;color:var(--info,#388bfd);margin-bottom:8px;padding:5px 8px;background:#388bfd12;border:1px solid #388bfd30;border-radius:4px">
+            Plex: using external server at {{ opts.external_plex_url }}
+          </div>
           <div style="display:grid;gap:3px">
             <div v-for="id in resolvedServices" :key="id"
               style="font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:6px">
@@ -163,7 +183,7 @@ import { API } from "@/composables/useApi.js";
 
 const catalog  = ref({});
 const selected = ref(new Set());
-const opts     = ref({ base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000 });
+const opts     = ref({ base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000, external_plex_url: "", use_external_plex: false });
 const sys      = ref(null);
 const previewing   = ref(false);
 const deploying    = ref(false);
@@ -217,9 +237,10 @@ function toggleService(id) {
 async function doPreview() {
   previewing.value = true;
   try {
+    const options = { ...opts.value, external_plex_url: opts.value.use_external_plex ? opts.value.external_plex_url : "" };
     const r = await API.post("/generator/preview", {
       selected: [...selected.value],
-      options: opts.value,
+      options,
     });
     previewYaml.value = r.yaml;
   } catch (e) {
@@ -233,9 +254,10 @@ async function doDeploy() {
   confirmDeploy.value = false;
   deploying.value = true;
   try {
+    const options = { ...opts.value, external_plex_url: opts.value.use_external_plex ? opts.value.external_plex_url : "" };
     const r = await API.post("/generator/deploy", {
       selected: [...selected.value],
-      options: opts.value,
+      options,
       dry_run: false,
     });
     output.value = r;

@@ -392,8 +392,13 @@ def generate_compose(
     timezone: str = "UTC",
     puid: int = 1000,
     pgid: int = 1000,
+    external_plex_url: str = "",
 ) -> str:
-    """Generate a complete docker-compose.yml as a string."""
+    """Generate a complete docker-compose.yml as a string.
+
+    If external_plex_url is set, Plex is not added as a service —
+    Overseerr and other apps that need Plex will use that URL instead.
+    """
     ordered = resolve_deps(selected)
 
     yaml = YAML()
@@ -403,8 +408,15 @@ def generate_compose(
 
     services: CommentedMap = CommentedMap()
 
+    # If external Plex is configured, skip generating the plex service
+    skip_services = set()
+    if external_plex_url:
+        skip_services.add("plex")
+
     for svc_id in ordered:
         if svc_id not in SERVICE_CATALOG:
+            continue
+        if svc_id in skip_services:
             continue
         template = SERVICE_CATALOG[svc_id]
 
@@ -444,9 +456,14 @@ def generate_compose(
                 elif k in ("PGID",):
                     val = str(pgid)
                 env[k] = val
+            # Inject external Plex URL into Overseerr config
+            if svc_id == "overseerr" and external_plex_url:
+                env["PLEX_HOSTNAME"] = external_plex_url.rstrip("/").replace("http://", "").replace("https://", "").split(":")[0]
+                env["PLEX_PORT"] = external_plex_url.rstrip("/").split(":")[-1] if ":" in external_plex_url.split("//")[-1] else "32400"
+                env["PLEX_URL_OVERRIDE"] = external_plex_url.rstrip("/")
             svc["environment"] = env
 
-        deps = [d for d in template.get("depends_on", []) if d in set(ordered)]
+        deps = [d for d in template.get("depends_on", []) if d in set(ordered) and d not in skip_services]
         if deps:
             dep_map: CommentedMap = CommentedMap()
             for d in deps:

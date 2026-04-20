@@ -480,12 +480,13 @@ def preview_compose(payload: dict = Body(...)):
     try:
         content = generator_mod.generate_compose(
             selected,
-            network_name = options.get("network", "mediastack"),
-            base_data    = options.get("base_data", "/opt/mediastack"),
-            media_path   = options.get("media_path", "/mnt/media"),
-            timezone     = options.get("timezone", "UTC"),
-            puid         = int(options.get("puid", 1000)),
-            pgid         = int(options.get("pgid", 1000)),
+            network_name      = options.get("network", "mediastack"),
+            base_data         = options.get("base_data", "/opt/mediastack"),
+            media_path        = options.get("media_path", "/mnt/media"),
+            timezone          = options.get("timezone", "UTC"),
+            puid              = int(options.get("puid", 1000)),
+            pgid              = int(options.get("pgid", 1000)),
+            external_plex_url = options.get("external_plex_url", ""),
         )
         ordered = generator_mod.resolve_deps(selected)
         return {"yaml": content, "services": ordered}
@@ -508,12 +509,13 @@ def deploy_stack(payload: dict = Body(...)):
     try:
         content = generator_mod.generate_compose(
             selected,
-            network_name = options.get("network", "mediastack"),
-            base_data    = options.get("base_data", "/opt/mediastack"),
-            media_path   = options.get("media_path", "/mnt/media"),
-            timezone     = options.get("timezone", "UTC"),
-            puid         = int(options.get("puid", 1000)),
-            pgid         = int(options.get("pgid", 1000)),
+            network_name      = options.get("network", "mediastack"),
+            base_data         = options.get("base_data", "/opt/mediastack"),
+            media_path        = options.get("media_path", "/mnt/media"),
+            timezone          = options.get("timezone", "UTC"),
+            puid              = int(options.get("puid", 1000)),
+            pgid              = int(options.get("pgid", 1000)),
+            external_plex_url = options.get("external_plex_url", ""),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
