@@ -159,7 +159,7 @@ SERVICE_CATALOG: dict[str, dict[str, Any]] = {
         "depends_on": ["prowlarr"],
     },
     "readarr": {
-        "image": "linuxserver/readarr:develop",
+        "image": "linuxserver/readarr:latest",
         "category": "management",
         "description": "Book collection manager",
         "ports": ["8787:8787"],
