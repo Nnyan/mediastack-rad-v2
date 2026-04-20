@@ -60,6 +60,7 @@ SERVICE_CATALOG: dict[str, dict[str, Any]] = {
             "TUNNEL_TOKEN": "",
             "TUNNEL_TRANSPORT_PROTOCOL": "quic",
         },
+        "command": "tunnel --no-autoupdate run",
         "restart": "always",
         "depends_on": [],
     },
@@ -426,6 +427,9 @@ def generate_compose(
         svc["image"] = template["image"]
         svc["container_name"] = svc_id
         svc["restart"] = template["restart"]
+
+        if template.get("command"):
+            svc["command"] = template["command"]
 
         if template.get("cap_add"):
             svc["cap_add"] = template["cap_add"]
