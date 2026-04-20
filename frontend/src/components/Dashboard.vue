@@ -109,7 +109,12 @@ const filtered = computed(() => {
     const q = search.value.toLowerCase();
     list = list.filter(c => c.name.toLowerCase().includes(q) || c.image.toLowerCase().includes(q) || c.id.includes(q));
   }
-  return list.sort((a, b) => (b.status === "running" ? 1 : 0) - (a.status === "running" ? 1 : 0));
+  return list.sort((a, b) => {
+    const aRunning = a.status === "running" ? 0 : 1;
+    const bRunning = b.status === "running" ? 0 : 1;
+    if (aRunning !== bRunning) return aRunning - bRunning;
+    return a.name.localeCompare(b.name);
+  });
 });
 
 const byCategory = computed(() => {
@@ -118,6 +123,15 @@ const byCategory = computed(() => {
     const cat = getCategory(c.name, guessCategory(c.name, c.image));
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(c);
+  }
+  // Sort each category group by status then name
+  for (const cat of Object.keys(groups)) {
+    groups[cat].sort((a, b) => {
+      const aRunning = a.status === "running" ? 0 : 1;
+      const bRunning = b.status === "running" ? 0 : 1;
+      if (aRunning !== bRunning) return aRunning - bRunning;
+      return a.name.localeCompare(b.name);
+    });
   }
   return groups;
 });
