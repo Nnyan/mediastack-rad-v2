@@ -78,6 +78,12 @@ function choose(cat) {
 }
 
 // ── Web UI URL resolution ──────────────────────────────────────────────────────
+// Known apps where we must use a specific host port (not just the lowest)
+const KNOWN_PORTS = {
+  traefik: 8081,
+  portainer: 9000,
+};
+
 // Known apps that need a specific path prefix to land on the right page
 const KNOWN_PATHS = {
   plex:         "/web",
@@ -142,6 +148,9 @@ const webUiUrl = computed(() => {
   );
   const path = knownKey ? KNOWN_PATHS[knownKey] : "/";
 
+  // If we know the exact UI port for this app, use it directly
+  const preferredPort = knownKey ? KNOWN_PORTS[knownKey] : null;
+
   // Pick the best port:
   // Prefer known UI ports, skip non-web ports, take the lowest numbered web port
   const candidatePorts = Object.entries(ports)
@@ -157,7 +166,12 @@ const webUiUrl = computed(() => {
 
   if (!candidatePorts.length) return null;
 
-  const { hp } = candidatePorts[0];
+  // Use the preferred port if it's actually published, otherwise fall back to lowest
+  const preferredEntry = preferredPort
+    ? candidatePorts.find(p => p.hp === preferredPort)
+    : null;
+
+  const { hp } = preferredEntry || candidatePorts[0];
   const scheme = hp === 443 ? "https" : "http";
   return `${scheme}://${host}:${hp}${path}`;
 });

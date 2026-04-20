@@ -37,8 +37,10 @@ SERVICE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "environment": {
             "TRAEFIK_API_DASHBOARD": "true",
+            "TRAEFIK_API_INSECURE": "true",
             "TRAEFIK_ENTRYPOINTS_WEB_ADDRESS": ":80",
             "TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS": ":443",
+            "TRAEFIK_ENTRYPOINTS_TRAEFIK_ADDRESS": ":8081",
             "TRAEFIK_PROVIDERS_DOCKER": "true",
             "TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT": "false",
             "TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL": "admin@example.com",
