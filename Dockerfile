@@ -16,7 +16,6 @@ FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
-# Copy docker binary + compose plugin from official docker:cli image
 COPY --from=docker-cli /usr/local/bin/docker                  /usr/local/bin/docker
 COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins  /usr/local/libexec/docker/cli-plugins
 
@@ -30,9 +29,9 @@ COPY backend/main.py \
      backend/compose_import.py \
      backend/traefik.py \
      backend/apply.py \
+     backend/generator.py \
      ./
 
-# Copy built Vue assets so FastAPI serves them
 COPY --from=frontend-builder /frontend/dist ./static
 
 EXPOSE 8090
