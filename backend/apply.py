@@ -23,6 +23,23 @@ COMPOSE_SEARCH_PATHS = [
 
 # ── System checks ─────────────────────────────────────────────────────────────
 
+def find_compose_dir() -> str | None:
+    """Return the compose directory if it is mounted and writable."""
+    explicit = os.environ.get(COMPOSE_FILE_ENV, "").strip()
+    if explicit:
+        d = os.path.dirname(explicit)
+        if os.path.isdir(d) and os.access(d, os.W_OK):
+            return d
+    for p in COMPOSE_SEARCH_PATHS:
+        d = os.path.dirname(p)
+        if os.path.isdir(d) and os.access(d, os.W_OK):
+            return d
+    # Fall back: check /compose directly
+    if os.path.isdir("/compose") and os.access("/compose", os.W_OK):
+        return "/compose"
+    return None
+
+
 def find_compose_file() -> str | None:
     explicit = os.environ.get(COMPOSE_FILE_ENV, "").strip()
     if explicit and os.path.isfile(explicit):
@@ -35,17 +52,18 @@ def find_compose_file() -> str | None:
 
 def system_status() -> dict[str, Any]:
     compose_path = find_compose_file()
+    compose_dir  = find_compose_dir()
     docker_bin = shutil.which("docker")
     socket_path = "/var/run/docker.sock"
     socket_exists = os.path.exists(socket_path)
     socket_writable = os.access(socket_path, os.W_OK) if socket_exists else False
 
     issues = []
-    if not compose_path:
+    if not compose_dir:
         issues.append(
-            "Compose file not found. Mount your compose directory: "
-            "add '- /path/to/your/stack:/compose' to mediastack-rad's volumes "
-            "in your host's docker-compose.yml, then set COMPOSE_FILE_PATH=/compose/docker-compose.yml"
+            "Compose directory not mounted. "
+            "Set COMPOSE_DIR in .env to your stack folder path, "
+            "then run: docker compose down && docker compose up -d"
         )
     if not docker_bin:
         issues.append(
@@ -55,14 +73,14 @@ def system_status() -> dict[str, Any]:
     if not socket_writable:
         issues.append(
             "Docker socket is read-only or missing. "
-            "Remove ':ro' from the socket volume in docker-compose.yml: "
-            "change '/var/run/docker.sock:/var/run/docker.sock:ro' "
-            "to '/var/run/docker.sock:/var/run/docker.sock'"
+            "Remove ':ro' from the socket volume in docker-compose.yml."
         )
 
     return {
         "compose_path": compose_path,
+        "compose_dir":  compose_dir,
         "compose_found": compose_path is not None,
+        "compose_dir_ready": compose_dir is not None,
         "docker_bin": docker_bin,
         "docker_available": docker_bin is not None,
         "socket_writable": socket_writable,

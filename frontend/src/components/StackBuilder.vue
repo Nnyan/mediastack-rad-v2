@@ -87,12 +87,12 @@
               <span v-if="previewing" class="spinner" style="width:11px;height:11px" />
               Preview YAML
             </button>
-            <button class="btn btn-primary btn-sm" :disabled="!selected.size || deploying || !sys?.compose_found" @click="confirmDeploy=true">
+            <button class="btn btn-primary btn-sm" :disabled="!selected.size || deploying || !sys?.compose_dir_ready" @click="confirmDeploy=true">
               <span v-if="deploying" class="spinner" style="width:11px;height:11px" />
               Save &amp; deploy stack
             </button>
-            <div v-if="!sys?.compose_found" style="font-size:10px;color:var(--warning);margin-top:2px">
-              ⚠ Compose directory not mounted — COMPOSE_DIR not set
+            <div v-if="!sys?.compose_dir_ready" style="font-size:10px;color:var(--warning);margin-top:2px">
+              ⚠ Compose directory not mounted — set COMPOSE_DIR in .env
             </div>
           </div>
 
