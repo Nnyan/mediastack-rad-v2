@@ -642,6 +642,10 @@ def bulk_action(action: str, payload: dict = Body(...)):
     if action == "update":
         compose_path = apply_mod.find_compose_file()
         if compose_path:
+            import subprocess
+            cmd_down = ["docker", "compose", "-f", compose_path, "down"]
+            subprocess.run(cmd_down, capture_output=True, timeout=120,
+                           cwd=os.path.dirname(compose_path))
             run_result = apply_mod.run_compose_up(compose_path)
             return {
                 "results": results,
