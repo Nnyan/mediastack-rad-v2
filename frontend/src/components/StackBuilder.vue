@@ -218,8 +218,28 @@ import { ref, computed, onMounted, watch } from "vue";
 import { API } from "@/composables/useApi.js";
 
 const catalog  = ref({});
-const selected = ref(new Set());
-const opts     = ref({ base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000, external_plex_url: "", use_external_plex: false });
+const selected = ref(loadSelected());
+const OPTS_KEY     = "msr-builder-opts";
+const SELECTED_KEY = "msr-builder-selected";
+
+function loadOpts() {
+  try {
+    const saved = localStorage.getItem(OPTS_KEY);
+    if (saved) return { base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000, external_plex_url: "", use_external_plex: false, ...JSON.parse(saved) };
+  } catch {}
+  return { base_data: "/opt/mediastack", media_path: "/mnt/media", network: "mediastack", timezone: "UTC", puid: 1000, pgid: 1000, external_plex_url: "", use_external_plex: false };
+}
+
+function loadSelected() {
+  try {
+    const saved = localStorage.getItem(SELECTED_KEY);
+    if (saved) return new Set(JSON.parse(saved));
+  } catch {}
+  return new Set();
+}
+
+const opts     = ref(loadOpts());
+
 const sys      = ref(null);
 const previewing   = ref(false);
 const deploying    = ref(false);
@@ -327,6 +347,8 @@ async function checkPorts() {
 }
 
 watch(selected, checkPorts, { deep: true });
+watch(selected, (s) => { try { localStorage.setItem(SELECTED_KEY, JSON.stringify([...s])); } catch {} }, { deep: true });
+watch(opts, (o) => { try { localStorage.setItem(OPTS_KEY, JSON.stringify(o)); } catch {} }, { deep: true });
 
 onMounted(async () => {
   try {
