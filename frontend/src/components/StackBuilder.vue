@@ -104,7 +104,7 @@
               <span v-if="previewing" class="spinner" style="width:11px;height:11px" />
               Preview YAML
             </button>
-            <button class="btn btn-primary btn-sm" :disabled="!selected.size || deploying || !sys?.compose_dir_ready" @click="confirmDeploy=true">
+            <button class="btn btn-primary btn-sm" :disabled="!selected.size || deploying || !sys?.compose_dir_ready || (portReport && portReport.critical > 0)" @click="confirmDeploy=true">
               <span v-if="deploying" class="spinner" style="width:11px;height:11px" />
               Save &amp; deploy stack
             </button>
@@ -140,6 +140,42 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Port conflict report -->
+    <div v-if="portReport && portReport.conflicts.length" style="margin-top:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:8px 14px;background:var(--surface2);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;font-family:var(--mono);font-weight:600;flex:1">Port conflicts detected</span>
+        <span v-if="portReport.critical" style="font-size:11px;font-weight:700;color:var(--danger)">
+          {{ portReport.critical }} critical
+        </span>
+        <span v-if="portReport.warnings" style="font-size:11px;font-weight:700;color:var(--warning);margin-left:8px">
+          {{ portReport.warnings }} warning{{ portReport.warnings !== 1 ? "s" : "" }}
+        </span>
+      </div>
+      <div style="padding:12px 14px;display:grid;gap:8px">
+        <div v-for="(c, i) in portReport.conflicts" :key="i"
+          :style="`padding:10px 12px;border-radius:6px;border:1px solid ${c.severity==='critical'?'#da363340':'#d2992240'};background:${c.severity==='critical'?'#da363312':'#d2992212'}`">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span :style="`font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:20px;background:${c.severity==='critical'?'#da363325':'#d2992225'};color:${c.severity==='critical'?'#ff8080':'#d29922'}`">
+              {{ c.severity }}
+            </span>
+            <span style="font-family:var(--mono);font-size:11px;font-weight:600">Port {{ c.port }}</span>
+            <span v-for="svc in c.services" :key="svc" class="port-pill" style="font-size:10px">{{ svc }}</span>
+            <span v-if="c.running_container" style="font-size:10px;color:var(--muted)">
+              conflicts with running container: <strong>{{ c.running_container }}</strong>
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">{{ c.message }}</div>
+          <div style="font-size:11px;color:var(--info,#388bfd);font-family:var(--mono);background:#388bfd12;padding:5px 8px;border-radius:4px">
+            Fix: {{ c.fix }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="portReport && portReport.ok && selected.size" style="margin-top:12px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--primary)">
+      <span>✓</span> No port conflicts detected across {{ portReport.port_map ? Object.keys(portReport.port_map).length : 0 }} ports
     </div>
 
     <!-- Output terminal -->
@@ -178,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { API } from "@/composables/useApi.js";
 
 const catalog  = ref({});
@@ -273,6 +309,24 @@ async function copyYaml() {
   copied.value = true;
   setTimeout(() => { copied.value = false; }, 2000);
 }
+
+const portReport  = ref(null);
+const portChecking = ref(false);
+
+async function checkPorts() {
+  if (!selected.value.size) { portReport.value = null; return; }
+  portChecking.value = true;
+  try {
+    const r = await API.post("/ports/check", {
+      selected: [...selected.value],
+      extra_ports: {},
+    });
+    portReport.value = r;
+  } catch { portReport.value = null; }
+  finally { portChecking.value = false; }
+}
+
+watch(selected, checkPorts, { deep: true });
 
 onMounted(async () => {
   try {

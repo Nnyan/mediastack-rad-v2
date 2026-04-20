@@ -543,3 +543,48 @@ if os.path.isdir(FRONTEND_DIST):
         if os.path.isfile(index):
             return FileResponse(index)
         raise HTTPException(status_code=404, detail="Frontend not built")
+
+
+# ── Port checker ───────────────────────────────────────────────────────────────
+
+import port_check as port_check_mod
+
+@app.post("/api/ports/check")
+def check_ports(payload: dict = Body(...)):
+    selected    = payload.get("selected", [])
+    extra_ports = payload.get("extra_ports", {})   # {svc_id: ["host:container"]}
+
+    # Use the generator catalog as the source of truth
+    catalog = {
+        svc_id: {"ports": svc["ports"]}
+        for svc_id, svc in generator_mod.SERVICE_CATALOG.items()
+    }
+
+    try:
+        client = get_docker()
+    except HTTPException:
+        client = None
+
+    result = port_check_mod.check_selection(
+        selected_services=selected,
+        catalog=catalog,
+        docker_client=client,
+        extra_ports=extra_ports or None,
+    )
+    return result
+
+
+@app.get("/api/ports/catalog")
+def catalog_port_conflicts():
+    catalog = {
+        svc_id: {"ports": svc["ports"]}
+        for svc_id, svc in generator_mod.SERVICE_CATALOG.items()
+    }
+    return {
+        "conflicts": port_check_mod.check_catalog_conflicts(catalog),
+        "port_map": {
+            svc_id: port_check_mod._host_ports_from_mapping(svc["ports"])
+            for svc_id, svc in generator_mod.SERVICE_CATALOG.items()
+            if svc["ports"]
+        },
+    }

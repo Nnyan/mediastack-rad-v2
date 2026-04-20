@@ -29,6 +29,7 @@ COPY backend/main.py \
      backend/compose_import.py \
      backend/traefik.py \
      backend/apply.py \
+     backend/port_check.py \
      backend/generator.py \
      ./
 
