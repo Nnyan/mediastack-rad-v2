@@ -339,20 +339,6 @@ async def stats_stream(websocket: WebSocket):
         log.info("WebSocket stats client disconnected")
 
 
-# ── Serve Vue frontend (production) ──────────────────────────────────────────
-
-FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "static")
-
-if os.path.isdir(FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def serve_spa(_full_path: str = ""):
-        index = os.path.join(FRONTEND_DIST, "index.html")
-        if os.path.isfile(index):
-            return FileResponse(index)
-        raise HTTPException(status_code=404, detail="Frontend not built")
-
 
 # ── Traefik ────────────────────────────────────────────────────────────────────
 
@@ -540,3 +526,18 @@ def deploy_stack(payload: dict = Body(...)):
     result = generator_mod.deploy_compose(saved_path)
     return {**result, "saved_path": saved_path,
             "services": generator_mod.resolve_deps(selected)}
+
+
+# ── Serve Vue frontend — MUST be last so it doesn't shadow API routes ─────────
+
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "static")
+
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_spa(_full_path: str = ""):
+        index = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+        raise HTTPException(status_code=404, detail="Frontend not built")
