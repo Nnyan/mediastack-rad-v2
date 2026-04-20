@@ -3,6 +3,20 @@
     <div class="container-card-header">
       <div class="container-card-name">{{ container.name }}</div>
       <StatusBadge :status="container.status" />
+
+      <!-- Open Web UI button — only shown when a web UI port is known -->
+      <a
+        v-if="webUiUrl"
+        :href="webUiUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-sm"
+        style="padding:2px 7px;font-size:10px;text-decoration:none;color:var(--info,#388bfd);border-color:var(--info,#388bfd)40"
+        title="Open web UI in new tab"
+        @click.stop
+      >↗ UI</a>
+
+      <!-- Category menu -->
       <div style="position:relative" @click.stop>
         <button class="btn btn-sm" style="padding:2px 6px;font-size:10px" @click="showMenu=!showMenu" title="Change category">⋮</button>
         <div v-if="showMenu" style="position:absolute;right:0;top:100%;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 0;min-width:140px;margin-top:2px">
@@ -62,4 +76,89 @@ function choose(cat) {
   showMenu.value = false;
   emit("recategorize", cat);
 }
+
+// ── Web UI URL resolution ──────────────────────────────────────────────────────
+// Known apps that need a specific path prefix to land on the right page
+const KNOWN_PATHS = {
+  plex:         "/web",
+  sonarr:       "/",
+  radarr:       "/",
+  lidarr:       "/",
+  readarr:      "/",
+  prowlarr:     "/",
+  bazarr:       "/",
+  overseerr:    "/",
+  jellyfin:     "/web",
+  qbittorrent:  "/",
+  sabnzbd:      "/sabnzbd",
+  nzbget:       "/",
+  autobrr:      "/",
+  traefik:      "/dashboard/",
+  portainer:    "/",
+  heimdall:     "/",
+  jellyseerr:   "/",
+  overseerr:    "/",
+  tautulli:     "/",
+  requestrr:    "/",
+  flaresolverr: "/",
+  unpackerr:    "/",
+};
+
+// Ports that are NOT web UIs and should be skipped
+const NON_WEB_PORTS = new Set([
+  22,    // SSH
+  53,    // DNS
+  80,    // handled below
+  443,   // HTTPS — usually not a local UI
+  1194,  // OpenVPN
+  1900,  // SSDP/UPnP
+  3478,  // STUN
+  4444,  // various
+  5353,  // mDNS
+  6881,  // BitTorrent
+  6882,  // BitTorrent
+  7359,  // Jellyfin discovery
+  8443,  // HTTPS alt
+  9091,  // Transmission — actually is a UI, added to known below
+  32410, // Plex GDM
+  32412, // Plex GDM
+  32413, // Plex GDM
+  32414, // Plex GDM
+  32469, // Plex DLNA
+  51413, // BitTorrent
+]);
+
+const webUiUrl = computed(() => {
+  const ports = props.container.ports;
+  if (!ports || !Object.keys(ports).length) return null;
+
+  const host = window.location.hostname;
+  const name  = props.container.name.toLowerCase().replace(/[-_]/g, "");
+  const image = (props.container.image || "").toLowerCase();
+
+  // Find the app name match in KNOWN_PATHS
+  const knownKey = Object.keys(KNOWN_PATHS).find(k =>
+    name.includes(k) || image.includes(k)
+  );
+  const path = knownKey ? KNOWN_PATHS[knownKey] : "/";
+
+  // Pick the best port:
+  // Prefer known UI ports, skip non-web ports, take the lowest numbered web port
+  const candidatePorts = Object.entries(ports)
+    .flatMap(([containerPort, hostBindings]) => {
+      if (!hostBindings?.length) return [];
+      const cp = parseInt(containerPort.split("/")[0]);
+      const hp = parseInt(hostBindings[0]);
+      if (NON_WEB_PORTS.has(hp)) return [];
+      if (NON_WEB_PORTS.has(cp)) return [];
+      return [{ hp, cp }];
+    })
+    .sort((a, b) => a.hp - b.hp);
+
+  if (!candidatePorts.length) return null;
+
+  const { hp } = candidatePorts[0];
+  const scheme = hp === 443 ? "https" : "http";
+  return `${scheme}://${host}:${hp}${path}`;
+});
 </script>
