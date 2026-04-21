@@ -3,17 +3,20 @@
 
     <!-- Header -->
     <div class="builder-header">
-      <div>
+      <div class="builder-header-left">
         <h1 class="page-title">Stack Builder</h1>
-        <div class="builder-subtitle muted small">
-          {{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected
-          <span v-if="selectedServices.length" class="selected-names">
-            · {{ selectedServices.join(', ').slice(0, 60) }}{{ selectedServices.join(', ').length > 60 ? '…' : '' }}
-          </span>
+        <div class="builder-subtitle">
+          <span class="sel-count">{{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected</span>
+          <div v-if="selectedServices.length" class="sel-pills">
+            <span
+              v-for="key in selectedServices" :key="key"
+              class="sel-pill"
+              :style="{ background: catBg(svcCategory(key)), color: catColor(svcCategory(key)), borderColor: catBorder(key) }"
+            >{{ svcDisplayName(key) }}</span>
+          </div>
         </div>
       </div>
       <div class="header-actions">
-        <button @click="addOpen = true">+ Add custom app</button>
         <button class="primary" :disabled="deploying" @click="deploy">
           {{ deploying ? 'Deploying…' : 'Deploy stack →' }}
         </button>
@@ -68,6 +71,26 @@
         <!-- Tunnel warning -->
         <div v-if="pick[svc.key] && pick['cloudflared'] && svc.cf_tunnel_unsuitable" class="tile-warn">
           ⚠ Not via CF Tunnel
+        </div>
+      </button>
+
+      <!-- Add custom app tile -->
+      <button
+        :class="['tile', 'tile-add', { on: addCustom }]"
+        @click="toggleAddCustom"
+      >
+        <div class="tile-top">
+          <span class="tile-icon">＋</span>
+          <div class="tile-check" :class="{ checked: addCustom }">
+            <svg v-if="addCustom" viewBox="0 0 12 12" fill="none">
+              <polyline points="2,6 5,9 10,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tile-name">Custom app</div>
+        <div class="tile-desc">Add via compose or image URL</div>
+        <div class="tile-foot">
+          <span class="tile-tag" style="background:var(--bg-2);color:var(--fg-2);border-color:var(--border)">Custom</span>
         </div>
       </button>
     </div>
@@ -252,6 +275,38 @@
         </template>
       </CfgSection>
 
+      <!-- Add custom app (inline, not a modal) -->
+      <CfgSection v-if="addCustom" title="Add custom app" icon="＋"
+        badge-color="var(--fg-2)"
+        :open="expanded === 'custom'" @toggle="toggle_cfg('custom')">
+        <div class="tab-row" style="margin-top:10px">
+          <button v-for="[t, label] in [['compose','Paste docker-compose'],['url','Image URL'],['file','Upload file']]"
+            :key="t" :class="['tab-btn', { active: addTab === t }]" @click="addTab = t">{{ label }}</button>
+        </div>
+        <template v-if="addTab === 'compose'">
+          <p class="cfg-hint" style="margin:8px 0 6px">Paste a <code>docker-compose.yml</code> fragment — it will be parsed and merged into your stack.</p>
+          <textarea v-model="addInput" class="compose-textarea" placeholder="services:
+  myapp:
+    image: ghcr.io/author/myapp:latest
+    ports:
+      - &quot;8123:8123&quot;"></textarea>
+        </template>
+        <template v-else-if="addTab === 'url'">
+          <p class="cfg-hint" style="margin:8px 0 6px">Enter a Docker Hub image name or full registry URL. Sensible defaults will be generated.</p>
+          <input v-model="addInput" placeholder="lscr.io/linuxserver/heimdall  or  portainer/portainer-ce" class="url-input" style="margin-bottom:4px" />
+        </template>
+        <template v-else>
+          <div class="file-drop" style="margin-top:10px">
+            <div class="file-drop-icon">📄</div>
+            <div class="file-drop-title">Drop a compose file here</div>
+            <div class="file-drop-sub">or click to browse — .yml and .yaml supported</div>
+          </div>
+        </template>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button class="primary">Parse & add →</button>
+        </div>
+      </CfgSection>
+
       <!-- Preview / deploy -->
       <CfgSection title="Review & deploy" icon="🚀"
         :open="expanded === 'deploy'" @toggle="toggle_cfg('deploy')">
@@ -270,45 +325,6 @@
           <pre class="output mono">{{ deployOutput }}</pre>
         </div>
       </CfgSection>
-    </div>
-
-    <!-- Add custom app modal -->
-    <div v-if="addOpen" class="modal-backdrop" @click.self="addOpen = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">Add custom app</span>
-          <button class="modal-close" @click="addOpen = false">✕</button>
-        </div>
-        <div class="tab-row">
-          <button v-for="[t, label] in [['compose','Paste docker-compose'],['url','Image URL'],['file','Upload file']]"
-            :key="t" :class="['tab-btn', { active: addTab === t }]" @click="addTab = t">{{ label }}</button>
-        </div>
-        <div class="modal-body">
-          <template v-if="addTab === 'compose'">
-            <p class="modal-hint">Paste a <code>docker-compose.yml</code> fragment — it will be parsed and merged into your stack.</p>
-            <textarea v-model="addInput" class="compose-textarea" placeholder="services:
-  myapp:
-    image: ghcr.io/author/myapp:latest
-    ports:
-      - &quot;8123:8123&quot;"></textarea>
-          </template>
-          <template v-else-if="addTab === 'url'">
-            <p class="modal-hint">Enter a Docker Hub image name or full registry URL. Sensible defaults will be generated.</p>
-            <input v-model="addInput" placeholder="lscr.io/linuxserver/heimdall  or  portainer/portainer-ce" class="url-input" />
-          </template>
-          <template v-else>
-            <div class="file-drop">
-              <div class="file-drop-icon">📄</div>
-              <div class="file-drop-title">Drop a compose file here</div>
-              <div class="file-drop-sub">or click to browse — .yml and .yaml supported</div>
-            </div>
-          </template>
-        </div>
-        <div class="modal-footer">
-          <button @click="addOpen = false">Cancel</button>
-          <button class="primary">Parse & add →</button>
-        </div>
-      </div>
     </div>
 
     <!-- Sticky bottom bar -->
@@ -340,7 +356,7 @@ const search = ref('')
 const activeFilter = ref('')
 const expanded = ref('core')
 const plexMode = ref('local')
-const addOpen = ref(false)
+const addCustom = ref(false)
 const addTab = ref('compose')
 const addInput = ref('')
 const previewText = ref('')
@@ -453,6 +469,10 @@ function isLive(key)        { return LIVE_SERVICES.includes(key) }
 function svcCategory(key)   { return flatServices.value.find(s => s.key === key)?.category || 'infra' }
 function svcDisplayName(key){ return flatServices.value.find(s => s.key === key)?.display_name || key }
 function toggle(key)        { pick[key] = !pick[key] }
+function toggleAddCustom()  {
+  addCustom.value = !addCustom.value
+  if (addCustom.value) expanded.value = 'custom'
+}
 function toggle_cfg(id)     { expanded.value = expanded.value === id ? '' : id }
 
 // ── API ────────────────────────────────────────────────────────────────────
@@ -561,9 +581,25 @@ export const CfgSection = {
   margin-bottom: var(--space-4);
   gap: var(--space-4);
 }
-.builder-subtitle { margin-top: 2px; font-size: 12px; }
-.selected-names { color: var(--accent); font-weight: 600; }
-.header-actions { display: flex; gap: var(--space-2); align-items: center; flex-shrink: 0; }
+.builder-header { align-items: flex-start; }
+.builder-header-left { flex: 1; min-width: 0; }
+.builder-subtitle { margin-top: 6px; }
+.sel-count { font-size: 12px; color: var(--fg-2); display: block; margin-bottom: 6px; }
+.sel-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.sel-pill {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.header-actions { display: flex; gap: var(--space-2); align-items: flex-start; flex-shrink: 0; padding-top: 2px; }
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
 .filter-row {
@@ -716,6 +752,11 @@ export const CfgSection = {
   margin-top: 4px;
   font-weight: 500;
 }
+.tile-add { border-style: dashed; background: var(--bg-0); }
+.tile-add:hover { border-color: var(--accent); border-style: dashed; }
+.tile-add.on { border-color: var(--accent); border-style: solid; background: var(--accent-subtle); }
+.tile-add .tile-icon { font-size: 16px; color: var(--fg-2); }
+.tile-add.on .tile-icon { color: var(--accent); }
 
 /* ── Config accordion ───────────────────────────────────────────────────── */
 .config-area { display: flex; flex-direction: column; gap: 6px; }
@@ -854,18 +895,7 @@ export const CfgSection = {
 .output-block.err .output-label { background: var(--err-bg); color: var(--err); }
 .output-block .output { border-top: none; border-radius: 0; }
 
-/* ── Add custom app modal ───────────────────────────────────────────────── */
-.modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center; z-index: 200;
-}
-.modal {
-  background: var(--bg-1); border-radius: 12px; padding: 24px; width: 520px;
-  box-shadow: var(--shadow-2); border: 1.5px solid var(--border);
-}
-.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.modal-title { font-size: 15px; font-weight: 700; color: var(--fg-0); }
-.modal-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--fg-2); padding: 0; }
+/* custom app section shares tab-row/compose-textarea styles below */
 .tab-row { display: flex; background: var(--bg-0); border-radius: 7px; padding: 3px; gap: 2px; margin-bottom: 14px; }
 .tab-btn {
   flex: 1; padding: 5px 8px; border-radius: 5px; border: none;
@@ -873,8 +903,6 @@ export const CfgSection = {
   background: transparent; color: var(--fg-2); transition: all 0.13s;
 }
 .tab-btn.active { background: var(--bg-1); color: var(--fg-0); box-shadow: var(--shadow-1); }
-.modal-hint { font-size: 12px; color: var(--fg-1); margin: 0 0 8px; }
-.modal-hint code { font-family: var(--font-mono); background: var(--bg-2); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 .compose-textarea {
   font-family: var(--font-mono); font-size: 11.5px; width: 100%; height: 160px; resize: vertical;
   background: #0e0f14; color: #e8eaf5; border: 1.5px solid #252a3d; border-radius: 7px;
@@ -892,8 +920,6 @@ export const CfgSection = {
 .file-drop-icon { font-size: 26px; margin-bottom: 6px; }
 .file-drop-title { font-size: 13.5px; font-weight: 600; color: var(--fg-0); margin-bottom: 3px; }
 .file-drop-sub { font-size: 12px; color: var(--fg-2); }
-.modal-body { margin-bottom: 16px; }
-.modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* ── Sticky bottom bar ──────────────────────────────────────────────────── */
 .bottom-bar {
