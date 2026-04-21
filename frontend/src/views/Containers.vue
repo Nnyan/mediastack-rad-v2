@@ -31,7 +31,7 @@
         :key="c.id"
         class="card"
         :class="{ selected: selected.has(c.name) }"
-        @click.self="toggleSelect(c.name)"
+        @click.self="toggleSelect(c.name); confirmRemove = null"
       >
         <div class="flex items-center justify-between mb-2">
           <label class="flex items-center gap-2" style="cursor: pointer">
@@ -81,24 +81,69 @@
         </div>
         <div v-else class="small muted mono">{{ c.status }}</div>
 
-        <div class="ports mono tiny mb-2" v-if="c.ports && c.ports.length">
-          <span v-for="(p, i) in c.ports" :key="i" class="port">
-            {{ p.host_port ? `${p.host_port}:${p.container_port}` : p.container_port }}/{{ p.protocol }}
+        <!-- Ports -->
+        <div class="ports mono" v-if="c.ports && c.ports.length">
+          <span v-for="(p, i) in c.ports.filter(p => p.host_port)" :key="i" class="port">
+            {{ p.host_port }}:{{ p.container_port }}
           </span>
         </div>
 
-        <div class="flex gap-2">
-          <button v-if="c.status !== 'running'" @click.stop="action(c.name, 'start')">Start</button>
-          <button v-else @click.stop="action(c.name, 'stop')">Stop</button>
-          <button @click.stop="action(c.name, 'restart')">Restart</button>
-          <button @click.stop="showLogs(c.name)">Logs</button>
-          <a
-            v-if="webUiUrl(c)"
-            :href="webUiUrl(c)"
-            target="_blank"
-            class="btn-open"
-            @click.stop
-          >Open ↗</a>
+        <!-- Action buttons -->
+        <div class="card-footer">
+          <div class="card-actions">
+            <button
+              v-if="c.status !== 'running'"
+              class="act-btn act-start"
+              @click.stop="action(c.name, 'start')"
+              title="Start"
+            >▶</button>
+            <button
+              v-else
+              class="act-btn act-stop"
+              @click.stop="action(c.name, 'stop')"
+              title="Stop"
+            >⏸</button>
+            <button
+              class="act-btn act-restart"
+              @click.stop="action(c.name, 'restart')"
+              title="Restart"
+            >↺</button>
+            <button
+              class="act-btn act-logs"
+              @click.stop="showLogs(c.name)"
+              title="View logs"
+            >≡</button>
+            <a
+              v-if="webUiUrl(c)"
+              :href="webUiUrl(c)"
+              target="_blank"
+              class="act-btn act-open"
+              @click.stop
+              title="Open app"
+            >↗</a>
+          </div>
+
+          <!-- Remove — two-step inline confirm -->
+          <div class="remove-area">
+            <template v-if="confirmRemove !== c.name">
+              <button
+                class="act-btn act-remove"
+                @click.stop="confirmRemove = c.name"
+                title="Remove container"
+              >✕</button>
+            </template>
+            <template v-else>
+              <span class="remove-confirm-label">Remove?</span>
+              <button
+                class="act-btn act-remove-confirm"
+                @click.stop="doRemove(c.name)"
+              >Yes</button>
+              <button
+                class="act-btn act-cancel"
+                @click.stop="confirmRemove = null"
+              >No</button>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -129,6 +174,7 @@ const selected = ref(new Set())
 const logsOpen = ref(false)
 const logsName = ref('')
 const logs = ref('')
+const confirmRemove = ref(null)  // container name pending remove confirmation
 
 let pollTimer = null
 let ws = null
@@ -218,6 +264,32 @@ async function action(name, kind) {
     }
   } catch (e) {
     showToast(`${kind} ${name} failed: ${e}`, 'err')
+  }
+}
+
+async function doRemove(name) {
+  confirmRemove.value = null
+  const container = containers.value.find(c => c.name === name)
+
+  // If running, stop first then remove
+  if (container?.status === 'running') {
+    showToast(`Stopping ${name}…`, 'warn', 2000)
+    const stopRes = await fetch(`/api/containers/${name}/stop`, { method: 'POST' })
+    if (!stopRes.ok) {
+      showToast(`Could not stop ${name} — remove cancelled`, 'err')
+      return
+    }
+    // Brief pause so Docker registers the stop
+    await new Promise(r => setTimeout(r, 800))
+  }
+
+  const r = await fetch(`/api/containers/${name}`, { method: 'DELETE' })
+  if (r.ok) {
+    showToast(`${name} removed`)
+    refresh()
+  } else {
+    const t = await r.text()
+    showToast(`Remove failed: ${t}`, 'err')
   }
 }
 
@@ -323,12 +395,108 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  color: var(--fg-2);
+  margin-bottom: var(--space-2);
 }
 .port {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-2);
   background: var(--bg-2);
-  padding: 1px 5px;
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Card footer: actions left, remove right */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
+  gap: var(--space-2);
+}
+.card-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Compact icon buttons */
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  border: 1.5px solid var(--border);
+  background: var(--bg-1);
+  color: var(--fg-1);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.act-btn:hover { border-color: var(--border-strong); background: var(--bg-2); color: var(--fg-0); }
+
+/* Per-button accent colors on hover */
+.act-start:hover  { border-color: var(--ok);   color: var(--ok);   background: var(--ok-bg); }
+.act-stop:hover   { border-color: var(--warn);  color: var(--warn); background: var(--warn-bg); }
+.act-restart:hover { border-color: var(--blue);  color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--bg-1)); }
+.act-logs:hover   { border-color: var(--purple); color: var(--purple); background: var(--accent-dim); }
+.act-open:hover   { border-color: var(--teal);  color: var(--teal); background: color-mix(in srgb, var(--teal) 8%, var(--bg-1)); }
+
+/* Remove — right side, muted until confirm */
+.remove-area {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.act-remove {
+  font-size: 11px;
+  color: var(--fg-2);
+  border-color: transparent;
+  background: transparent;
+}
+.act-remove:hover {
+  border-color: var(--err-dim);
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+/* Inline confirm state */
+.remove-confirm-label {
+  font-size: 11.5px;
+  color: var(--err);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.act-remove-confirm {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+}
+.act-remove-confirm:hover {
+  background: var(--err);
+  color: #fff;
+  border-color: var(--err);
+}
+.act-cancel {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-family: var(--font-sans);
 }
 
 .log-modal {
@@ -362,23 +530,5 @@ onUnmounted(() => {
   white-space: pre;
 }
 
-.btn-open {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  font-family: var(--font-sans);
-  color: var(--accent);
-  background: var(--bg-1);
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-  text-decoration: none;
-}
-.btn-open:hover {
-  background: var(--bg-2);
-  border-color: var(--border-strong);
-  text-decoration: none;
-}
+/* btn-open replaced by act-btn act-open */
 </style>
