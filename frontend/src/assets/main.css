@@ -34,6 +34,7 @@
   --err:    #e35d5d;      /* errors, stopped */
   --err-dim: #6b2b2b;
   --accent: #32cd32;      /* primary accent — phosphor green */
+  --accent-subtle: rgba(50, 205, 50, 0.08);
 
   --info:   #4fb2d9;
 
@@ -77,6 +78,12 @@ html[data-theme='light'] {
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
 
 body {
   font-family: var(--font-sans);
@@ -132,82 +139,10 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(50, 205, 50, 0.12);
 }
 
-/* ---- Layout primitives -------------------------------------------------- */
-
-.app-shell {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100vh;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  padding: 0 var(--space-5);
-  height: 48px;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
-  gap: var(--space-5);
-}
-
-.logo {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--accent);
-  font-size: 15px;
-}
-.logo .v { color: var(--fg-2); margin-left: 6px; font-weight: 400; }
-
-.nav {
-  display: flex;
-  gap: 2px;
-  flex: 1;
-}
-.nav a {
-  padding: 6px 14px;
-  color: var(--fg-1);
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-}
-.nav a:hover { color: var(--fg-0); background: var(--bg-2); text-decoration: none; }
-.nav a.router-link-active {
-  color: var(--fg-0);
-  background: var(--bg-2);
-}
-.nav .badge {
-  margin-left: 6px;
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  background: var(--err);
-  color: #fff;
-  font-weight: 600;
-  vertical-align: middle;
-}
-
-.topbar .info {
-  display: flex;
-  gap: var(--space-4);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--fg-2);
-}
-.topbar .info strong { color: var(--fg-0); font-weight: 500; }
-
-.theme-toggle {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.main {
-  overflow-y: auto;
-  padding: var(--space-5) var(--space-6);
-}
+/* ---- Layout primitives — shell handled in App.vue scoped styles ---------- */
 
 .page-title {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-2);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.01em;

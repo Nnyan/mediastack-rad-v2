@@ -1,227 +1,252 @@
 <template>
-  <div>
-    <h1 class="page-title">
-      Stack Builder
-      <span class="sub">select services · generate compose · deploy</span>
-    </h1>
-
-    <div class="card">
-      <h3 class="section-title">1. Global settings</h3>
-      <div class="settings-grid">
-        <label>
-          <span class="label">Base domain</span>
-          <input v-model="req.domain" placeholder="example.com" />
-          <span class="hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
-        </label>
-        <label>
-          <span class="label">Timezone</span>
-          <input v-model="req.timezone" placeholder="America/Los_Angeles" />
-        </label>
-        <label>
-          <span class="label">PUID / PGID</span>
-          <div class="flex gap-2">
-            <input v-model.number="req.puid" type="number" />
-            <input v-model.number="req.pgid" type="number" />
-          </div>
-        </label>
-        <label>
-          <span class="label">Config root</span>
-          <input v-model="req.config_root" />
-        </label>
-        <label style="grid-column: span 2">
-          <span class="label">Media root</span>
-          <input v-model="req.media_root" />
-          <span class="hint">Containing subdirs: tv, movies, downloads, etc.</span>
-        </label>
-        <label style="grid-column: span 2">
-          <span class="label">Cloudflare API token</span>
-          <input
-            v-model="req.cloudflare_token"
-            type="password"
-            placeholder="token with Zone:DNS:Edit + Zone:Zone:Read"
-          />
-          <span class="hint">
-            Generate at
-            <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">
-              dash.cloudflare.com/profile/api-tokens
-            </a>
-          </span>
-        </label>
-        <label style="grid-column: span 2">
-          <span class="label">External Plex URL (optional)</span>
-          <input
-            v-model="req.external_plex_url"
-            placeholder="http://192.168.1.5:32400"
-          />
-          <span class="hint">Leave blank to include containerized Plex in the stack.</span>
-        </label>
+  <div class="builder">
+    <div class="builder-header">
+      <div>
+        <h1 class="page-title">Stack Builder</h1>
+        <p class="muted small">Configure your services, generate the compose file, and deploy.</p>
+      </div>
+      <div class="step-indicator">
+        <span :class="['step', currentStep >= 1 ? 'active' : '']">1 Settings</span>
+        <span class="step-sep">→</span>
+        <span :class="['step', currentStep >= 2 ? 'active' : '']">2 Services</span>
+        <span class="step-sep">→</span>
+        <span :class="['step', currentStep >= 3 ? 'active' : '']">3 Deploy</span>
       </div>
     </div>
 
-    <!-- Tailscale settings — only shown when tailscale is selected -->
-    <div class="card" v-if="pick['tailscale']">
-      <h3 class="section-title">Tailscale settings</h3>
-
-      <div class="compat-note">
-        <span class="compat-icon">ℹ</span>
-        <div>
-          <strong>Tailscale + Cloudflare Tunnel work together.</strong>
-          They serve different purposes — run both if you need both.
-          Use Cloudflare Tunnel for public-facing services (Overseerr, Plex).
-          Use Tailscale for private access from your own devices (Sonarr, Radarr, RAD).
+    <!-- Step 1: Settings -->
+    <section class="card">
+      <div class="card-head" @click="currentStep = 1">
+        <div class="card-head-left">
+          <span class="step-num">1</span>
+          <h2 class="card-title">Global settings</h2>
         </div>
+        <span class="chevron" :class="{ open: currentStep === 1 }">›</span>
       </div>
 
-      <div class="settings-grid">
-        <label style="grid-column: span 2">
-          <span class="label">Auth key <span class="required">required</span></span>
-          <input
-            v-model="req.tailscale_auth_key"
-            type="password"
-            placeholder="tskey-auth-…"
-          />
-          <span class="hint">
-            Generate a <strong>reusable, non-ephemeral</strong> key at
-            <a href="https://login.tailscale.com/admin/settings/keys" target="_blank">
-              login.tailscale.com/admin/settings/keys
-            </a>.
-            Tag it as <code>tag:server</code> if you use ACL tags.
-          </span>
-        </label>
-        <label>
-          <span class="label">Hostname</span>
-          <input v-model="req.tailscale_hostname" placeholder="mediastack" />
-          <span class="hint">How this node appears in your Tailscale admin console.</span>
-        </label>
-        <label>
-          <span class="label">Subnet routes (optional)</span>
-          <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" />
-          <span class="hint">
-            Advertise your Docker network so all containers are reachable
-            from any tailnet device. Find your subnet:
-            <code>docker network inspect mediastack | grep Subnet</code>
-          </span>
-        </label>
-      </div>
-
-      <div class="ts-steps">
-        <div class="ts-step-title">After deploying, complete these steps in order:</div>
-        <ol class="ts-step-list">
-          <li>Check <code>docker logs tailscale</code> — you should see "Connected to tailnet"</li>
-          <li>Go to
-            <a href="https://login.tailscale.com/admin/machines" target="_blank">Tailscale admin → Machines</a>
-            and confirm <strong>{{ req.tailscale_hostname || 'mediastack' }}</strong> is listed
-          </li>
-          <li v-if="req.tailscale_routes">
-            Click the machine → Edit route settings → approve <strong>{{ req.tailscale_routes }}</strong>
-          </li>
-          <li>On any enrolled device, access your apps by their Docker IP or by
-            enabling MagicDNS in
-            <a href="https://login.tailscale.com/admin/dns" target="_blank">Tailscale DNS settings</a>
-          </li>
-          <li>Configure each *arr app's base URL settings if you plan to access them
-            via the Tailscale hostname rather than IP (Settings → General → URL Base in Sonarr/Radarr)
-          </li>
-        </ol>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 class="section-title">2. Pick your services</h3>
-      <div v-for="(items, cat) in catalog" :key="cat" class="category">
-        <h4 class="cat-title">{{ cat }}</h4>
-        <div class="services-grid">
-          <label
-            v-for="s in items"
-            :key="s.key"
-            class="service"
-            :class="{ picked: pick[s.key], 'cf-warn': pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url) }"
-          >
-            <input type="checkbox" v-model="pick[s.key]" />
-            <div>
-              <div class="service-name mono">{{ s.key }}</div>
-              <div class="service-desc">{{ s.description }}</div>
-              <div class="service-image tiny muted mono">{{ s.image }}</div>
-              <div
-                v-if="pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url)"
-                class="cf-warn-banner"
-              >
-                ⚠ {{ s.cf_tunnel_warning }}
-              </div>
-            </div>
+      <div class="card-body" v-show="currentStep === 1">
+        <div class="settings-grid">
+          <label class="field">
+            <span class="field-label">Base domain</span>
+            <input v-model="req.domain" placeholder="example.com" />
+            <span class="field-hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Timezone</span>
+            <input v-model="req.timezone" placeholder="America/Los_Angeles" />
+          </label>
+          <label class="field">
+            <span class="field-label">PUID</span>
+            <input v-model.number="req.puid" type="number" />
+          </label>
+          <label class="field">
+            <span class="field-label">PGID</span>
+            <input v-model.number="req.pgid" type="number" />
+          </label>
+          <label class="field span2">
+            <span class="field-label">Config root</span>
+            <input v-model="req.config_root" />
+          </label>
+          <label class="field span2">
+            <span class="field-label">Media root</span>
+            <input v-model="req.media_root" />
+            <span class="field-hint">Parent dir containing tv/, movies/, downloads/, etc.</span>
+          </label>
+          <label class="field span2">
+            <span class="field-label">
+              Cloudflare API token
+              <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="field-link">
+                Get token ↗
+              </a>
+            </span>
+            <input v-model="req.cloudflare_token" type="password" placeholder="Zone:DNS:Edit + Zone:Zone:Read" />
+          </label>
+          <label class="field span2">
+            <span class="field-label">External Plex URL <span class="optional">optional</span></span>
+            <input v-model="req.external_plex_url" placeholder="http://192.168.1.5:32400 — leave blank to include Plex" />
           </label>
         </div>
+        <div class="card-actions">
+          <button class="primary" @click="currentStep = 2">Next: Pick services →</button>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="card">
-      <h3 class="section-title">3. Review & deploy</h3>
-      <div class="flex gap-3 mb-3">
-        <button @click="preview">Preview compose.yml</button>
-        <button class="primary" :disabled="deploying" @click="deploy">
-          {{ deploying ? 'Deploying…' : 'Deploy Stack' }}
-        </button>
-        <span class="ml-auto muted small">
-          {{ selectedServices.length }} services selected
-        </span>
+    <!-- Step 2: Services -->
+    <section class="card">
+      <div class="card-head" @click="currentStep = 2">
+        <div class="card-head-left">
+          <span class="step-num">2</span>
+          <h2 class="card-title">Services
+            <span class="card-count">{{ selectedServices.length }} selected</span>
+          </h2>
+        </div>
+        <span class="chevron" :class="{ open: currentStep === 2 }">›</span>
       </div>
 
-      <pre v-if="previewText" class="preview mono">{{ previewText }}</pre>
-      <pre v-if="deployOutput" class="preview mono" :class="deployOutputClass">{{ deployOutput }}</pre>
-    </div>
+      <div class="card-body" v-show="currentStep === 2">
+        <!-- Category tabs -->
+        <div class="cat-tabs">
+          <button
+            v-for="cat in catalogCategories"
+            :key="cat"
+            :class="['cat-tab', { active: activeCategory === cat }]"
+            @click="activeCategory = cat"
+          >
+            {{ cat }}
+            <span class="cat-count">{{ selectedInCategory(cat) }}/{{ catalog[cat]?.length }}</span>
+          </button>
+        </div>
+
+        <!-- Service tiles -->
+        <div class="tiles">
+          <button
+            v-for="s in catalog[activeCategory]"
+            :key="s.key"
+            :class="['tile', { 
+              on: pick[s.key],
+              warn: pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url)
+            }]"
+            @click="toggle(s.key)"
+            :title="s.description"
+          >
+            <div class="tile-top">
+              <div class="tile-check" :class="{ checked: pick[s.key] }">
+                <svg v-if="pick[s.key]" viewBox="0 0 12 12" fill="none">
+                  <polyline points="2,6 5,9 10,3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="tile-name">{{ s.key }}</span>
+              <span class="tile-port" v-if="s.web_port">:{{ s.web_port }}</span>
+            </div>
+            <div class="tile-desc">{{ s.description }}</div>
+            <div
+              v-if="pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url)"
+              class="tile-warn"
+            >⚠ Not compatible with Cloudflare Tunnel</div>
+          </button>
+        </div>
+
+        <!-- Tailscale settings — shown inline when tailscale is selected -->
+        <div class="ts-panel" v-if="pick['tailscale']">
+          <div class="ts-compat-note">
+            <span>ℹ</span>
+            <div>
+              <strong>Tailscale + Cloudflare Tunnel work together.</strong>
+              Use Cloudflare Tunnel for public access (Overseerr, Plex relay).
+              Use Tailscale for private admin access (Sonarr, Radarr, RAD, etc.)
+            </div>
+          </div>
+          <div class="settings-grid mt-3">
+            <label class="field span2">
+              <span class="field-label">
+                Tailscale auth key
+                <span class="required">required</span>
+                <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" class="field-link">Get key ↗</a>
+              </span>
+              <input v-model="req.tailscale_auth_key" type="password" placeholder="tskey-auth-…  (reusable, non-ephemeral)" />
+            </label>
+            <label class="field">
+              <span class="field-label">Hostname</span>
+              <input v-model="req.tailscale_hostname" placeholder="mediastack" />
+            </label>
+            <label class="field">
+              <span class="field-label">Subnet routes</span>
+              <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" />
+              <span class="field-hint">Advertise Docker network so all containers are reachable on tailnet</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button @click="currentStep = 1">← Back</button>
+          <button class="primary" @click="currentStep = 3">Next: Review & deploy →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: Deploy -->
+    <section class="card">
+      <div class="card-head" @click="currentStep = 3">
+        <div class="card-head-left">
+          <span class="step-num">3</span>
+          <h2 class="card-title">Review & deploy</h2>
+        </div>
+        <span class="chevron" :class="{ open: currentStep === 3 }">›</span>
+      </div>
+
+      <div class="card-body" v-show="currentStep === 3">
+        <div class="deploy-row">
+          <button @click="preview" :disabled="previewLoading">
+            {{ previewLoading ? 'Generating…' : 'Preview compose.yml' }}
+          </button>
+          <button class="primary" :disabled="deploying" @click="deploy">
+            {{ deploying ? 'Deploying…' : 'Deploy Stack' }}
+          </button>
+          <span class="muted small ml-auto">{{ selectedServices.length }} services · {{ req.domain || 'no domain' }}</span>
+        </div>
+
+        <pre v-if="previewText" class="output mono">{{ previewText }}</pre>
+
+        <div v-if="deployOutput" class="output-block" :class="deployOk ? 'ok' : 'err'">
+          <div class="output-label">{{ deployOk ? '✓ Deploy complete' : '✗ Deploy failed' }}</div>
+          <pre class="output mono">{{ deployOutput }}</pre>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, inject } from 'vue'
+import { ref, reactive, computed, onMounted, watch, inject } from 'vue'
 
 const showToast = inject('showToast')
 
 const catalog = ref({})
 const pick = reactive({})
+const currentStep = ref(1)
+const activeCategory = ref('')
+
 const previewText = ref('')
+const previewLoading = ref(false)
 const deployOutput = ref('')
-const deployOutputClass = ref('')
+const deployOk = ref(false)
 const deploying = ref(false)
 
-// Form state — persisted to localStorage so users don't lose it
-// when they accidentally refresh mid-config.
 const STORAGE_KEY = 'rad-stack-builder-v2'
 const defaults = {
-  domain: '',
-  timezone: 'UTC',
-  puid: 1000,
-  pgid: 1000,
+  domain: '', timezone: 'UTC', puid: 1000, pgid: 1000,
   config_root: '/home/stack/mediacenter/config',
   media_root: '/mnt/media',
-  cloudflare_token: '',
-  external_plex_url: '',
-  tailscale_auth_key: '',
-  tailscale_routes: '',
-  tailscale_hostname: 'mediastack',
+  cloudflare_token: '', external_plex_url: '',
+  tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
 }
 const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
 const req = reactive({ ...defaults, ...stored })
 
-// Persist on every change
-import { watch } from 'vue'
-watch(req, (v) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(v))
-}, { deep: true })
+watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
+
+const catalogCategories = computed(() => Object.keys(catalog.value))
 
 const selectedServices = computed(() =>
-  Object.entries(pick)
-    .filter(([, on]) => on)
-    .map(([k]) => k)
+  Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
 )
+
+function selectedInCategory(cat) {
+  return (catalog.value[cat] || []).filter(s => pick[s.key]).length
+}
+
+function toggle(key) {
+  pick[key] = !pick[key]
+}
 
 async function loadCatalog() {
   catalog.value = await fetch('/api/catalog').then(r => r.json())
-  // Default-enable the common selections if nothing picked yet.
   if (Object.keys(pick).length === 0) {
     ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'overseerr',
      'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
   }
+  if (catalogCategories.value.length) activeCategory.value = catalogCategories.value[0]
 }
 
 function buildRequest() {
@@ -232,6 +257,7 @@ function buildRequest() {
 }
 
 async function preview() {
+  previewLoading.value = true
   previewText.value = ''
   try {
     const r = await fetch('/api/stack/generate', {
@@ -242,17 +268,18 @@ async function preview() {
     if (!r.ok) throw new Error(await r.text())
     const data = await r.json()
     previewText.value = data.yaml
-    showToast(`Generated ${data.bytes} bytes`)
+    showToast(`Generated — ${data.bytes} bytes`)
   } catch (e) {
     showToast(`Generate failed: ${e.message}`, 'err')
+  } finally {
+    previewLoading.value = false
   }
 }
 
 async function deploy() {
-  if (!confirm('Deploy this stack? Existing containers may be recreated.')) return
+  if (!confirm('Deploy this stack? Running containers may be recreated.')) return
   deploying.value = true
-  deployOutput.value = 'Deploying…'
-  deployOutputClass.value = ''
+  deployOutput.value = ''
   try {
     const r = await fetch('/api/stack/deploy', {
       method: 'POST',
@@ -260,12 +287,14 @@ async function deploy() {
       body: JSON.stringify(buildRequest()),
     })
     const data = await r.json()
-    deployOutput.value = (data.stdout || '') + (data.stderr ? '\n--- stderr ---\n' + data.stderr : '')
-    deployOutputClass.value = data.ok ? 'ok' : 'err'
-    showToast(data.ok ? 'Deploy complete' : 'Deploy failed — see output', data.ok ? 'ok' : 'err', 5000)
+    deployOk.value = data.ok
+    deployOutput.value = [data.stdout, data.stderr ? '--- stderr ---\n' + data.stderr : '']
+      .filter(Boolean).join('\n').trim()
+    showToast(data.ok ? 'Deploy complete' : 'Deploy failed — see output below',
+              data.ok ? 'ok' : 'err', 5000)
   } catch (e) {
+    deployOk.value = false
     deployOutput.value = String(e)
-    deployOutputClass.value = 'err'
     showToast(`Deploy error: ${e.message}`, 'err')
   } finally {
     deploying.value = false
@@ -276,148 +305,276 @@ onMounted(loadCatalog)
 </script>
 
 <style scoped>
-.section-title {
-  margin: 0 0 var(--space-3);
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--fg-2);
-  font-weight: 600;
+.builder { max-width: 960px; }
+.builder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
 }
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.step { padding: 3px 10px; border-radius: 12px; background: var(--bg-2); }
+.step.active { background: var(--accent); color: #0a1a0a; font-weight: 600; }
+.step-sep { color: var(--border-strong); }
 
+/* Cards */
+.card { margin-bottom: var(--space-3); }
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: var(--space-3) var(--space-4);
+  user-select: none;
+}
+.card-head:hover { background: var(--bg-2); border-radius: var(--radius); }
+.card-head-left { display: flex; align-items: center; gap: var(--space-3); }
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.card-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+}
+.step-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.chevron {
+  color: var(--fg-2);
+  font-size: 18px;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+.chevron.open { transform: rotate(90deg); }
+.card-body { padding: 0 var(--space-4) var(--space-4); }
+
+/* Settings grid */
 .settings-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-3);
 }
-.settings-grid label { display: flex; flex-direction: column; gap: 4px; }
-.label { font-size: 12px; color: var(--fg-1); }
-.hint { font-size: 11px; color: var(--fg-2); }
-.hint a { color: var(--accent); }
-
-.category { margin-bottom: var(--space-4); }
-.cat-title {
-  margin: 0 0 var(--space-2);
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.span2 { grid-column: span 2; }
+.field-label {
   font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-hint { font-size: 11px; color: var(--fg-2); }
+.field-link { font-size: 11px; color: var(--accent); margin-left: auto; }
+.optional {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: var(--bg-3); color: var(--fg-2);
+}
+.required {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: var(--err-dim); color: var(--err); font-weight: 600;
+}
+
+/* Category tabs */
+.cat-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.cat-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-0);
+  border-color: var(--border);
   color: var(--fg-2);
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   text-transform: capitalize;
 }
-.services-grid {
-  display: grid;
-  gap: var(--space-2);
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+.cat-tab:hover { color: var(--fg-0); border-color: var(--border-strong); }
+.cat-tab.active {
+  background: var(--bg-3);
+  border-color: var(--border-strong);
+  color: var(--fg-0);
 }
-.service {
+.cat-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.cat-tab.active .cat-count { color: var(--accent); }
+
+/* Service tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.tile {
   display: flex;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: 4px;
   padding: var(--space-3);
+  background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  text-align: left;
   cursor: pointer;
-  background: var(--bg-0);
+  transition: border-color 0.1s, background 0.1s;
+  min-height: 72px;
 }
-.service:hover { border-color: var(--border-strong); }
-.service.picked {
+.tile:hover { border-color: var(--border-strong); background: var(--bg-2); }
+.tile.on {
   border-color: var(--accent);
-  background: var(--bg-2);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-1));
 }
-.service input { width: auto; margin-top: 2px; }
-.service-name { font-weight: 600; font-size: 13px; }
-.service-desc { font-size: 12px; color: var(--fg-1); }
+.tile.warn { border-color: var(--warn); }
 
-.service.cf-warn {
-  border-color: var(--warn);
-  background: var(--bg-2);
+.tile-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.cf-warn-banner {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--warn);
-  line-height: 1.4;
-  padding: 4px 6px;
-  background: var(--warn-dim);
+.tile-check {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.1s;
+}
+.tile-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a1a0a;
+}
+.tile-check svg { width: 10px; height: 10px; }
+
+.tile-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-0);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-port {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  padding: 1px 5px;
   border-radius: 3px;
+  flex-shrink: 0;
+}
+.tile-desc {
+  font-size: 11px;
+  color: var(--fg-2);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tile-warn {
+  font-size: 10px;
+  color: var(--warn);
+  background: var(--warn-dim);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 2px;
 }
 
-.preview {
-  max-height: 500px;
+/* Tailscale panel */
+.ts-panel {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.ts-compat-note {
+  display: flex;
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--fg-1);
+  line-height: 1.5;
+  margin-bottom: var(--space-3);
+}
+.ts-compat-note span { color: var(--info); font-size: 16px; flex-shrink: 0; }
+.ts-compat-note strong { color: var(--fg-0); }
+.mt-3 { margin-top: var(--space-3); }
+
+/* Actions */
+.card-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* Deploy */
+.deploy-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.output {
+  max-height: 400px;
   overflow: auto;
   background: var(--bg-0);
   padding: var(--space-3);
   border-radius: var(--radius);
-  border: 1px solid var(--border);
   font-size: 12px;
   line-height: 1.4;
   white-space: pre;
-}
-.preview.ok { border-left: 3px solid var(--ok); }
-.preview.err { border-left: 3px solid var(--err); }
-
-.compat-note {
-  display: flex;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-0);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--info);
-  border-radius: var(--radius);
-  font-size: 13px;
-  color: var(--fg-1);
-  margin-bottom: var(--space-4);
-  line-height: 1.5;
-}
-.compat-icon {
-  color: var(--info);
-  font-size: 16px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.compat-note strong { color: var(--fg-0); }
-
-.required {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--err-dim);
-  color: var(--err);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-left: 4px;
-  vertical-align: middle;
-}
-
-.ts-steps {
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-0);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-.ts-step-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--fg-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: var(--space-2);
-}
-.ts-step-list {
   margin: 0;
-  padding-left: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
-.ts-step-list li {
-  font-size: 13px;
-  color: var(--fg-1);
-  line-height: 1.5;
-}
-.ts-step-list code {
-  background: var(--bg-2);
-  padding: 1px 5px;
-  border-radius: 3px;
+.output-block { border-radius: var(--radius); overflow: hidden; }
+.output-label {
+  padding: 6px 12px;
   font-size: 12px;
+  font-weight: 600;
 }
+.output-block.ok .output-label { background: var(--ok-dim); color: var(--ok); }
+.output-block.err .output-label { background: var(--err-dim); color: var(--err); }
+.output-block .output { border-top: none; border-radius: 0; }
+
+.ml-auto { margin-left: auto; }
 </style>
