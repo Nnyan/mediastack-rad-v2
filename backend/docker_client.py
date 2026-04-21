@@ -146,12 +146,18 @@ def _summarize(c: Container) -> ContainerSummary:
     created_s = attrs.get("Created", "")
     created = _iso_to_unix(created_s)
 
+    # Extract Docker healthcheck state if present
+    # State.Health.Status: healthy | unhealthy | starting | none
+    health_info = state.get("Health") or {}
+    health = health_info.get("Status") or "none"
+
     return ContainerSummary(
         id=c.id[:12],
         name=c.name,
         image=(cfg.get("Image") or ""),
         status=c.status,
         state=state.get("Status", "unknown"),
+        health=health,
         created=created,
         ports=ports,
         labels=cfg.get("Labels") or {},

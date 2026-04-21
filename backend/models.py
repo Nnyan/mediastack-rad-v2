@@ -27,7 +27,8 @@ class ContainerSummary(BaseModel):
     name: str
     image: str
     status: str  # running, exited, paused, etc.
-    state: str  # docker state enum
+    state: str   # docker state enum
+    health: str  # healthy, unhealthy, starting, none
     created: int  # unix timestamp
     ports: list[ContainerPort] = []
     labels: dict[str, str] = {}

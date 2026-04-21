@@ -33,20 +33,28 @@
         :class="{ selected: selected.has(c.name) }"
         @click.self="toggleSelect(c.name); confirmRemove = null"
       >
-        <div class="flex items-center justify-between mb-2">
-          <label class="flex items-center gap-2" style="cursor: pointer">
+        <div class="card-header">
+          <label class="card-select" style="cursor: pointer">
             <input
               type="checkbox"
               :checked="selected.has(c.name)"
               @change="toggleSelect(c.name)"
-              style="width: auto"
+              style="width: auto; flex-shrink: 0"
             />
-            <span class="dot" :class="statusClass(c.status)"></span>
-            <strong class="mono">{{ c.name }}</strong>
           </label>
+          <div class="app-identity">
+            <div class="app-name-row">
+              <div class="status-dot-wrap" :title="statusLabel(c)">
+                <span class="status-dot" :class="statusDotClass(c)"></span>
+                <span v-if="statusIsAnimated(c)" class="status-ping" :class="statusDotClass(c)"></span>
+              </div>
+              <span class="app-name">{{ formatName(c.name) }}</span>
+              <span v-if="c.health === 'unhealthy'" class="health-badge err">unhealthy</span>
+              <span v-if="c.health === 'starting'" class="health-badge warn">starting</span>
+            </div>
+            <div class="app-image truncate">{{ c.image.split('/').pop().split(':')[0] }}</div>
+          </div>
         </div>
-
-        <div class="mono small muted truncate mb-2">{{ c.image }}</div>
 
         <div class="stats-row" v-if="stats[c.id]">
           <div class="stat">
@@ -205,10 +213,35 @@ async function refresh() {
   }
 }
 
-function statusClass(s) {
-  if (s === 'running') return 'ok'
-  if (s === 'restarting') return 'warn'
-  return 'off'
+// Compute dot class from both status + health
+function statusDotClass(c) {
+  if (c.health === 'unhealthy') return 'dot-err'
+  if (c.state === 'restarting') return 'dot-warn'
+  if (c.state === 'paused')     return 'dot-warn'
+  if (c.state === 'dead')       return 'dot-err'
+  if (c.state === 'running')    return 'dot-ok'
+  return 'dot-off'
+}
+
+// True if the dot should pulse (active transition states)
+function statusIsAnimated(c) {
+  return c.state === 'restarting' || c.health === 'starting'
+}
+
+// Human-readable tooltip for the dot
+function statusLabel(c) {
+  if (c.health === 'unhealthy') return 'Unhealthy'
+  if (c.health === 'starting')  return 'Health check starting'
+  if (c.state === 'restarting') return 'Restarting'
+  if (c.state === 'paused')     return 'Paused'
+  if (c.state === 'dead')       return 'Dead'
+  if (c.state === 'running')    return 'Running'
+  return c.status
+}
+
+// Format container name: remove leading slash, title-case words separated by _ or -
+function formatName(name) {
+  return name.replace(/^\//, '')
 }
 
 function mb(bytes) {
@@ -347,10 +380,100 @@ onUnmounted(() => {
 <style scoped>
 .card {
   cursor: pointer;
-  transition: border-color 0.1s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.card:hover { border-color: var(--border-strong); }
-.card.selected { border-color: var(--accent); }
+.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-2); }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+
+/* Card header */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.card-select {
+  display: flex;
+  align-items: center;
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+.app-identity {
+  flex: 1;
+  min-width: 0;
+}
+.app-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  flex-wrap: wrap;
+}
+.app-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-0);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.app-image {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status dot with ping animation */
+.status-dot-wrap {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+.status-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+}
+.status-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: ping 1.4s cubic-bezier(0,0,0.2,1) infinite;
+  opacity: 0.5;
+}
+@keyframes ping {
+  0%   { transform: scale(1); opacity: 0.5; }
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Dot colors */
+.dot-ok  { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
+.dot-warn { background: var(--warn); box-shadow: 0 0 5px var(--warn); }
+.dot-err  { background: var(--err);  box-shadow: 0 0 5px var(--err); }
+.dot-off  { background: var(--fg-2); }
+.status-ping.dot-ok   { background: var(--ok); }
+.status-ping.dot-warn { background: var(--warn); }
+.status-ping.dot-err  { background: var(--err); }
+
+/* Health badges */
+.health-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.health-badge.err  { background: var(--err-bg);  color: var(--err);  border: 1px solid var(--err-dim); }
+.health-badge.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,0.2); }
 
 .stats-row {
   display: grid;
