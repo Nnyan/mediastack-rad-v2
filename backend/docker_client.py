@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import Iterator
 
 import docker
@@ -32,15 +33,29 @@ _client: docker.DockerClient | None = None
 def client() -> docker.DockerClient:
     """Return the shared Docker client, creating it on first access.
 
-    Re-uses the same connection for the life of the process. If the
-    daemon restarts, the next API call will raise and the caller can
-    decide whether to retry (via with_retry).
+    Resets the cached client if the daemon has restarted — if the
+    existing client raises DockerException we clear it so the next
+    call gets a fresh connection instead of retrying against the same
+    broken socket.
     """
     global _client
     if _client is None:
         logger.info("Connecting to Docker at %s", config.docker_socket)
-        _client = docker.DockerClient(base_url=config.docker_socket)
+        try:
+            _client = docker.DockerClient(base_url=config.docker_socket)
+        except DockerException:
+            _client = None
+            raise
     return _client
+
+
+def _reset_client() -> None:
+    """Clear the cached client so the next call reconnects.
+
+    Called when a DockerException suggests the daemon restarted.
+    """
+    global _client
+    _client = None
 
 
 def ping() -> bool:
@@ -72,6 +87,10 @@ def with_retry(fn, *, attempts: int = 3, backoff: float = 0.5):
                 "Docker call failed (attempt %d/%d): %s — retrying in %ss",
                 attempt, attempts, e, backoff,
             )
+            # Reset the client so the retry gets a fresh connection.
+            # If the daemon restarted, reusing the same broken socket
+            # guarantees all retries fail.
+            _reset_client()
             time.sleep(backoff * attempt)
     raise last_exc  # type: ignore[misc]
 
@@ -81,9 +100,9 @@ def with_retry(fn, *, attempts: int = 3, backoff: float = 0.5):
 # ---------------------------------------------------------------------------
 
 
-def list_containers(all: bool = True) -> list[ContainerSummary]:
+def list_containers(include_stopped: bool = True) -> list[ContainerSummary]:
     """Return every container on the host as a summary dict."""
-    raw = client().containers.list(all=all)
+    raw = client().containers.list(all=include_stopped)
     return [_summarize(c) for c in raw]
 
 
@@ -168,7 +187,6 @@ def _summarize(c: Container) -> ContainerSummary:
 def _iso_to_unix(iso: str) -> int:
     """Parse Docker's ISO timestamp to a Unix int. Returns 0 on failure."""
     try:
-        from datetime import datetime
         # Docker strings look like "2024-01-15T12:34:56.789Z" — strip sub-seconds.
         if "." in iso:
             iso = iso.split(".", 1)[0] + "Z"

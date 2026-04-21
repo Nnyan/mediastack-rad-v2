@@ -208,10 +208,13 @@ def _parse_port(spec: Any) -> dict | None:
         if "/" in spec:
             spec, proto = spec.rsplit("/", 1)
         parts = spec.split(":")
-        if len(parts) == 1:
-            return {"host": parts[0], "container": int(parts[0]), "protocol": proto}
-        if len(parts) >= 2:
-            return {"host": parts[-2], "container": int(parts[-1]), "protocol": proto}
+        try:
+            if len(parts) == 1:
+                return {"host": parts[0], "container": int(parts[0]), "protocol": proto}
+            if len(parts) >= 2:
+                return {"host": parts[-2], "container": int(parts[-1]), "protocol": proto}
+        except ValueError:
+            return None  # malformed port spec — skip rather than crash the health check
 
     return None
 

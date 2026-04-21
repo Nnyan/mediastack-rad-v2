@@ -391,7 +391,7 @@ def check_tinyauth(ctx: _CheckContext) -> list[HealthIssue]:
     # Check that containers with Traefik labels have the -lan router variant.
     # We look at all running containers' labels for traefik.http.routers.<name>.rule
     # and verify a corresponding traefik.http.routers.<name>-lan.rule exists.
-    containers = ctx.containers
+    containers = ctx.all_containers  # _CheckContext has all_containers, not containers
     plain_routers: set[str] = set()
     lan_routers:   set[str] = set()
 

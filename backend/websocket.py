@@ -83,7 +83,7 @@ class StatsHub:
         window. Running them all in parallel via the thread pool means
         wall-clock time is ~2s regardless of container count.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             containers = docker_client.client().containers.list()
         except Exception as e:

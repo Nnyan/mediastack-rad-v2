@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+import httpx
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
@@ -112,7 +113,7 @@ async def api_info() -> dict:
 
 @app.get("/api/containers", response_model=list[ContainerSummary])
 async def api_containers(all: bool = True) -> list[ContainerSummary]:
-    return docker_client.list_containers(all=all)
+    return docker_client.list_containers(include_stopped=all)
 
 
 @app.post("/api/containers/{name}/start")
@@ -208,14 +209,26 @@ async def api_stack_deploy(req: StackRequest) -> dict:
             acme.touch()
         acme.chmod(0o600)
 
-    # Run docker compose up -d
+    # Run docker compose up -d using async subprocess so we don't block
+    # the event loop. subprocess.run() is synchronous and would freeze all
+    # WebSocket connections and health polls for up to 120s during a deploy.
     try:
-        result = subprocess.run(
-            ["docker", "compose", "-f", str(path), "up", "-d"],
-            capture_output=True, text=True, timeout=120,
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "compose", "-f", str(path), "up", "-d",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "docker compose up timed out after 2m")
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(
+                proc.communicate(), timeout=120
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            raise HTTPException(504, "docker compose up timed out after 2m")
+        stdout = stdout_b.decode("utf-8", errors="replace")
+        stderr = stderr_b.decode("utf-8", errors="replace")
+        returncode = proc.returncode
     except FileNotFoundError:
         raise HTTPException(500, "docker CLI not available in container")
 
@@ -223,9 +236,9 @@ async def api_stack_deploy(req: StackRequest) -> dict:
     await health_mod.cache.refresh()
 
     return {
-        "ok": result.returncode == 0,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "ok": returncode == 0,
+        "stdout": stdout,
+        "stderr": stderr,
         "path": str(path),
     }
 
@@ -259,7 +272,6 @@ async def traefik_routers():
     Traefik container-to-container (always HTTP on the Docker network) and
     returns the result, so the browser never makes a mixed-content request.
     """
-    import httpx
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             r = await client.get("http://traefik:8081/api/http/routers")
