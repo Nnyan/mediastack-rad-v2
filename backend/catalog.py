@@ -43,6 +43,12 @@ class ServiceDef:
     # Callback for producing the final service dict — set when a service
     # needs logic too complex for the declarative fields above.
     custom_render: Callable | None = None
+    # Services where routing through Cloudflare Tunnel or the CF proxy
+    # violates Cloudflare's ToS (video streaming bandwidth limits).
+    # The generator skips Traefik labels for these when cloudflared is
+    # in the stack, and the UI warns the user explicitly.
+    cf_tunnel_unsuitable: bool = False
+    cf_tunnel_warning: str = ""
 
 
 CATALOG: dict[str, ServiceDef] = {
@@ -57,6 +63,12 @@ CATALOG: dict[str, ServiceDef] = {
         config_volumes=["/config"],
         media_volumes=["/data"],
         env={"VERSION": "docker"},
+        cf_tunnel_unsuitable=True,
+        cf_tunnel_warning=(
+            "Cloudflare's ToS prohibits proxying video streams — routing Plex "
+            "through a Cloudflare Tunnel risks account suspension. "
+            "Use Tailscale, Plex's built-in relay, or direct port-forward (32400) instead."
+        ),
     ),
     "jellyfin": ServiceDef(
         key="jellyfin",
@@ -67,6 +79,12 @@ CATALOG: dict[str, ServiceDef] = {
         web_port=8096,
         config_volumes=["/config"],
         media_volumes=["/data"],
+        cf_tunnel_unsuitable=True,
+        cf_tunnel_warning=(
+            "Cloudflare's ToS prohibits proxying video streams — routing Jellyfin "
+            "through a Cloudflare Tunnel risks account suspension. "
+            "Use Tailscale or direct port-forward (8096) instead."
+        ),
     ),
     # ------------------------------ *arr ---------------------------------
     "sonarr": ServiceDef(

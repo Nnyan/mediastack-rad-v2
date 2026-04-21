@@ -162,6 +162,8 @@ async def api_catalog() -> dict:
             "description": svc.description,
             "image": svc.image,
             "web_port": svc.web_port,
+            "cf_tunnel_unsuitable": svc.cf_tunnel_unsuitable,
+            "cf_tunnel_warning": svc.cf_tunnel_warning,
         })
     # Stable ordering inside each category
     for cat in result:

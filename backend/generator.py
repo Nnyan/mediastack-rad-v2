@@ -217,7 +217,14 @@ def _render_service(
 
     # Traefik labels — only add if we have a domain and this service
     # has a web port. Services like cloudflared skip these entirely.
-    if domain and svc.web_port and not svc.skip_traefik:
+    # Also skip for services marked cf_tunnel_unsuitable when cloudflared
+    # is in the stack — we don't want Plex routed through Cloudflare.
+    has_cloudflared = any(
+        s.key == "cloudflared" and s.enabled for s in request.services
+    )
+    skip_cf_unsuitable = has_cloudflared and svc.cf_tunnel_unsuitable
+
+    if domain and svc.web_port and not svc.skip_traefik and not skip_cf_unsuitable:
         svc_dict["labels"] = _traefik_labels(svc, domain, request.cert_resolver)
 
     # Overseerr with external Plex: inject the URL as an env var

@@ -375,6 +375,45 @@ def check_bind_socket() -> list[HealthIssue]:
     return []
 
 
+def check_cf_video_streaming() -> list[HealthIssue]:
+    """Warn if Plex or Jellyfin have Traefik labels while cloudflared is running.
+
+    Cloudflare's ToS (section 2.8) prohibits using their network to proxy
+    video streams. Routing Plex or Jellyfin through a Cloudflare Tunnel
+    violates this and risks account suspension with no warning.
+    """
+    cf = docker_client.get_container_safe("cloudflared")
+    if cf is None or cf.status != "running":
+        return []
+
+    out: list[HealthIssue] = []
+    for name, port in {"plex": "32400", "jellyfin": "8096"}.items():
+        c = docker_client.get_container_safe(name)
+        if c is None:
+            continue
+        labels = c.attrs.get("Config", {}).get("Labels") or {}
+        if labels.get("traefik.enable") == "true":
+            out.append(HealthIssue(
+                id=f"cf.video.{name}",
+                severity="error",
+                category="security",
+                title=f"{name.title()} is routed through Cloudflare — ToS violation risk",
+                detail=(
+                    f"{name.title()} has traefik.enable=true while Cloudflare Tunnel "
+                    f"is running. Cloudflare's ToS prohibits proxying video streams — "
+                    f"this risks account suspension. "
+                    f"Use Tailscale, Plex's built-in relay, or direct port-forward "
+                    f"({port}) instead. The stack generator automatically excludes "
+                    f"{name} from Traefik labels when cloudflared is selected."
+                ),
+                fix_hint=(
+                    f"Remove traefik.enable=true from {name}'s labels in "
+                    f"your compose file and recreate the container."
+                ),
+            ))
+    return out
+
+
 def check_tailscale() -> list[HealthIssue]:
     """If Tailscale is deployed, verify it's up and authenticated."""
     out: list[HealthIssue] = []
@@ -463,6 +502,7 @@ SYNC_CHECKS: list[Callable[[], list[HealthIssue]]] = [
     check_acme_storage,
     check_traefik_network,
     check_bind_socket,
+    check_cf_video_streaming,
     check_tailscale,
 ]
 

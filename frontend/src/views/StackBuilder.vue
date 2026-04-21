@@ -135,13 +135,19 @@
             v-for="s in items"
             :key="s.key"
             class="service"
-            :class="{ picked: pick[s.key] }"
+            :class="{ picked: pick[s.key], 'cf-warn': pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable }"
           >
             <input type="checkbox" v-model="pick[s.key]" />
             <div>
               <div class="service-name mono">{{ s.key }}</div>
               <div class="service-desc">{{ s.description }}</div>
               <div class="service-image tiny muted mono">{{ s.image }}</div>
+              <div
+                v-if="pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable"
+                class="cf-warn-banner"
+              >
+                ⚠ {{ s.cf_tunnel_warning }}
+              </div>
             </div>
           </label>
         </div>
@@ -318,6 +324,20 @@ onMounted(loadCatalog)
 .service input { width: auto; margin-top: 2px; }
 .service-name { font-weight: 600; font-size: 13px; }
 .service-desc { font-size: 12px; color: var(--fg-1); }
+
+.service.cf-warn {
+  border-color: var(--warn);
+  background: var(--bg-2);
+}
+.cf-warn-banner {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--warn);
+  line-height: 1.4;
+  padding: 4px 6px;
+  background: var(--warn-dim);
+  border-radius: 3px;
+}
 
 .preview {
   max-height: 500px;
