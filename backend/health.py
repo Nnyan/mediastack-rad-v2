@@ -381,6 +381,9 @@ def check_cf_video_streaming() -> list[HealthIssue]:
     Cloudflare's ToS (section 2.8) prohibits using their network to proxy
     video streams. Routing Plex or Jellyfin through a Cloudflare Tunnel
     violates this and risks account suspension with no warning.
+
+    Only applies when Plex/Jellyfin are actually running in this stack —
+    if the user is using an external Plex server, this check is skipped.
     """
     cf = docker_client.get_container_safe("cloudflared")
     if cf is None or cf.status != "running":
@@ -389,7 +392,9 @@ def check_cf_video_streaming() -> list[HealthIssue]:
     out: list[HealthIssue] = []
     for name, port in {"plex": "32400", "jellyfin": "8096"}.items():
         c = docker_client.get_container_safe(name)
-        if c is None:
+        # Only flag if the container is actually running in this stack.
+        # An external Plex server won't appear here at all.
+        if c is None or c.status != "running":
             continue
         labels = c.attrs.get("Config", {}).get("Labels") or {}
         if labels.get("traefik.enable") == "true":

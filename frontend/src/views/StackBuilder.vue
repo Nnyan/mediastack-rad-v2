@@ -135,7 +135,7 @@
             v-for="s in items"
             :key="s.key"
             class="service"
-            :class="{ picked: pick[s.key], 'cf-warn': pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable }"
+            :class="{ picked: pick[s.key], 'cf-warn': pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url) }"
           >
             <input type="checkbox" v-model="pick[s.key]" />
             <div>
@@ -143,7 +143,7 @@
               <div class="service-desc">{{ s.description }}</div>
               <div class="service-image tiny muted mono">{{ s.image }}</div>
               <div
-                v-if="pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable"
+                v-if="pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url)"
                 class="cf-warn-banner"
               >
                 ⚠ {{ s.cf_tunnel_warning }}

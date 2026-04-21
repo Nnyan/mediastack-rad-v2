@@ -336,29 +336,28 @@ def _build() -> list[ChecklistItem]:
     # ---- Per-service -------------------------------------------------------
 
     if "plex" in services:
-        # Warn if cloudflared + plex are both deployed
+        # Warn about CF Tunnel only if cloudflared is also in the stack
+        # AND plex is actually deployed here (not an external server).
         if "cloudflared" in services:
-            cf_running = _running("cloudflared")
             plex_c = docker_client.get_container_safe("plex")
             plex_has_traefik = False
-            if plex_c:
+            if plex_c and plex_c.status == "running":
                 labels = plex_c.attrs.get("Config", {}).get("Labels") or {}
                 plex_has_traefik = labels.get("traefik.enable") == "true"
-            items.append(ChecklistItem(
-                id="plex.cf_tunnel_warning",
-                title="Plex must NOT go through Cloudflare Tunnel",
-                detail=(
-                    "Cloudflare's ToS prohibits proxying video streams — routing Plex "
-                    "through the tunnel risks account suspension. "
-                    "The generator excludes Plex from Traefik labels automatically when "
-                    "cloudflared is selected, but verify Plex has no traefik.enable=true "
-                    "label. For remote Plex access use: Tailscale (best), "
-                    "Plex's built-in relay, or port-forward 32400."
-                ),
-                done=not plex_has_traefik,
-                category="essential",
-                action_url="/health",
-            ))
+                items.append(ChecklistItem(
+                    id="plex.cf_tunnel_warning",
+                    title="Plex must NOT go through Cloudflare Tunnel",
+                    detail=(
+                        "Cloudflare's ToS prohibits proxying video streams — routing Plex "
+                        "through the tunnel risks account suspension. "
+                        "The generator excludes Plex from Traefik labels automatically when "
+                        "cloudflared is selected. For remote access use: Tailscale (best), "
+                        "Plex's built-in relay, or port-forward 32400."
+                    ),
+                    done=not plex_has_traefik,
+                    category="essential",
+                    action_url="/health",
+                ))
 
         items.append(ChecklistItem(
             id="plex.claim",
