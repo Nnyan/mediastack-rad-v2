@@ -196,16 +196,28 @@ CATALOG: dict[str, ServiceDef] = {
         # Those are added by the generator, not here.
         skip_traefik=False,
     ),
+    "tailscale": ServiceDef(
+        key="tailscale",
+        display_name="Tailscale",
+        description="Private VPN mesh — access your stack from any enrolled device",
+        image="tailscale/tailscale:latest",
+        category="infra",
+        skip_traefik=True,
+        env={
+            "TS_AUTHKEY": "${TS_AUTHKEY}",
+            "TS_ROUTES": "${TS_ROUTES:-}",
+            "TS_ACCEPT_DNS": "true",
+            "TS_STATE_DIR": "/var/lib/tailscale",
+            "TS_USERSPACE": "false",
+        },
+    ),
     "cloudflared": ServiceDef(
         key="cloudflared",
         display_name="Cloudflare Tunnel",
         description="Expose services without port forwarding",
         image="cloudflare/cloudflared:latest",
         category="infra",
-        # cloudflared has no web UI of its own so it skips Traefik.
         skip_traefik=True,
-        # The tunnel token is set via env var. Command must be explicit —
-        # the default ENTRYPOINT isn't enough.
         command="tunnel --no-autoupdate run",
         env={"TUNNEL_TOKEN": "${CLOUDFLARED_TOKEN}"},
     ),

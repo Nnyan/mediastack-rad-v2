@@ -162,6 +162,9 @@ def _render_service(
     if svc.key == "cloudflared":
         return _render_cloudflared(request)
 
+    if svc.key == "tailscale":
+        return _render_tailscale(request)
+
     # Standard LinuxServer-style service
     svc_dict: dict[str, Any] = {
         "image": svc.image,
@@ -291,6 +294,48 @@ def _render_cloudflared(request: StackRequest) -> dict[str, Any]:
         "command": "tunnel --no-autoupdate run",
         "environment": {
             "TUNNEL_TOKEN": "${CLOUDFLARED_TOKEN}",
+        },
+    }
+
+
+def _render_tailscale(request: StackRequest) -> dict[str, Any]:
+    """Tailscale VPN container.
+
+    Tailscale needs NET_ADMIN capability and access to /dev/net/tun to
+    create the tunnel interface. We persist state to the config volume
+    so the node keeps its identity across container restarts — without
+    this, every restart uses a new ephemeral auth key and the node
+    disappears from the tailnet.
+
+    TS_ROUTES: comma-separated CIDR(s) to advertise as subnet routes.
+    Set to the Docker network subnet (e.g. 172.20.0.0/16) so that all
+    stack containers are reachable from your tailnet without installing
+    Tailscale on each one.
+
+    Tailscale and Cloudflare Tunnel serve different purposes and can
+    run simultaneously:
+      - Cloudflare Tunnel: public internet access (Overseerr, Plex)
+      - Tailscale: private access from enrolled devices (Sonarr, Radarr, RAD)
+    """
+    ts_config = f"{request.config_root}/tailscale"
+    return {
+        "image": "tailscale/tailscale:latest",
+        "container_name": "tailscale",
+        "restart": "unless-stopped",
+        "networks": [STACK_NETWORK],
+        "cap_add": ["NET_ADMIN", "NET_RAW"],
+        "devices": ["/dev/net/tun:/dev/net/tun"],
+        "volumes": [
+            f"{ts_config}:/var/lib/tailscale",
+        ],
+        "environment": {
+            "TS_AUTHKEY": request.tailscale_auth_key or "${TS_AUTHKEY}",
+            "TS_ROUTES": request.tailscale_routes or "${TS_ROUTES:-}",
+            "TS_HOSTNAME": request.tailscale_hostname or "mediastack",
+            "TS_ACCEPT_DNS": "true",
+            "TS_STATE_DIR": "/var/lib/tailscale",
+            "TS_USERSPACE": "false",
+            "TS_EXTRA_ARGS": "${TS_EXTRA_ARGS:-}",
         },
     }
 

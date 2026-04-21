@@ -70,6 +70,10 @@ class StackRequest(BaseModel):
     cloudflare_token: str | None = None  # CF_DNS_API_TOKEN for DNS-01
     services: list[ServiceChoice] = []
     external_plex_url: str | None = None  # if user has Plex elsewhere
+    # Tailscale
+    tailscale_auth_key: str | None = None  # TS_AUTHKEY — reusable key from admin console
+    tailscale_routes: str | None = None    # TS_ROUTES — subnet CIDR to advertise
+    tailscale_hostname: str = "mediastack" # how node appears in Tailscale admin
 
 
 # ---------------------------------------------------------------------------

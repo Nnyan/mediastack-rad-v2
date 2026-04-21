@@ -97,7 +97,36 @@ def _cf_token_in_traefik() -> bool:
         return False
 
 
-def build_checklist() -> list[ChecklistItem]:
+def _tailscale_auth_key_set() -> bool:
+    """True if the tailscale container has a non-empty TS_AUTHKEY."""
+    try:
+        c = docker_client.get_container_safe("tailscale")
+        if not c:
+            return False
+        env_list = c.attrs.get("Config", {}).get("Env", []) or []
+        for entry in env_list:
+            if entry.startswith("TS_AUTHKEY="):
+                val = entry.split("=", 1)[1].strip()
+                return bool(val and val != "${TS_AUTHKEY}")
+        return False
+    except Exception:
+        return False
+
+
+def _tailscale_routes_set() -> bool:
+    """True if TS_ROUTES is configured (subnet routing enabled)."""
+    try:
+        c = docker_client.get_container_safe("tailscale")
+        if not c:
+            return False
+        env_list = c.attrs.get("Config", {}).get("Env", []) or []
+        for entry in env_list:
+            if entry.startswith("TS_ROUTES="):
+                val = entry.split("=", 1)[1].strip()
+                return bool(val and val not in ("${TS_ROUTES:-}", ""))
+        return False
+    except Exception:
+        return False
     global _cache_time, _cache_items
     now = time.monotonic()
     if now - _cache_time < _cache_ttl:
@@ -213,6 +242,96 @@ def _build() -> list[ChecklistItem]:
             category="essential",
             action_url="https://one.dash.cloudflare.com/",
         ))
+
+    # ---- Tailscale (if deployed) ------------------------------------------
+
+    if "tailscale" in services:
+        ts_running = _running("tailscale")
+        ts_auth = _tailscale_auth_key_set()
+        ts_routes = _tailscale_routes_set()
+
+        items.append(ChecklistItem(
+            id="tailscale.running",
+            title="Tailscale container is running",
+            detail=(
+                "The Tailscale container must be running to join your tailnet. "
+                "Check logs with: docker logs tailscale"
+            ),
+            done=ts_running,
+            category="essential",
+            action_url="/containers",
+        ))
+
+        items.append(ChecklistItem(
+            id="tailscale.authkey",
+            title="Set your Tailscale auth key",
+            detail=(
+                "Generate a reusable, non-ephemeral auth key at "
+                "https://login.tailscale.com/admin/settings/keys — "
+                "select 'Reusable' and optionally tag it as 'tag:server'. "
+                "Set it as TS_AUTHKEY in the Stack Builder Tailscale settings."
+            ),
+            done=ts_auth,
+            category="essential",
+            action_url="https://login.tailscale.com/admin/settings/keys",
+        ))
+
+        items.append(ChecklistItem(
+            id="tailscale.routes",
+            title="Configure subnet routes (recommended)",
+            detail=(
+                "Set TS_ROUTES to your Docker network subnet (e.g. 172.20.0.0/16) "
+                "so all stack containers are reachable from your tailnet without "
+                "installing Tailscale on each one. Find your subnet with: "
+                "docker network inspect mediastack | grep Subnet"
+            ),
+            done=ts_routes,
+            category="recommended",
+            action_url="https://login.tailscale.com/admin/machines",
+        ))
+
+        items.append(ChecklistItem(
+            id="tailscale.approve_routes",
+            title="Approve subnet routes in Tailscale admin",
+            detail=(
+                "After the container starts with TS_ROUTES set, go to "
+                "https://login.tailscale.com/admin/machines → your mediastack node "
+                "→ Edit route settings → enable your advertised subnet. "
+                "This allows all your tailnet devices to reach the stack."
+            ),
+            done=False,
+            category="recommended",
+            action_url="https://login.tailscale.com/admin/machines",
+        ))
+
+        items.append(ChecklistItem(
+            id="tailscale.apps",
+            title="Configure apps to use Tailscale IPs",
+            detail=(
+                "With subnet routing enabled, access apps via their Docker IP "
+                "on your tailnet (e.g. http://172.20.0.5:8989 for Sonarr). "
+                "For the cleanest setup, enable MagicDNS in your Tailscale account "
+                "so apps are reachable as 'mediastack' on any enrolled device."
+            ),
+            done=False,
+            category="optional",
+            action_url="https://login.tailscale.com/admin/dns",
+        ))
+
+        # Note about compatibility with Cloudflare Tunnel
+        if "cloudflared" in services:
+            items.append(ChecklistItem(
+                id="tailscale.cf_compat",
+                title="Using both Tailscale and Cloudflare Tunnel",
+                detail=(
+                    "These work together — they serve different purposes. "
+                    "Use Cloudflare Tunnel for public-facing services (Overseerr, Plex). "
+                    "Use Tailscale for private admin access (Sonarr, Radarr, Prowlarr, RAD). "
+                    "No extra configuration needed — they run independently."
+                ),
+                done=True,  # This is informational — mark done so it disappears
+                category="optional",
+            ))
 
     # ---- Per-service -------------------------------------------------------
 

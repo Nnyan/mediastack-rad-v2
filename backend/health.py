@@ -372,11 +372,80 @@ def check_bind_socket() -> list[HealthIssue]:
     """Sanity check that we can bind to our declared port (no other
     instance of RAD running, permissions correct, etc.).
     """
-    # We can't bind to the port from inside if something else is binding
-    # on the host — but we can at least check that `config.bind_port`
-    # is one of Docker's published ports on this container.
-    # This is mostly a placeholder for future expansion.
     return []
+
+
+def check_tailscale() -> list[HealthIssue]:
+    """If Tailscale is deployed, verify it's up and authenticated."""
+    out: list[HealthIssue] = []
+    ts = docker_client.get_container_safe("tailscale")
+    if ts is None:
+        return []  # Not deployed, nothing to check
+
+    if ts.status != "running":
+        out.append(HealthIssue(
+            id="tailscale.not_running",
+            severity="error",
+            category="network",
+            title="Tailscale container is not running",
+            detail=(
+                f"Container 'tailscale' is in state '{ts.status}'. "
+                "Check logs with: docker logs tailscale"
+            ),
+            fix_hint="docker start tailscale",
+            auto_fix_available=True,
+        ))
+        return out
+
+    # Check TS_AUTHKEY is set
+    env_list = ts.attrs.get("Config", {}).get("Env", []) or []
+    env = {}
+    for entry in env_list:
+        if "=" in entry:
+            k, _, v = entry.partition("=")
+            env[k] = v
+
+    authkey = env.get("TS_AUTHKEY", "")
+    if not authkey or authkey in ("${TS_AUTHKEY}", ""):
+        out.append(HealthIssue(
+            id="tailscale.no_authkey",
+            severity="error",
+            category="network",
+            title="TS_AUTHKEY not set on Tailscale container",
+            detail=(
+                "Tailscale needs an auth key to join your tailnet. "
+                "Generate one at https://login.tailscale.com/admin/settings/keys "
+                "— use a reusable, non-ephemeral key so the node persists across restarts."
+            ),
+            fix_hint="Set TS_AUTHKEY in your compose file and recreate the container.",
+        ))
+
+    # Check /dev/net/tun is accessible (TS_USERSPACE=false mode)
+    userspace = env.get("TS_USERSPACE", "false")
+    if userspace == "false":
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "exec", "tailscale", "test", "-c", "/dev/net/tun"],
+                capture_output=True, timeout=3,
+            )
+            if result.returncode != 0:
+                out.append(HealthIssue(
+                    id="tailscale.no_tun",
+                    severity="warning",
+                    category="network",
+                    title="Tailscale: /dev/net/tun not accessible",
+                    detail=(
+                        "/dev/net/tun is required when TS_USERSPACE=false. "
+                        "Ensure the container has cap_add: [NET_ADMIN, NET_RAW] "
+                        "and devices: [/dev/net/tun:/dev/net/tun]."
+                    ),
+                    fix_hint="Set TS_USERSPACE=true if /dev/net/tun is unavailable on this host.",
+                ))
+        except Exception:
+            pass
+
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +463,7 @@ SYNC_CHECKS: list[Callable[[], list[HealthIssue]]] = [
     check_acme_storage,
     check_traefik_network,
     check_bind_socket,
+    check_tailscale,
 ]
 
 ASYNC_CHECKS: list[Callable[[], Awaitable[list[HealthIssue]]]] = [

@@ -58,6 +58,74 @@
       </div>
     </div>
 
+    <!-- Tailscale settings — only shown when tailscale is selected -->
+    <div class="card" v-if="pick['tailscale']">
+      <h3 class="section-title">Tailscale settings</h3>
+
+      <div class="compat-note">
+        <span class="compat-icon">ℹ</span>
+        <div>
+          <strong>Tailscale + Cloudflare Tunnel work together.</strong>
+          They serve different purposes — run both if you need both.
+          Use Cloudflare Tunnel for public-facing services (Overseerr, Plex).
+          Use Tailscale for private access from your own devices (Sonarr, Radarr, RAD).
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <label style="grid-column: span 2">
+          <span class="label">Auth key <span class="required">required</span></span>
+          <input
+            v-model="req.tailscale_auth_key"
+            type="password"
+            placeholder="tskey-auth-…"
+          />
+          <span class="hint">
+            Generate a <strong>reusable, non-ephemeral</strong> key at
+            <a href="https://login.tailscale.com/admin/settings/keys" target="_blank">
+              login.tailscale.com/admin/settings/keys
+            </a>.
+            Tag it as <code>tag:server</code> if you use ACL tags.
+          </span>
+        </label>
+        <label>
+          <span class="label">Hostname</span>
+          <input v-model="req.tailscale_hostname" placeholder="mediastack" />
+          <span class="hint">How this node appears in your Tailscale admin console.</span>
+        </label>
+        <label>
+          <span class="label">Subnet routes (optional)</span>
+          <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" />
+          <span class="hint">
+            Advertise your Docker network so all containers are reachable
+            from any tailnet device. Find your subnet:
+            <code>docker network inspect mediastack | grep Subnet</code>
+          </span>
+        </label>
+      </div>
+
+      <div class="ts-steps">
+        <div class="ts-step-title">After deploying, complete these steps in order:</div>
+        <ol class="ts-step-list">
+          <li>Check <code>docker logs tailscale</code> — you should see "Connected to tailnet"</li>
+          <li>Go to
+            <a href="https://login.tailscale.com/admin/machines" target="_blank">Tailscale admin → Machines</a>
+            and confirm <strong>{{ req.tailscale_hostname || 'mediastack' }}</strong> is listed
+          </li>
+          <li v-if="req.tailscale_routes">
+            Click the machine → Edit route settings → approve <strong>{{ req.tailscale_routes }}</strong>
+          </li>
+          <li>On any enrolled device, access your apps by their Docker IP or by
+            enabling MagicDNS in
+            <a href="https://login.tailscale.com/admin/dns" target="_blank">Tailscale DNS settings</a>
+          </li>
+          <li>Configure each *arr app's base URL settings if you plan to access them
+            via the Tailscale hostname rather than IP (Settings → General → URL Base in Sonarr/Radarr)
+          </li>
+        </ol>
+      </div>
+    </div>
+
     <div class="card">
       <h3 class="section-title">2. Pick your services</h3>
       <div v-for="(items, cat) in catalog" :key="cat" class="category">
@@ -122,6 +190,9 @@ const defaults = {
   media_root: '/mnt/media',
   cloudflare_token: '',
   external_plex_url: '',
+  tailscale_auth_key: '',
+  tailscale_routes: '',
+  tailscale_hostname: 'mediastack',
 }
 const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
 const req = reactive({ ...defaults, ...stored })
@@ -261,4 +332,72 @@ onMounted(loadCatalog)
 }
 .preview.ok { border-left: 3px solid var(--ok); }
 .preview.err { border-left: 3px solid var(--err); }
+
+.compat-note {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--info);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-4);
+  line-height: 1.5;
+}
+.compat-icon {
+  color: var(--info);
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.compat-note strong { color: var(--fg-0); }
+
+.required {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--err-dim);
+  color: var(--err);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.ts-steps {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-0);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.ts-step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+.ts-step-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ts-step-list li {
+  font-size: 13px;
+  color: var(--fg-1);
+  line-height: 1.5;
+}
+.ts-step-list code {
+  background: var(--bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
 </style>
