@@ -402,7 +402,13 @@ ASYNC_CHECKS: list[Callable[[], Awaitable[list[HealthIssue]]]] = [
 
 
 async def run_checks() -> HealthReport:
-    """Run every health check and aggregate the results."""
+    """Run every health check and aggregate the results.
+
+    Sync checks run sequentially — they're all local and fast (<5ms each).
+    Async checks run concurrently via gather so network calls (CF API,
+    Traefik API) don't serialize. Each async check has an 8s timeout so
+    a slow network can't stall the whole report.
+    """
     start = time.monotonic()
     issues: list[HealthIssue] = []
 
@@ -419,11 +425,24 @@ async def run_checks() -> HealthReport:
                 detail=str(e),
             ))
 
-    for check in ASYNC_CHECKS:
+    async def _run_async(check):
         try:
-            issues.extend(await check())
+            return await asyncio.wait_for(check(), timeout=8.0)
+        except asyncio.TimeoutError:
+            return [HealthIssue(
+                id=f"check.timeout.{check.__name__}",
+                severity="warning",
+                category="network",
+                title=f"Check '{check.__name__}' timed out (>8s)",
+                detail="Network call did not complete in time. Check connectivity.",
+            )]
         except Exception as e:  # noqa: BLE001
             logger.exception("Async check %s failed", check.__name__)
+            return []
+
+    async_results = await asyncio.gather(*[_run_async(c) for c in ASYNC_CHECKS])
+    for result in async_results:
+        issues.extend(result)
 
     summary = {"error": 0, "warning": 0, "info": 0}
     for i in issues:

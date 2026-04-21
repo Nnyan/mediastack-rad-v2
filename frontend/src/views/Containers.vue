@@ -44,13 +44,6 @@
             <span class="dot" :class="statusClass(c.status)"></span>
             <strong class="mono">{{ c.name }}</strong>
           </label>
-          <a
-            v-if="webUiUrl(c)"
-            :href="webUiUrl(c)"
-            target="_blank"
-            class="small"
-            @click.stop
-          >open ↗</a>
         </div>
 
         <div class="mono small muted truncate mb-2">{{ c.image }}</div>
@@ -88,6 +81,13 @@
           <button v-else @click.stop="action(c.name, 'stop')">Stop</button>
           <button @click.stop="action(c.name, 'restart')">Restart</button>
           <button @click.stop="showLogs(c.name)">Logs</button>
+          <a
+            v-if="webUiUrl(c)"
+            :href="webUiUrl(c)"
+            target="_blank"
+            class="btn-open"
+            @click.stop
+          >Open ↗</a>
         </div>
       </div>
     </div>
@@ -318,5 +318,25 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.4;
   white-space: pre;
+}
+
+.btn-open {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--accent);
+  background: var(--bg-1);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  text-decoration: none;
+}
+.btn-open:hover {
+  background: var(--bg-2);
+  border-color: var(--border-strong);
+  text-decoration: none;
 }
 </style>
