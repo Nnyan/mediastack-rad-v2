@@ -83,6 +83,20 @@ def generate(request: StackRequest) -> str:
         },
     }
 
+    # Merge any custom YAML fragment the user added via the custom app panel.
+    # Custom services are merged in last so they can reference the stack network.
+    if request.custom_yaml and request.custom_yaml.strip():
+        try:
+            custom_doc = yaml.safe_load(request.custom_yaml) or {}
+            for svc_name, svc_cfg in (custom_doc.get("services") or {}).items():
+                if isinstance(svc_cfg, dict):
+                    # Add the stack network so Traefik can route to it
+                    svc_cfg.setdefault("networks", [STACK_NETWORK])
+                    svc_cfg.setdefault("restart", "unless-stopped")
+                    compose["services"][svc_name] = svc_cfg
+        except yaml.YAMLError as e:
+            raise ValueError(f"custom_yaml parse error: {e}")
+
     # Dump with a stable key order and no aliases/anchors so diffs are clean.
     return yaml.safe_dump(
         compose,

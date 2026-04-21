@@ -280,6 +280,119 @@ async def traefik_routers():
         raise HTTPException(status_code=502, detail=f"Traefik unreachable: {e}")
 
 
+@app.post("/api/custom-app/parse")
+async def parse_custom_app(payload: dict) -> dict:
+    """Parse a custom app from a URL or compose YAML fragment.
+
+    Accepts:
+      { "type": "url",     "content": "ghcr.io/author/app:latest" }
+      { "type": "url",     "content": "https://github.com/owner/repo" }
+      { "type": "compose", "content": "services:\\n  myapp:\\n    image: ..." }
+
+    Returns:
+      { "yaml": "<merged service yaml>", "services": [{"name": ..., "image": ..., "ports": [...]}] }
+    """
+    import re
+    import yaml as _yaml
+
+    source_type = payload.get("type", "url")
+    content = (payload.get("content") or "").strip()
+
+    if not content:
+        raise HTTPException(400, "No content provided")
+
+    raw_yaml = ""
+
+    if source_type == "url":
+        # ── GitHub repo URL → fetch docker-compose.yml from the repo ──────
+        github_match = re.match(
+            r"https?://github\.com/([^/]+/[^/\s]+?)(?:\.git)?/?$", content
+        )
+        if github_match:
+            slug = github_match.group(1)
+            fetched = False
+            for branch in ("main", "master"):
+                for filename in ("docker-compose.yml", "docker-compose.yaml"):
+                    url = f"https://raw.githubusercontent.com/{slug}/{branch}/{filename}"
+                    try:
+                        async with httpx.AsyncClient(timeout=10.0) as c:
+                            r = await c.get(url)
+                        if r.status_code == 200:
+                            raw_yaml = r.text
+                            fetched = True
+                            break
+                    except Exception:
+                        continue
+                if fetched:
+                    break
+            if not fetched:
+                raise HTTPException(
+                    404,
+                    f"Could not find docker-compose.yml in {slug} "
+                    f"(tried main/master branches). "
+                    f"Paste the compose YAML directly in the 'Paste docker-compose' tab."
+                )
+        else:
+            # ── Plain Docker image name / registry URL → generate minimal service ──
+            # Normalise: strip protocol prefix if someone pastes a Docker Hub URL
+            image = re.sub(r"^https?://hub\.docker\.com/r/", "", content)
+            image = image.rstrip("/")
+            # Derive a service name from the last path segment, strip tag
+            name_part = image.split("/")[-1].split(":")[0]
+            # Remove non-alphanumeric chars and limit length
+            service_name = re.sub(r"[^a-z0-9-]", "-", name_part.lower())[:32].strip("-")
+            raw_yaml = (
+                f"services:\n"
+                f"  {service_name}:\n"
+                f"    image: {image}\n"
+                f"    container_name: {service_name}\n"
+                f"    restart: unless-stopped\n"
+                f"    # TODO: add ports, volumes, and environment as needed\n"
+                f"    # ports:\n"
+                f"    #   - \"8080:8080\"\n"
+                f"    # volumes:\n"
+                f"    #   - ${{CONFIG_ROOT}}/{service_name}:/config\n"
+            )
+
+    elif source_type == "compose":
+        raw_yaml = content
+    else:
+        raise HTTPException(400, f"Unknown type: {source_type!r}")
+
+    # ── Parse the YAML and extract service summaries for the UI ───────────
+    try:
+        doc = _yaml.safe_load(raw_yaml) or {}
+    except _yaml.YAMLError as e:
+        raise HTTPException(400, f"YAML parse error: {e}")
+
+    services_raw = doc.get("services") or {}
+    if not services_raw:
+        raise HTTPException(400, "No 'services:' block found in the compose file")
+
+    services_summary = []
+    for svc_name, svc in services_raw.items():
+        if not isinstance(svc, dict):
+            continue
+        ports = []
+        for p in (svc.get("ports") or []):
+            s = str(p)
+            # Grab only the host:container part (strip IP prefix if present)
+            if ":" in s:
+                ports.append(s.split(":")[-2] + ":" + s.split(":")[-1])
+            else:
+                ports.append(s)
+        services_summary.append({
+            "name": svc_name,
+            "image": svc.get("image", ""),
+            "ports": ports[:4],  # show at most 4 ports in the preview
+        })
+
+    return {
+        "yaml": raw_yaml,
+        "services": services_summary,
+    }
+
+
 @app.get("/api/checklist", response_model=list[ChecklistItem])
 async def api_checklist() -> list[ChecklistItem]:
     return checklist_mod.build_checklist()

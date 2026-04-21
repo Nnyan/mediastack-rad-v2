@@ -358,8 +358,30 @@
                 <div class="file-drop-sub">or click to browse — .yml and .yaml supported</div>
               </div>
             </template>
+            <!-- Parse result preview -->
+            <div v-if="addResult" class="parse-result">
+              <div class="parse-result-head">
+                <span class="parse-result-title">
+                  {{ addResult.services.length }} service{{ addResult.services.length !== 1 ? 's' : '' }} found
+                </span>
+                <button class="parse-confirm" @click="confirmCustomApp">
+                  ✓ Add to stack
+                </button>
+              </div>
+              <div v-for="svc in addResult.services" :key="svc.name" class="parse-svc">
+                <span class="parse-svc-name">{{ svc.name }}</span>
+                <span class="parse-svc-image">{{ svc.image }}</span>
+                <span v-for="p in svc.ports" :key="p" class="parse-svc-port">{{ p }}</span>
+              </div>
+              <div v-if="customYaml" class="parse-confirmed">
+                ✓ Will be included in next deploy
+              </div>
+            </div>
+
             <div class="custom-actions">
-              <button class="primary">Parse & add →</button>
+              <button class="primary" :disabled="addParsing" @click="parseAndAdd">
+                {{ addParsing ? 'Fetching…' : 'Parse & add →' }}
+              </button>
             </div>
           </div>
           </div>
@@ -430,6 +452,9 @@ const plexMode     = ref('local')
 const addCustom    = ref(false)
 const addTab       = ref('compose')
 const addInput     = ref('')
+const addParsing   = ref(false)
+const addResult    = ref(null)   // { yaml, services } from backend
+const customYaml   = ref('')     // confirmed YAML to include in deploy
 const previewText  = ref('')
 const previewLoading = ref(false)
 const deployOutput = ref('')
@@ -552,6 +577,37 @@ function toggleAddCustom() {
 // camelCase throughout — was mixed snake_case/camelCase previously
 function toggleCfg(id) { expanded.value = expanded.value === id ? '' : id }
 
+async function parseAndAdd() {
+  const content = addInput.value.trim()
+  if (!content) { showToast('Enter a URL or image name first', 'warn'); return }
+
+  addParsing.value = true
+  addResult.value  = null
+  try {
+    const r = await fetch('/api/custom-app/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: addTab.value, content }),
+    })
+    if (!r.ok) {
+      const msg = await r.text()
+      showToast(msg, 'err', 6000)
+      return
+    }
+    addResult.value = await r.json()
+    showToast(`Parsed — ${addResult.value.services.length} service(s) found`)
+  } catch (e) {
+    showToast(`Parse failed: ${e.message}`, 'err')
+  } finally {
+    addParsing.value = false
+  }
+}
+
+function confirmCustomApp() {
+  customYaml.value = addResult.value?.yaml || ''
+  showToast('Custom app added to stack — click Deploy to apply')
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function loadCatalog() {
   try {
@@ -585,6 +641,7 @@ function buildRequest() {
     tinyauth_totp:          req.tinyauth_totp,
     lan_subnet:             req.lan_subnet,
     services:               selectedServices.value.map(k => ({ key: k, enabled: true })),
+    custom_yaml:            customYaml.value || undefined,
   }
 }
 
@@ -634,6 +691,9 @@ async function deploy() {
     deploying.value = false
   }
 }
+
+watch(addInput, () => { addResult.value = null })
+watch(addTab,   () => { addResult.value = null; addInput.value = '' })
 
 onMounted(loadCatalog)
 </script>
@@ -871,6 +931,38 @@ onMounted(loadCatalog)
 .file-drop-icon  { font-size: 26px; margin-bottom: 6px; }
 .file-drop-title { font-size: 13.5px; font-weight: 600; color: var(--fg-0); margin-bottom: 3px; }
 .file-drop-sub   { font-size: 12px; color: var(--fg-2); }
+
+/* Parse result preview */
+.parse-result {
+  margin-top: 12px;
+  border: 1.5px solid var(--ok);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--ok-bg);
+}
+.parse-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: var(--ok-bg);
+  border-bottom: 1px solid rgba(22,163,74,0.15);
+}
+.parse-result-title { font-size: 12px; font-weight: 600; color: var(--ok); }
+.parse-confirm {
+  font-size: 11.5px; font-weight: 600; font-family: var(--font-sans);
+  padding: 3px 10px; border-radius: 5px;
+  background: var(--ok); color: #fff; border: none; cursor: pointer;
+}
+.parse-svc {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 5px 12px; border-top: 1px solid rgba(22,163,74,0.1);
+  font-size: 11.5px;
+}
+.parse-svc-name  { font-weight: 700; color: var(--fg-0); }
+.parse-svc-image { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.parse-svc-port  { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--fg-2); }
+.parse-confirmed { padding: 5px 12px; font-size: 11px; font-weight: 600; color: var(--ok); border-top: 1px solid rgba(22,163,74,0.15); }
 
 /* Deploy area */
 .deploy-row    { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3); }

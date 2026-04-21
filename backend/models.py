@@ -83,6 +83,7 @@ class StackRequest(BaseModel):
     tinyauth_app_url: str | None = None     # e.g. https://auth.nyrdalyrt.com
     tinyauth_totp: bool = False             # require TOTP on top of password
     lan_subnet: str = "10.0.0.0/22"        # this subnet bypasses Tinyauth entirely
+    custom_yaml: str | None = None          # raw compose YAML fragment to merge into the stack
 
 
 # ---------------------------------------------------------------------------
