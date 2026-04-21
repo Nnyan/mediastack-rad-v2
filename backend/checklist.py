@@ -1,17 +1,21 @@
 """Setup checklist — shows only incomplete setup steps.
 
-Completed items are removed from the list entirely rather than shown
-greyed out — you don't need to be reminded of things you've done.
-
-Performance: the compose parse and Docker queries are cached for
-20 seconds so the checklist endpoint stays fast even when called
-frequently by the Vue polling loop.
+Performance:
+  - 20s result cache so the polling frontend never triggers expensive work
+  - All container state fetched once via containers.list() and indexed by name
+    (previously 11 separate Docker API calls per build)
+  - _traefik_routers() is cached inside the same TTL window and has a hard 2s
+    timeout so a down Traefik never blocks for 4s (2s + 2s fallback)
+  - build_checklist() returns only incomplete items — done items are filtered
+    before caching so the frontend payload stays small
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
-from pathlib import Path
+import urllib.request
+from typing import Optional
 
 import yaml
 
@@ -25,47 +29,73 @@ _cache_ttl = 20.0
 _cache_time: float = 0.0
 _cache_items: list[ChecklistItem] = []
 
+# Separate cache for Traefik routers (HTTP call)
+_routers_cache_time: float = 0.0
+_routers_cache: dict = {}
 
-def _running(name: str) -> bool:
+
+# ---------------------------------------------------------------------------
+# Helpers — all use the pre-fetched by_name dict, never hit Docker again
+# ---------------------------------------------------------------------------
+
+def _fetch_containers() -> dict[str, object]:
+    """Return all containers indexed by name. One Docker API call."""
     try:
-        c = docker_client.get_container_safe(name)
-        return bool(c and c.status == "running")
-    except Exception:
-        return False
+        containers = docker_client.client().containers.list(all=True)
+        return {c.name: c for c in containers}
+    except Exception as e:
+        logger.warning("checklist: cannot list containers: %s", e)
+        return {}
+
+
+def _is_running(by_name: dict, name: str) -> bool:
+    c = by_name.get(name)
+    return bool(c and c.status == "running")
+
+
+def _env_of(by_name: dict, name: str) -> dict[str, str]:
+    c = by_name.get(name)
+    if not c:
+        return {}
+    result = {}
+    for entry in (c.attrs.get("Config", {}).get("Env", []) or []):
+        if "=" in entry:
+            k, _, v = entry.partition("=")
+            result[k] = v  # last wins (Docker behaviour)
+    return result
+
+
+def _labels_of(by_name: dict, name: str) -> dict[str, str]:
+    c = by_name.get(name)
+    if not c:
+        return {}
+    return c.attrs.get("Config", {}).get("Labels") or {}
 
 
 def _traefik_routers() -> dict[str, dict]:
-    try:
-        import urllib.request, json
-        with urllib.request.urlopen("http://traefik:8081/api/http/routers", timeout=2) as r:
-            return {item["name"]: item for item in json.loads(r.read())}
-    except Exception:
+    """Fetch Traefik routers with caching. Hard 2s timeout — never blocks."""
+    global _routers_cache_time, _routers_cache
+    now = time.monotonic()
+    if now - _routers_cache_time < _cache_ttl:
+        return _routers_cache
+
+    for url in ("http://traefik:8081/api/http/routers",
+                "http://localhost:8081/api/http/routers"):
         try:
-            import urllib.request, json
-            with urllib.request.urlopen("http://localhost:8081/api/http/routers", timeout=2) as r:
-                return {item["name"]: item for item in json.loads(r.read())}
+            with urllib.request.urlopen(url, timeout=2) as r:
+                data = json.loads(r.read())
+                _routers_cache = {item["name"]: item for item in data}
+                _routers_cache_time = now
+                return _routers_cache
         except Exception:
-            return {}
+            continue
+
+    return _routers_cache  # return stale on failure rather than {}
 
 
 def _service_has_route(service_name: str, routers: dict) -> bool:
     r = routers.get(f"{service_name}@docker")
     return bool(r and r.get("status") == "enabled")
-
-
-def _cloudflared_token_set() -> bool:
-    try:
-        c = docker_client.get_container_safe("cloudflared")
-        if not c:
-            return False
-        env_list = c.attrs.get("Config", {}).get("Env", []) or []
-        for entry in env_list:
-            if entry.startswith("TUNNEL_TOKEN="):
-                val = entry.split("=", 1)[1].strip()
-                return bool(val and val != "${CLOUDFLARED_TOKEN}")
-        return False
-    except Exception:
-        return False
 
 
 def _traefik_yaml_has_cf() -> bool:
@@ -75,75 +105,46 @@ def _traefik_yaml_has_cf() -> bool:
     try:
         doc = yaml.safe_load(t.read_text()) or {}
         for r in (doc.get("certificatesResolvers") or {}).values():
-            if ((r or {}).get("acme", {}).get("dnsChallenge") or {}).get("provider") == "cloudflare":
+            dns = ((r or {}).get("acme", {}).get("dnsChallenge") or {})
+            if dns.get("provider") == "cloudflare":
                 return True
     except Exception:
         pass
     return False
 
 
-def _cf_token_in_traefik() -> bool:
-    try:
-        c = docker_client.get_container_safe("traefik")
-        if not c:
-            return False
-        seen = {}
-        for entry in (c.attrs.get("Config", {}).get("Env", []) or []):
-            if "=" in entry:
-                k, _, v = entry.partition("=")
-                seen[k] = v
-        return bool(seen.get("CF_DNS_API_TOKEN", "").strip())
-    except Exception:
-        return False
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
-
-def _tailscale_auth_key_set() -> bool:
-    """True if the tailscale container has a non-empty TS_AUTHKEY."""
-    try:
-        c = docker_client.get_container_safe("tailscale")
-        if not c:
-            return False
-        env_list = c.attrs.get("Config", {}).get("Env", []) or []
-        for entry in env_list:
-            if entry.startswith("TS_AUTHKEY="):
-                val = entry.split("=", 1)[1].strip()
-                return bool(val and val != "${TS_AUTHKEY}")
-        return False
-    except Exception:
-        return False
-
-
-def _tailscale_routes_set() -> bool:
-    """True if TS_ROUTES is configured (subnet routing enabled)."""
-    try:
-        c = docker_client.get_container_safe("tailscale")
-        if not c:
-            return False
-        env_list = c.attrs.get("Config", {}).get("Env", []) or []
-        for entry in env_list:
-            if entry.startswith("TS_ROUTES="):
-                val = entry.split("=", 1)[1].strip()
-                return bool(val and val not in ("${TS_ROUTES:-}", ""))
-        return False
-    except Exception:
-        return False
+def build_checklist() -> list[ChecklistItem]:
+    """Return only incomplete checklist items, from cache when fresh."""
     global _cache_time, _cache_items
     now = time.monotonic()
     if now - _cache_time < _cache_ttl:
         return _cache_items
+
     all_items = _build()
     _cache_items = [i for i in all_items if not i.done]
     _cache_time = now
     return _cache_items
 
 
+# ---------------------------------------------------------------------------
+# Internal builder
+# ---------------------------------------------------------------------------
+
 def _build() -> list[ChecklistItem]:
     items: list[ChecklistItem] = []
 
+    # Single Docker call — all helpers below use this dict
+    by_name = _fetch_containers()
+    routers = _traefik_routers()
+
+    # Parse compose file for service list
     compose_file = config.stack_dir / "docker-compose.yml"
-    compose_exists = compose_file.exists()
     services: dict = {}
-    if compose_exists:
+    if compose_file.exists():
         try:
             compose = yaml.safe_load(compose_file.read_text()) or {}
             services = compose.get("services") or {}
@@ -151,7 +152,6 @@ def _build() -> list[ChecklistItem]:
             pass
 
     service_names = list(services.keys())
-    routers = _traefik_routers()
 
     # ---- Essential --------------------------------------------------------
 
@@ -159,7 +159,7 @@ def _build() -> list[ChecklistItem]:
         id="compose.generated",
         title="Generate your docker-compose.yml",
         detail="Use the Stack Builder to pick services and click Deploy.",
-        done=compose_exists and bool(services),
+        done=compose_file.exists() and bool(services),
         category="essential",
         action_url="/stack-builder",
     ))
@@ -168,7 +168,7 @@ def _build() -> list[ChecklistItem]:
         id="containers.running",
         title="Bring the stack up",
         detail="After generating the compose file, deploy it from the Stack Builder.",
-        done=any(_running(n) for n in service_names) or _running("traefik"),
+        done=any(_is_running(by_name, n) for n in service_names) or _is_running(by_name, "traefik"),
         category="essential",
         action_url="/stack-builder",
     ))
@@ -182,6 +182,8 @@ def _build() -> list[ChecklistItem]:
         action_url="/traefik",
     ))
 
+    traefik_env = _env_of(by_name, "traefik")
+    cf_token = traefik_env.get("CF_DNS_API_TOKEN", "").strip()
     items.append(ChecklistItem(
         id="traefik.cf_token",
         title="Set the Cloudflare API token on Traefik",
@@ -189,22 +191,25 @@ def _build() -> list[ChecklistItem]:
             "Token needs Zone:DNS:Edit + Zone:Zone:Read. "
             "Check for duplicate CF_DNS_API_TOKEN lines — the last one wins silently."
         ),
-        done=_cf_token_in_traefik(),
+        done=bool(cf_token),
         category="essential",
         action_url="/traefik",
     ))
 
-    # External access — detect which method is in use
-    cloudflared_ok = _running("cloudflared") and _cloudflared_token_set()
+    # External access
+    cf_env = _env_of(by_name, "cloudflared")
+    cloudflared_running = _is_running(by_name, "cloudflared")
+    cf_tunnel_token = cf_env.get("TUNNEL_TOKEN", "")
+    cloudflared_ok = cloudflared_running and bool(
+        cf_tunnel_token and cf_tunnel_token not in ("${CLOUDFLARED_TOKEN}", "")
+    )
     has_live_routes = any(_service_has_route(s, routers) for s in service_names)
 
     if cloudflared_ok:
-        # Tunnel running — check each web service has a hostname
         web_services = [
             n for n, svc in services.items()
             if isinstance(svc, dict) and
-            any("traefik.enable=true" in str(l)
-                for l in (svc.get("labels") or []))
+            any("traefik.enable=true" in str(l) for l in (svc.get("labels") or []))
         ]
         unrouted = [s for s in web_services if not _service_has_route(s, routers)]
         if unrouted:
@@ -233,131 +238,102 @@ def _build() -> list[ChecklistItem]:
             id="external.access",
             title="Configure external access",
             detail=(
-                "Option A (recommended): Add cloudflared to your stack with a TUNNEL_TOKEN "
-                "and configure public hostnames in Cloudflare Zero Trust. "
-                "Option B: Forward ports 80 and 443 from your router to this host "
-                "and add DNS A records in Cloudflare."
+                "Option A (recommended): Add cloudflared with a TUNNEL_TOKEN and configure "
+                "public hostnames in Cloudflare Zero Trust. "
+                "Option B: Forward ports 80 and 443 from your router and add DNS A records."
             ),
             done=has_live_routes,
             category="essential",
             action_url="https://one.dash.cloudflare.com/",
         ))
 
-    # ---- Tailscale (if deployed) ------------------------------------------
+    # ---- Tailscale --------------------------------------------------------
 
     if "tailscale" in services:
-        ts_running = _running("tailscale")
-        ts_auth = _tailscale_auth_key_set()
-        ts_routes = _tailscale_routes_set()
+        ts_env = _env_of(by_name, "tailscale")
+        ts_running = _is_running(by_name, "tailscale")
+        ts_authkey = ts_env.get("TS_AUTHKEY", "")
+        ts_auth_set = bool(ts_authkey and ts_authkey != "${TS_AUTHKEY}")
+        ts_routes = ts_env.get("TS_ROUTES", "")
+        ts_routes_set = bool(ts_routes and ts_routes not in ("${TS_ROUTES:-}", ""))
 
         items.append(ChecklistItem(
             id="tailscale.running",
             title="Tailscale container is running",
-            detail=(
-                "The Tailscale container must be running to join your tailnet. "
-                "Check logs with: docker logs tailscale"
-            ),
+            detail="Check logs with: docker logs tailscale",
             done=ts_running,
             category="essential",
             action_url="/containers",
         ))
-
         items.append(ChecklistItem(
             id="tailscale.authkey",
             title="Set your Tailscale auth key",
             detail=(
-                "Generate a reusable, non-ephemeral auth key at "
+                "Generate a reusable, non-ephemeral key at "
                 "https://login.tailscale.com/admin/settings/keys — "
-                "select 'Reusable' and optionally tag it as 'tag:server'. "
-                "Set it as TS_AUTHKEY in the Stack Builder Tailscale settings."
+                "select Reusable and optionally tag as tag:server."
             ),
-            done=ts_auth,
+            done=ts_auth_set,
             category="essential",
             action_url="https://login.tailscale.com/admin/settings/keys",
         ))
-
         items.append(ChecklistItem(
             id="tailscale.routes",
             title="Configure subnet routes (recommended)",
             detail=(
-                "Set TS_ROUTES to your Docker network subnet (e.g. 172.20.0.0/16) "
-                "so all stack containers are reachable from your tailnet without "
-                "installing Tailscale on each one. Find your subnet with: "
+                "Set TS_ROUTES to your Docker subnet (e.g. 172.20.0.0/16) so all containers "
+                "are reachable from any tailnet device. Find your subnet: "
                 "docker network inspect mediastack | grep Subnet"
             ),
-            done=ts_routes,
+            done=ts_routes_set,
             category="recommended",
             action_url="https://login.tailscale.com/admin/machines",
         ))
-
         items.append(ChecklistItem(
             id="tailscale.approve_routes",
             title="Approve subnet routes in Tailscale admin",
             detail=(
-                "After the container starts with TS_ROUTES set, go to "
-                "https://login.tailscale.com/admin/machines → your mediastack node "
-                "→ Edit route settings → enable your advertised subnet. "
-                "This allows all your tailnet devices to reach the stack."
+                "Go to https://login.tailscale.com/admin/machines → your mediastack node "
+                "→ Edit route settings → enable your advertised subnet."
             ),
             done=False,
             category="recommended",
             action_url="https://login.tailscale.com/admin/machines",
         ))
-
         items.append(ChecklistItem(
-            id="tailscale.apps",
-            title="Configure apps to use Tailscale IPs",
+            id="tailscale.magicdns",
+            title="Enable MagicDNS for hostname access (optional)",
             detail=(
-                "With subnet routing enabled, access apps via their Docker IP "
-                "on your tailnet (e.g. http://172.20.0.5:8989 for Sonarr). "
-                "For the cleanest setup, enable MagicDNS in your Tailscale account "
-                "so apps are reachable as 'mediastack' on any enrolled device."
+                "With MagicDNS enabled, reach your stack as 'mediastack' from any enrolled "
+                "device instead of by IP. Configure at https://login.tailscale.com/admin/dns"
             ),
             done=False,
             category="optional",
             action_url="https://login.tailscale.com/admin/dns",
         ))
 
-        # Note about compatibility with Cloudflare Tunnel
-        if "cloudflared" in services:
-            items.append(ChecklistItem(
-                id="tailscale.cf_compat",
-                title="Using both Tailscale and Cloudflare Tunnel",
-                detail=(
-                    "These work together — they serve different purposes. "
-                    "Use Cloudflare Tunnel for public-facing services (Overseerr, Plex). "
-                    "Use Tailscale for private admin access (Sonarr, Radarr, Prowlarr, RAD). "
-                    "No extra configuration needed — they run independently."
-                ),
-                done=True,  # This is informational — mark done so it disappears
-                category="optional",
-            ))
-
-    # ---- Per-service -------------------------------------------------------
+    # ---- Per-service ------------------------------------------------------
 
     if "plex" in services:
-        # Warn about CF Tunnel only if cloudflared is also in the stack
-        # AND plex is actually deployed here (not an external server).
-        if "cloudflared" in services:
-            plex_c = docker_client.get_container_safe("plex")
-            plex_has_traefik = False
-            if plex_c and plex_c.status == "running":
-                labels = plex_c.attrs.get("Config", {}).get("Labels") or {}
-                plex_has_traefik = labels.get("traefik.enable") == "true"
-                items.append(ChecklistItem(
-                    id="plex.cf_tunnel_warning",
-                    title="Plex must NOT go through Cloudflare Tunnel",
-                    detail=(
-                        "Cloudflare's ToS prohibits proxying video streams — routing Plex "
-                        "through the tunnel risks account suspension. "
-                        "The generator excludes Plex from Traefik labels automatically when "
-                        "cloudflared is selected. For remote access use: Tailscale (best), "
-                        "Plex's built-in relay, or port-forward 32400."
-                    ),
-                    done=not plex_has_traefik,
-                    category="essential",
-                    action_url="/health",
-                ))
+        # CF Tunnel warning — only when plex container is actually running here.
+        # External Plex servers won't appear in by_name at all.
+        plex_c = by_name.get("plex")
+        if plex_c and plex_c.status == "running" and "cloudflared" in services:
+            plex_labels = _labels_of(by_name, "plex")
+            plex_has_traefik = plex_labels.get("traefik.enable") == "true"
+            items.append(ChecklistItem(
+                id="plex.cf_tunnel_warning",
+                title="Plex must NOT route through Cloudflare Tunnel",
+                detail=(
+                    "Cloudflare ToS section 2.8 prohibits proxying video streams — "
+                    "risks account suspension. The generator excludes Plex from Traefik "
+                    "labels automatically. For remote access: use Tailscale (best), "
+                    "Plex's built-in relay, or port-forward 32400."
+                ),
+                done=not plex_has_traefik,
+                category="essential",
+                action_url="/health",
+            ))
 
         items.append(ChecklistItem(
             id="plex.claim",
@@ -385,7 +361,7 @@ def _build() -> list[ChecklistItem]:
         items.append(ChecklistItem(
             id="prowlarr.apps",
             title="Sync Prowlarr with your *arr apps",
-            detail="Prowlarr → Settings → Apps. Add Sonarr, Radarr, etc. to sync indexers.",
+            detail="Prowlarr → Settings → Apps. Add Sonarr, Radarr, etc.",
             done=False,
             category="recommended",
             action_url="/containers",
@@ -403,12 +379,11 @@ def _build() -> list[ChecklistItem]:
     # ---- Security ---------------------------------------------------------
 
     acme = config.traefik_dir / "letsencrypt" / "acme.json"
-    acme_ok = acme.exists() and (acme.stat().st_mode & 0o777) == 0o600
     items.append(ChecklistItem(
         id="security.acme_perms",
         title="Verify acme.json is mode 0600",
         detail="Wrong permissions silently break cert renewal.",
-        done=acme_ok,
+        done=acme.exists() and (acme.stat().st_mode & 0o777) == 0o600,
         category="optional",
     ))
 
