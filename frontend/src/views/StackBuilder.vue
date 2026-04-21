@@ -23,6 +23,10 @@
       </div>
     </div>
 
+    <!-- Two-column layout wrapper (single col on narrow, side-by-side on wide) -->
+    <div class="builder-layout">
+    <div class="grid-panel">
+
     <!-- Search + filter pills -->
     <div class="filter-row">
       <div class="search-wrap">
@@ -69,9 +73,6 @@
           <span v-if="isLive(svc.key)" class="tile-live">live</span>
         </div>
         <!-- Tunnel warning -->
-        <div v-if="pick[svc.key] && pick['cloudflared'] && svc.cf_tunnel_unsuitable" class="tile-warn">
-          ⚠ Not via CF Tunnel
-        </div>
       </button>
 
       <!-- Add custom app tile -->
@@ -95,6 +96,10 @@
       </button>
     </div>
 
+    </div><!-- /grid-panel -->
+
+    <!-- Config panel (sticky on wide screens) -->
+    <div class="config-panel">
     <!-- Configuration accordion sections -->
     <div v-if="showConfig" class="config-area">
       <div class="config-heading">Configuration</div>
@@ -327,7 +332,10 @@
       </CfgSection>
     </div>
 
-    <!-- Sticky bottom bar -->
+    </div><!-- /config-panel -->
+    </div><!-- /builder-layout -->
+
+    <!-- Sticky bottom bar (hidden on wide screens via CSS) -->
     <div v-if="selectedServices.length" class="bottom-bar">
       <div class="bottom-pills">
         <span v-for="key in selectedServices" :key="key" class="bottom-pill"
@@ -573,6 +581,15 @@ export const CfgSection = {
 <style scoped>
 .builder { max-width: 1040px; padding-bottom: 80px; }
 
+/* ── Responsive two-column layout ─────────────────────────────────── */
+.builder-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.grid-panel { min-width: 0; }
+.config-panel { min-width: 0; }
+
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .builder-header {
   display: flex;
@@ -742,15 +759,6 @@ export const CfgSection = {
   border: 1px solid rgba(22,163,74,0.2);
   text-transform: uppercase;
   flex-shrink: 0;
-}
-.tile-warn {
-  font-size: 9.5px;
-  color: var(--warn);
-  background: var(--warn-bg);
-  padding: 2px 5px;
-  border-radius: 4px;
-  margin-top: 4px;
-  font-weight: 500;
 }
 .tile-add { border-style: dashed; background: var(--bg-0); }
 .tile-add:hover { border-color: var(--accent); border-style: dashed; }
@@ -940,4 +948,50 @@ export const CfgSection = {
 .pill-remove:hover { opacity: 1; }
 .bottom-deploy { flex-shrink: 0; }
 .ml-auto { margin-left: auto; }
+
+/* Wide screen: grid left, config sticky right */
+@media (min-width: 1280px) {
+  .builder {
+    max-width: none;
+    padding-bottom: 24px;
+  }
+  .builder-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 32px;
+  }
+  .grid-panel {
+    flex: 0 0 54%;
+  }
+  .config-panel {
+    flex: 1;
+    position: sticky;
+    top: 0;
+    max-height: calc(100vh - 54px); /* 54px = topbar height */
+    overflow-y: auto;
+    border-left: 1.5px solid var(--border);
+    padding-left: 28px;
+    padding-bottom: 24px;
+    /* Custom scrollbar so it doesn't look chunky */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  /* Hide bottom bar on wide — config panel is always visible */
+  .bottom-bar {
+    display: none !important;
+  }
+  /* Give service grid more columns on wide */
+  .service-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+/* Ultra-wide (2560px+): cap grid column count so tiles don't get huge */
+@media (min-width: 1800px) {
+  .grid-panel { flex: 0 0 60%; }
+  .service-grid {
+    grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+  }
+}
+
 </style>
