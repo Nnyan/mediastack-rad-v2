@@ -547,12 +547,10 @@ async function deploy() {
   }
 }
 
-onMounted(loadCatalog)
-</script>
-
-<!-- CfgSection component defined inline -->
-<script>
-export const CfgSection = {
+// ── Inline component — must be defined inside <script setup> so Vue ──────────
+// registers it automatically. A separate <script> block does NOT make
+// components available to <script setup> templates.
+const CfgSection = {
   name: 'CfgSection',
   props: {
     title: String,
@@ -574,9 +572,13 @@ export const CfgSection = {
         <slot />
       </div>
     </div>
-  `
+  `,
 }
+
+onMounted(loadCatalog)
 </script>
+
+
 
 <style scoped>
 .builder { max-width: 1040px; padding-bottom: 80px; }
