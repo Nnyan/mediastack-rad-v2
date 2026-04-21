@@ -51,22 +51,33 @@
         <div class="stats-row" v-if="stats[c.id]">
           <div class="stat">
             <div class="stat-label">CPU</div>
-            <div class="stat-value">{{ stats[c.id].cpu_percent.toFixed(1) }}%</div>
+            <div class="stat-value" :class="{ hot: stats[c.id].cpu_percent > 80 }">
+              {{ stats[c.id].cpu_percent.toFixed(1) }}%
+            </div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill" :style="{ width: Math.min(stats[c.id].cpu_percent, 100) + '%', background: stats[c.id].cpu_percent > 80 ? 'var(--err)' : 'var(--accent)' }"></div>
+            </div>
           </div>
           <div class="stat">
             <div class="stat-label">MEM</div>
             <div class="stat-value">
-              {{ mb(stats[c.id].mem_usage_bytes) }}
-              <span class="muted tiny">/ {{ mb(stats[c.id].mem_limit_bytes) }}M</span>
+              {{ mb(stats[c.id].mem_usage_bytes) }}<span class="muted tiny">M</span>
+              <span class="muted tiny"> / {{ mb(stats[c.id].mem_limit_bytes) }}M</span>
+            </div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill" :style="{ width: Math.min(stats[c.id].mem_percent, 100) + '%', background: stats[c.id].mem_percent > 85 ? 'var(--err)' : 'var(--info, #4fb2d9)' }"></div>
             </div>
           </div>
           <div class="stat">
             <div class="stat-label">NET</div>
             <div class="stat-value">
-              <span class="muted tiny">↓</span>{{ mb(stats[c.id].net_rx_bytes) }}
-              <span class="muted tiny">↑</span>{{ mb(stats[c.id].net_tx_bytes) }}
+              <span class="muted tiny">↓</span>{{ humanBytes(stats[c.id].net_rx_bytes) }}
+              <span class="muted tiny"> ↑</span>{{ humanBytes(stats[c.id].net_tx_bytes) }}
             </div>
           </div>
+        </div>
+        <div v-else-if="c.status === 'running'" class="stats-loading mono muted tiny">
+          collecting stats…
         </div>
         <div v-else class="small muted mono">{{ c.status }}</div>
 
@@ -159,6 +170,13 @@ function mb(bytes) {
   return (bytes / 1024 / 1024).toFixed(0)
 }
 
+function humanBytes(bytes) {
+  if (!bytes || bytes < 1024) return '0B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'K'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + 'M'
+  return (bytes / 1024 / 1024 / 1024).toFixed(2) + 'G'
+}
+
 function webUiUrl(c) {
   // Heuristic: if the container has a published web port, give the
   // user a direct link. Covers the 80/443/typical *arr ports.
@@ -230,7 +248,10 @@ function openWebSocket() {
     const msg = JSON.parse(event.data)
     if (msg.type === 'stats') {
       const next = {}
-      for (const row of msg.containers) next[row.id] = row
+      for (const row of msg.containers) {
+        // Backend sends 12-char truncated ID which matches ContainerSummary.id
+        next[row.id] = row
+      }
       stats.value = next
     }
   }
@@ -275,6 +296,27 @@ onUnmounted(() => {
 .stat-value {
   font-family: var(--font-mono);
   font-size: 13px;
+  margin-bottom: 3px;
+}
+.stat-value.hot { color: var(--err); }
+.stat-bar {
+  height: 2px;
+  background: var(--bg-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s ease-out;
+}
+.stats-loading {
+  margin-bottom: var(--space-2);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .ports {
