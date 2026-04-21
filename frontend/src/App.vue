@@ -24,7 +24,6 @@
       </nav>
 
       <div class="topbar-right">
-        <!-- Docker status chips -->
         <div class="status-chips" v-if="info.docker_version">
           <div class="chip chip-green">
             <span class="chip-dot"></span>
@@ -76,7 +75,6 @@ const toast      = ref(null)
 const navigating = ref(false)
 const isDark     = ref(localStorage.getItem('rad-theme') === 'dark')
 
-// Apply saved theme
 if (isDark.value) document.documentElement.dataset.theme = 'dark'
 
 function navigate(to) {
@@ -84,7 +82,12 @@ function navigate(to) {
   navigating.value = true
   router.push(to).finally(() => setTimeout(() => { navigating.value = false }, 200))
 }
-router.afterEach(() => setTimeout(() => { navigating.value = false }, 200))
+
+// Store the unsubscribe function so we can clean it up on unmount.
+// Without this, each mount adds another afterEach handler that never fires.
+const unsubAfterEach = router.afterEach(() => {
+  setTimeout(() => { navigating.value = false }, 200)
+})
 
 const errorCount   = computed(() => health.value?.summary?.error || 0)
 const pendingCount = computed(() =>
@@ -92,12 +95,12 @@ const pendingCount = computed(() =>
 )
 
 const navItems = computed(() => [
-  { to: '/containers',    label: 'Containers',    icon: '▦' },
-  { to: '/stack-builder', label: 'Stack Builder',  icon: '⊞' },
-  { to: '/traefik',       label: 'Traefik',        icon: '⇄' },
-  { to: '/health',        label: 'Health',         icon: '♥',
+  { to: '/containers',    label: 'Containers',   icon: '▦' },
+  { to: '/stack-builder', label: 'Stack Builder', icon: '⊞' },
+  { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
+  { to: '/health',        label: 'Health',        icon: '♥',
     badge: errorCount.value || null, badgeColor: 'var(--err)' },
-  { to: '/checklist',     label: 'Checklist',      icon: '✓',
+  { to: '/checklist',     label: 'Checklist',     icon: '✓',
     badge: pendingCount.value || null, badgeColor: 'var(--orange)' },
 ])
 
@@ -131,15 +134,20 @@ async function refresh() {
     if (i.status === 'fulfilled') info.value = i.value
     if (h.status === 'fulfilled') health.value = h.value
     if (c.status === 'fulfilled') checklist.value = c.value
-  } catch {}
+  } catch (e) {
+    // Non-fatal — topbar data is supplementary; don't show a toast for this
+    console.warn('App.vue refresh failed:', e)
+  }
 }
 
 onMounted(() => { refresh(); pollTimer = setInterval(refresh, 15000) })
-onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  unsubAfterEach()  // remove the afterEach navigation guard
+})
 </script>
 
 <style scoped>
-/* ---- Nav progress bar ---- */
 .nav-bar {
   height: 3px;
   background: linear-gradient(90deg, var(--pink), var(--purple), var(--blue));
@@ -157,7 +165,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   100% { background-position: -100% 0; }
 }
 
-/* ---- Topbar ---- */
 .topbar {
   display: flex;
   align-items: center;
@@ -173,7 +180,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   flex-shrink: 0;
 }
 
-/* ---- Logo ---- */
 .logo {
   font-family: 'Outfit', sans-serif;
   font-weight: 800;
@@ -182,8 +188,8 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   white-space: nowrap;
   flex-shrink: 0;
 }
-.logo-media  { color: var(--fg-1); }
-.logo-stack  { color: var(--fg-0); }
+.logo-media { color: var(--fg-1); }
+.logo-stack { color: var(--fg-0); }
 .logo-rad {
   margin-left: 2px;
   background: linear-gradient(135deg, var(--purple), var(--pink));
@@ -192,12 +198,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   background-clip: text;
 }
 
-/* ---- Nav ---- */
-.nav {
-  display: flex;
-  gap: 2px;
-  flex: 1;
-}
+.nav { display: flex; gap: 2px; flex: 1; }
 .nav-link {
   display: flex;
   align-items: center;
@@ -211,138 +212,55 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   transition: color 0.15s, background 0.15s;
   text-decoration: none;
   user-select: none;
-  position: relative;
 }
-.nav-link:hover:not(.disabled) {
-  color: var(--fg-0);
-  background: var(--bg-2);
-  text-decoration: none;
-}
-.nav-link.active {
-  color: var(--accent);
-  background: var(--accent-dim);
-  font-weight: 600;
-}
-.nav-link.disabled { opacity: 0.5; cursor: not-allowed; }
-
-.nav-icon {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
+.nav-link:hover:not(.disabled) { color: var(--fg-0); background: var(--bg-2); text-decoration: none; }
+.nav-link.active               { color: var(--accent); background: var(--accent-dim); font-weight: 600; }
+.nav-link.disabled             { opacity: 0.5; cursor: not-allowed; }
+.nav-icon  { font-size: 12px; opacity: 0.7; }
 .nav-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 20px;
-  color: #fff;
-  min-width: 18px;
-  text-align: center;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 20px;
+  color: #fff; min-width: 18px; text-align: center;
 }
 
-/* ---- Right side ---- */
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
-  flex-shrink: 0;
-}
+.topbar-right { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; flex-shrink: 0; }
 
-/* ---- Status chips ---- */
-.status-chips {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-}
+.status-chips { display: flex; gap: var(--space-2); align-items: center; }
 .chip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 500;
+  padding: 4px 10px; border-radius: 20px; white-space: nowrap;
 }
-.chip-green {
-  background: var(--ok-bg);
-  color: var(--ok);
-  border: 1px solid rgba(22, 163, 74, 0.2);
-}
-.chip-orange {
-  background: var(--warn-bg);
-  color: var(--warn);
-  border: 1px solid rgba(217, 119, 6, 0.2);
-}
-.chip-muted {
-  background: var(--bg-2);
-  color: var(--fg-2);
-  border: 1px solid var(--border);
-  font-family: 'JetBrains Mono', monospace;
-}
-.chip-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--ok);
-  box-shadow: 0 0 4px var(--ok);
-  flex-shrink: 0;
-}
+.chip-green  { background: var(--ok-bg);   color: var(--ok);   border: 1px solid rgba(22,163,74,0.2); }
+.chip-orange { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,0.2); }
+.chip-muted  { background: var(--bg-2);    color: var(--fg-2); border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; }
+.chip-dot    { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 4px var(--ok); flex-shrink: 0; }
 
-/* ---- Theme button ---- */
 .theme-btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border-radius: 50%;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-2);
-  border-color: var(--border);
+  width: 34px; height: 34px; padding: 0;
+  border-radius: 50%; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2); border-color: var(--border);
 }
 
-/* ---- Main content ---- */
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-5) var(--space-6);
-}
+.main-content { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6); }
 
-/* ---- Page transition ---- */
-.fade-up-enter-active,
-.fade-up-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
+.fade-up-enter-active, .fade-up-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .fade-up-enter-from { opacity: 0; transform: translateY(6px); }
 .fade-up-leave-to   { opacity: 0; transform: translateY(-4px); }
 
-/* ---- Toast ---- */
 .toast {
-  position: fixed;
-  bottom: var(--space-5);
-  right: var(--space-5);
-  background: var(--bg-1);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  box-shadow: var(--shadow-2);
-  max-width: 360px;
-  z-index: 1000;
-  font-size: 13.5px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  position: fixed; bottom: var(--space-5); right: var(--space-5);
+  background: var(--bg-1); border: 1.5px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px;
+  box-shadow: var(--shadow-2); max-width: 360px;
+  z-index: 1000; font-size: 13.5px; font-weight: 500;
+  display: flex; align-items: center; gap: var(--space-2);
 }
 .toast-icon { font-size: 15px; font-weight: 700; flex-shrink: 0; }
-.toast.ok   { border-left: 3px solid var(--ok);   }
-.toast.ok   .toast-icon { color: var(--ok); }
-.toast.err  { border-left: 3px solid var(--err);  }
-.toast.err  .toast-icon { color: var(--err); }
-.toast.warn { border-left: 3px solid var(--warn); }
-.toast.warn .toast-icon { color: var(--warn); }
+.toast.ok   { border-left: 3px solid var(--ok);  }  .toast.ok  .toast-icon { color: var(--ok);  }
+.toast.err  { border-left: 3px solid var(--err); }  .toast.err .toast-icon { color: var(--err); }
+.toast.warn { border-left: 3px solid var(--warn);}  .toast.warn .toast-icon{ color: var(--warn);}
 
 .toast-slide-enter-active, .toast-slide-leave-active { transition: all 0.2s ease; }
 .toast-slide-enter-from, .toast-slide-leave-to { opacity: 0; transform: translateX(16px); }

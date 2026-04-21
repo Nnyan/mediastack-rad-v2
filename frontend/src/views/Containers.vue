@@ -122,8 +122,8 @@
               title="View logs"
             >≡</button>
             <a
-              v-if="webUiUrl(c)"
-              :href="webUiUrl(c)"
+              v-if="webUiUrls[c.id]"
+              :href="webUiUrls[c.id]"
               target="_blank"
               class="act-btn act-open"
               @click.stop
@@ -186,6 +186,15 @@ const confirmRemove = ref(null)  // container name pending remove confirmation
 
 let pollTimer = null
 let ws = null
+let wsActive = false  // guard: stop reconnecting after unmount
+
+// Precompute web UI URLs once per containers update — avoids calling
+// webUiUrl(c) twice per render (v-if + :href both called it).
+const webUiUrls = computed(() => {
+  const map = {}
+  for (const c of containers.value) map[c.id] = webUiUrl(c)
+  return map
+})
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase()
@@ -303,32 +312,40 @@ async function action(name, kind) {
 async function doRemove(name) {
   confirmRemove.value = null
   const container = containers.value.find(c => c.name === name)
-
-  // If running, stop first then remove
-  if (container?.status === 'running') {
-    showToast(`Stopping ${name}…`, 'warn', 2000)
-    const stopRes = await fetch(`/api/containers/${name}/stop`, { method: 'POST' })
-    if (!stopRes.ok) {
-      showToast(`Could not stop ${name} — remove cancelled`, 'err')
-      return
+  try {
+    // If running, stop first then remove
+    if (container?.status === 'running') {
+      showToast(`Stopping ${name}…`, 'warn', 2000)
+      const stopRes = await fetch(`/api/containers/${name}/stop`, { method: 'POST' })
+      if (!stopRes.ok) {
+        showToast(`Could not stop ${name} — remove cancelled`, 'err')
+        return
+      }
+      // Brief pause so Docker registers the stop
+      await new Promise(r => setTimeout(r, 800))
     }
-    // Brief pause so Docker registers the stop
-    await new Promise(r => setTimeout(r, 800))
-  }
 
-  const r = await fetch(`/api/containers/${name}`, { method: 'DELETE' })
-  if (r.ok) {
-    showToast(`${name} removed`)
-    refresh()
-  } else {
-    const t = await r.text()
-    showToast(`Remove failed: ${t}`, 'err')
+    const r = await fetch(`/api/containers/${name}`, { method: 'DELETE' })
+    if (r.ok) {
+      showToast(`${name} removed`)
+      refresh()
+    } else {
+      const t = await r.text()
+      showToast(`Remove failed: ${t}`, 'err')
+    }
+  } catch (e) {
+    showToast(`Remove error: ${e.message}`, 'err')
   }
 }
 
 async function bulk(kind) {
   const names = [...selected.value]
-  for (const n of names) await action(n, kind)
+  if (kind === 'remove') {
+    // doRemove handles stop-first logic and uses the correct DELETE endpoint
+    for (const n of names) await doRemove(n)
+  } else {
+    for (const n of names) await action(n, kind)
+  }
   selected.value = new Set()
 }
 
@@ -354,24 +371,27 @@ function openWebSocket() {
     if (msg.type === 'stats') {
       const next = {}
       for (const row of msg.containers) {
-        // Backend sends 12-char truncated ID which matches ContainerSummary.id
         next[row.id] = row
       }
       stats.value = next
     }
   }
   ws.onclose = () => {
-    // Reconnect after a short delay
-    setTimeout(openWebSocket, 2000)
+    // Only reconnect while the component is still mounted.
+    // Without this guard, onUnmounted's ws.close() triggers a reconnect
+    // that leaks a WebSocket after the component is gone.
+    if (wsActive) setTimeout(openWebSocket, 2000)
   }
 }
 
 onMounted(() => {
+  wsActive = true
   refresh()
   openWebSocket()
   pollTimer = setInterval(refresh, 10000)
 })
 onUnmounted(() => {
+  wsActive = false  // prevent ws.onclose from reconnecting
   if (pollTimer) clearInterval(pollTimer)
   if (ws) ws.close()
 })

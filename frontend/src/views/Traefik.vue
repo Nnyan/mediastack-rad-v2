@@ -127,32 +127,39 @@ async function refresh() {
       acmeMsg.value = 'mode 0600'
       acmeClass.value = 'ok'
     }
-  } catch {}
+  } catch (e) {
+    cfMsg.value           = 'check failed'
+    apiVersionClass.value = 'warn'
+    acmeMsg.value         = 'check failed'
+    acmeClass.value       = 'warn'
+    console.error('Traefik health check failed:', e)
+  }
 
-  // Traefik's own API lives on the host at :8081 — hit it directly.
+  // Fetch Traefik routers through the RAD backend proxy (/api/traefik/routers)
+  // rather than directly at http://host:8081. Direct http:// fetches are blocked
+  // as mixed content when RAD is served over HTTPS.
   try {
-    const host = window.location.hostname
-    const r = await fetch(`http://${host}:8081/api/http/routers`)
+    const r = await fetch('/api/traefik/routers')
     if (r.ok) {
       const data = await r.json()
       routers.value = data
-        .filter(r => !r.name.endsWith('@internal'))
-        .map(r => ({
-          name: r.name,
-          host: extractHost(r.rule),
-          service: r.service,
-          tls: !!r.tls,
-          status: r.status,
-          statusClass: r.status === 'enabled' ? 'ok' : 'warn',
+        .filter(router => !router.name.endsWith('@internal'))
+        .map(router => ({
+          name:        router.name,
+          host:        extractHost(router.rule),
+          service:     router.service,
+          tls:         !!router.tls,
+          status:      router.status,
+          statusClass: router.status === 'enabled' ? 'ok' : 'warn',
         }))
-      pingMsg.value = `${routers.value.length} routers`
+      pingMsg.value   = `${routers.value.length} routers`
       pingClass.value = 'ok'
     } else {
-      pingMsg.value = `HTTP ${r.status}`
+      pingMsg.value   = `HTTP ${r.status}`
       pingClass.value = 'err'
     }
   } catch (e) {
-    pingMsg.value = 'unreachable'
+    pingMsg.value   = 'unreachable'
     pingClass.value = 'off'
   }
 }

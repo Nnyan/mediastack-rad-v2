@@ -102,6 +102,8 @@ async function refresh(force = false) {
   try {
     const r = await fetch(`/api/health${force ? '?refresh=true' : ''}`)
     report.value = await r.json()
+  } catch (e) {
+    console.error('Health refresh failed:', e)
   } finally {
     refreshing.value = false
   }
@@ -117,8 +119,10 @@ async function fix(issueId) {
     const data = await r.json()
     showToast(data.message, data.ok ? 'ok' : 'err')
     if (data.ok) await refresh(true)
+  } catch (e) {
+    showToast(`Auto-fix failed: ${e.message}`, 'err')
   } finally {
-    fixing.value = null
+    fixing.value = null  // always re-enable the button
   }
 }
 

@@ -250,6 +250,24 @@ async def api_health_fix(issue_id: str) -> dict:
     return {"ok": success, "message": msg}
 
 
+@app.get("/api/traefik/routers")
+async def traefik_routers():
+    """Proxy Traefik's router list from the container network.
+
+    The frontend used to fetch http://host:8081 directly, which is blocked
+    as mixed content when RAD is served over HTTPS. This endpoint calls
+    Traefik container-to-container (always HTTP on the Docker network) and
+    returns the result, so the browser never makes a mixed-content request.
+    """
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get("http://traefik:8081/api/http/routers")
+            return r.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Traefik unreachable: {e}")
+
+
 @app.get("/api/checklist", response_model=list[ChecklistItem])
 async def api_checklist() -> list[ChecklistItem]:
     return checklist_mod.build_checklist()

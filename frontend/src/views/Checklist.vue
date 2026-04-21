@@ -13,6 +13,11 @@
       <span>Checking system state…</span>
     </div>
 
+    <div v-else-if="loadError" class="empty-state error-state">
+      <span class="error-icon">⚠</span>
+      <span>Could not load checklist — is the backend running?</span>
+    </div>
+
     <div v-else-if="total === 0" class="all-done">
       <div class="done-icon">✓</div>
       <div class="done-title">All set up</div>
@@ -50,6 +55,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const items = ref([])
 const loading = ref(true)
+const loadError = ref(false)
 let pollTimer = null
 
 const total = computed(() => items.value.length)
@@ -64,9 +70,12 @@ const categories = computed(() =>
 
 async function refresh() {
   try {
-    items.value = await fetch('/api/checklist').then(r => r.json())
+    const data = await fetch('/api/checklist').then(r => r.json())
+    items.value = data
+    loadError.value = false
   } catch (e) {
-    console.error(e)
+    loadError.value = true
+    console.error('Checklist fetch failed:', e)
   } finally {
     loading.value = false
   }
@@ -164,4 +173,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   transition: background 0.1s;
 }
 .task-action:hover { background: var(--bg-2); text-decoration: none; }
+.error-state { color: var(--warn); }
+.error-icon { font-size: 18px; }
 </style>
