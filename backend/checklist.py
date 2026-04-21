@@ -376,6 +376,104 @@ def _build() -> list[ChecklistItem]:
             category="recommended",
         ))
 
+    # ---- Tinyauth auth --------------------------------------------------------
+
+    if "tinyauth" in services:
+        ta = by_name.get("tinyauth")
+        ta_running = ta is not None and ta.status == "running"
+        ta_env = _env_of(by_name, "tinyauth")
+
+        # 1. Container running
+        items.append(ChecklistItem(
+            id="tinyauth.running",
+            title="Tinyauth container is running",
+            detail="Tinyauth must be running for Tailscale/WAN access to be gated.",
+            done=ta_running,
+            category="essential",
+            action_url="/containers",
+        ))
+
+        # 2. SECRET set
+        secret = ta_env.get("SECRET", "").strip()
+        secret_set = bool(secret) and not secret.startswith("${")
+        items.append(ChecklistItem(
+            id="tinyauth.secret",
+            title="Generate and set TINYAUTH_SECRET",
+            detail=(
+                "A random secret signs session cookies. Generate one with: "
+                "python3 -c \"import secrets; print(secrets.token_hex(32))\""
+            ),
+            done=secret_set,
+            category="essential",
+        ))
+
+        # 3. USERS set
+        users = ta_env.get("USERS", "").strip()
+        users_set = bool(users) and not users.startswith("${") and ":" in users
+        items.append(ChecklistItem(
+            id="tinyauth.users",
+            title="Set TINYAUTH_USERS with a bcrypt password hash",
+            detail=(
+                "USERS format: username:$2y$... (bcrypt hash). Generate a hash: "
+                "docker run --rm ghcr.io/steveiliop56/tinyauth:latest generate-hash --password yourpassword"
+            ),
+            done=users_set,
+            category="essential",
+        ))
+
+        # 4. APP_URL set
+        app_url = ta_env.get("APP_URL", "").strip()
+        app_url_set = bool(app_url) and not app_url.startswith("${") and app_url.startswith("https://")
+        items.append(ChecklistItem(
+            id="tinyauth.app_url",
+            title="Set TINYAUTH_APP_URL to your domain",
+            detail=(
+                "APP_URL must be the HTTPS base URL for cookie scoping and post-login redirect, "
+                "e.g. https://auth.nyrdalyrt.com or https://sonarr.nyrdalyrt.com"
+            ),
+            done=app_url_set,
+            category="essential",
+        ))
+
+        # 5. TOTP (optional, only show if enabled)
+        totp = ta_env.get("TOTP_ENABLED", "").strip().lower()
+        if totp == "true":
+            items.append(ChecklistItem(
+                id="tinyauth.totp",
+                title="Enrol your TOTP authenticator",
+                detail=(
+                    "TOTP_ENABLED=true is set. Visit the Tinyauth UI once, log in with your "
+                    "password, and scan the QR code with Google Authenticator or Bitwarden."
+                ),
+                done=False,
+                category="essential",
+                action_url="/containers",
+            ))
+
+        # 6. Test from Tailscale
+        items.append(ChecklistItem(
+            id="tinyauth.test_tailscale",
+            title="Verify Tinyauth gates Tailscale access",
+            detail=(
+                "From a Tailscale-enrolled device (not on LAN), visit one of your "
+                "service URLs. You should be redirected to the Tinyauth login page."
+            ),
+            done=False,
+            category="recommended",
+        ))
+
+        # 7. Test LAN bypass
+        items.append(ChecklistItem(
+            id="tinyauth.test_lan",
+            title="Verify LAN access bypasses Tinyauth",
+            detail=(
+                "From your local network (10.0.0.0/22), visit the same URL. "
+                "You should NOT see the Tinyauth login — the service loads directly."
+            ),
+            done=False,
+            category="recommended",
+        ))
+
     # ---- Security ---------------------------------------------------------
 
     acme = config.traefik_dir / "letsencrypt" / "acme.json"

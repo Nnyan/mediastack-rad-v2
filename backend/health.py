@@ -341,6 +341,94 @@ async def check_cloudflare_token(ctx: _CheckContext) -> list[HealthIssue]:
     return []
 
 
+def check_tinyauth(ctx: _CheckContext) -> list[HealthIssue]:
+    """Verify Tinyauth is running and all Traefik routers have the two-router pattern.
+
+    When Tinyauth is in the stack, every web service should have both:
+      - A <name>-lan router (LAN bypass, no middleware)
+      - A <name> router (Tinyauth ForwardAuth middleware)
+
+    If a service only has the plain router and is missing the -lan variant,
+    LAN users will also be challenged — not necessarily a security hole but
+    almost certainly unintentional.
+
+    If a service has neither router at all it may not have Traefik labels,
+    which we don't flag here (cf_video_streaming check handles Plex/Jellyfin).
+    """
+    tinyauth = ctx.get("tinyauth")
+    if not tinyauth:
+        return []  # not in stack, nothing to check
+
+    out = []
+
+    if tinyauth.status != "running":
+        out.append(HealthIssue(
+            id="tinyauth.not_running", severity="error", category="auth",
+            title="Tinyauth container is not running",
+            detail=f"State: '{tinyauth.status}'. Auth is broken — all Tailscale access is ungated.",
+            fix_hint="docker start tinyauth",
+            auto_fix_available=True,
+        ))
+        return out  # remaining checks meaningless if not running
+
+    # Check env vars are set
+    env = ctx.env_of("tinyauth")
+    missing_vars = []
+    for var in ("SECRET", "APP_URL", "USERS"):
+        val = env.get(var, "").strip()
+        if not val or val.startswith("${"):
+            missing_vars.append(var)
+
+    if missing_vars:
+        out.append(HealthIssue(
+            id="tinyauth.missing_env", severity="error", category="auth",
+            title=f"Tinyauth missing required env vars: {', '.join(missing_vars)}",
+            detail=("These variables must be set for Tinyauth to work. "
+                    "USERS must contain at least one 'username:bcrypt_hash' entry."),
+            fix_hint="Set the missing vars in your .env file and recreate the tinyauth container.",
+        ))
+
+    # Check that containers with Traefik labels have the -lan router variant.
+    # We look at all running containers' labels for traefik.http.routers.<name>.rule
+    # and verify a corresponding traefik.http.routers.<name>-lan.rule exists.
+    containers = ctx.containers
+    plain_routers: set[str] = set()
+    lan_routers:   set[str] = set()
+
+    for c in containers:
+        labels = c.labels or {}
+        for key in labels:
+            if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
+                # e.g. traefik.http.routers.sonarr.rule
+                # or   traefik.http.routers.sonarr-lan.rule
+                parts = key.split(".")
+                if len(parts) >= 4:
+                    router_name = parts[3]
+                    if router_name.endswith("-lan"):
+                        lan_routers.add(router_name[:-4])  # strip -lan
+                    else:
+                        plain_routers.add(router_name)
+
+    # Services that have a plain router but no -lan counterpart
+    missing_lan = plain_routers - lan_routers
+    # Exclude tinyauth itself (skip_traefik=True, won't have plain router either)
+    missing_lan.discard("tinyauth")
+
+    for name in sorted(missing_lan):
+        out.append(HealthIssue(
+            id=f"tinyauth.missing_lan_router.{name}",
+            severity="warning",
+            category="auth",
+            title=f"'{name}' missing LAN bypass router",
+            detail=(f"Tinyauth is enabled but '{name}' only has a single Traefik router. "
+                    "LAN users will be challenged for credentials when accessing this service. "
+                    "Redeploy via Stack Builder to get the two-router pattern."),
+            fix_hint="Regenerate and redeploy via Stack Builder with Tinyauth enabled.",
+        ))
+
+    return out
+
+
 SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
     check_docker_socket,
     check_compose_file,
@@ -352,6 +440,7 @@ SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
     check_traefik_network,
     check_cf_video_streaming,
     check_tailscale,
+    check_tinyauth,
 ]
 
 ASYNC_CHECKS = [check_cloudflare_token]

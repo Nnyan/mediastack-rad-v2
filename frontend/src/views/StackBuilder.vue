@@ -159,6 +159,67 @@
           </div>
         </div>
 
+        <!-- Tinyauth settings — shown inline when tinyauth is selected -->
+        <div class="ta-panel" v-if="pick['tinyauth']">
+          <div class="ta-info-note">
+            <span>🔒</span>
+            <div>
+              <strong>Tinyauth gates Tailscale access, not LAN.</strong>
+              Devices on <code>{{ req.lan_subnet }}</code> pass through automatically.
+              All other IPs (Tailscale, internet) are challenged at login.
+            </div>
+          </div>
+          <div class="settings-grid mt-3">
+            <label class="field span2">
+              <span class="field-label">
+                LAN subnet
+                <span class="required">required</span>
+              </span>
+              <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" />
+              <span class="field-hint">Devices in this CIDR bypass Tinyauth. Match your router's LAN range.</span>
+            </label>
+            <label class="field span2">
+              <span class="field-label">
+                App URL
+                <span class="required">required</span>
+              </span>
+              <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" />
+              <span class="field-hint">Base URL for cookie scoping and post-login redirect. Use any of your service domains.</span>
+            </label>
+            <label class="field span2">
+              <span class="field-label">
+                Secret
+                <span class="required">required</span>
+              </span>
+              <input v-model="req.tinyauth_secret" type="password" placeholder="random hex string" />
+              <span class="field-hint">
+                Signs session cookies. Generate:
+                <code>python3 -c "import secrets; print(secrets.token_hex(32))"</code>
+              </span>
+            </label>
+            <label class="field span2">
+              <span class="field-label">
+                Users
+                <span class="required">required</span>
+              </span>
+              <input v-model="req.tinyauth_users" placeholder="rafael:$2y$10$..." />
+              <span class="field-hint">
+                Format: <code>username:bcrypt_hash</code> — comma-separated for multiple users.<br>
+                Generate hash:
+                <code>docker run --rm ghcr.io/steveiliop56/tinyauth:latest generate-hash --password yourpassword</code>
+              </span>
+            </label>
+            <label class="field span2 checkbox-field">
+              <span class="field-label">Require TOTP (2FA)</span>
+              <label class="toggle">
+                <input type="checkbox" v-model="req.tinyauth_totp" />
+                <span class="toggle-track"></span>
+                <span class="toggle-label">{{ req.tinyauth_totp ? 'TOTP enabled — scan QR in Tinyauth UI after first login' : 'Password only' }}</span>
+              </label>
+            </label>
+          </div>
+        </div>
+
         <div class="card-actions">
           <button @click="currentStep = 1">← Back</button>
           <button class="primary" @click="currentStep = 3">Next: Review & deploy →</button>
@@ -221,6 +282,8 @@ const defaults = {
   media_root: '/mnt/media',
   cloudflare_token: '', external_plex_url: '',
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
+  tinyauth_secret: '', tinyauth_users: '', tinyauth_app_url: '', tinyauth_totp: false,
+  lan_subnet: '10.0.0.0/22',
 }
 const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
 const req = reactive({ ...defaults, ...stored })
@@ -572,6 +635,68 @@ onMounted(loadCatalog)
 .ts-compat-note span { color: var(--info); font-size: 16px; flex-shrink: 0; }
 .ts-compat-note strong { color: var(--fg-0); }
 .mt-3 { margin-top: var(--space-3); }
+
+/* Tinyauth panel */
+.ta-panel {
+  background: var(--accent-subtle);
+  border: 1.5px solid var(--accent-dim);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.ta-info-note {
+  display: flex;
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--fg-1);
+  line-height: 1.5;
+  margin-bottom: var(--space-3);
+}
+.ta-info-note > span { font-size: 16px; flex-shrink: 0; }
+.ta-info-note strong { color: var(--fg-0); }
+.ta-info-note code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Toggle switch */
+.checkbox-field { flex-direction: column; gap: var(--space-2); }
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input { display: none; }
+.toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--border-strong);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.toggle input:checked ~ .toggle-track {
+  background: var(--accent);
+}
+.toggle input:checked ~ .toggle-track::after {
+  transform: translateX(16px);
+}
+.toggle-label { font-size: 13px; color: var(--fg-1); }
 
 /* Actions */
 .card-actions {

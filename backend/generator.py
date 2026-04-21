@@ -165,6 +165,9 @@ def _render_service(
     if svc.key == "tailscale":
         return _render_tailscale(request)
 
+    if svc.key == "tinyauth":
+        return _render_tinyauth(request)
+
     # Standard LinuxServer-style service
     svc_dict: dict[str, Any] = {
         "image": svc.image,
@@ -225,7 +228,7 @@ def _render_service(
     skip_cf_unsuitable = has_cloudflared and svc.cf_tunnel_unsuitable
 
     if domain and svc.web_port and not svc.skip_traefik and not skip_cf_unsuitable:
-        svc_dict["labels"] = _traefik_labels(svc, domain, request.cert_resolver)
+        svc_dict["labels"] = _traefik_labels(svc, domain, request.cert_resolver, request)
 
     # Overseerr with external Plex: inject the URL as an env var
     # so the Overseerr setup wizard can find it.
@@ -235,29 +238,83 @@ def _render_service(
     return svc_dict
 
 
-def _traefik_labels(svc: ServiceDef, domain: str, resolver: str) -> list[str]:
-    """Produce the minimal, correct Traefik label set for a web service.
+def _traefik_labels(
+    svc: ServiceDef,
+    domain: str,
+    resolver: str,
+    request: "StackRequest | None" = None,
+) -> list[str]:
+    """Produce the Traefik label set for a web service.
 
-    The old generator only set `enable=true` and `Host(...)` which left
-    Traefik unable to pick a cert resolver, so every router showed as
-    pending. We now include `tls.certresolver` and `tls=true` so the
-    resolver kicks in automatically.
+    When Tinyauth is enabled we use the two-router pattern (Option C):
+
+      Router 1: <name>-lan  priority=10  ClientIP(<lan_subnet>)  NO middleware
+        → LAN users (10.0.0.0/22) pass straight through, no auth prompt.
+
+      Router 2: <name>       priority=5   all other IPs            tinyauth-auth@docker
+        → Tailscale users (100.64.x.x) and internet get challenged.
+
+    Traefik evaluates the higher-priority router first. A LAN request
+    matches Router 1 and never sees Router 2. A Tailscale request misses
+    Router 1's ClientIP check and falls to Router 2 where Tinyauth gates it.
+
+    This is architecturally clean: auth is enforced at the router level,
+    not in a middleware chain where ordering matters. A misconfigured
+    middleware cannot bypass this — the LAN router simply has no middleware
+    at all, and the auth router has no IP allowlist bypass.
     """
     host = f"{svc.key}.{domain}"
     router = svc.key
-    # Wildcard cert covers all subdomains — bundle the tls section so
-    # Traefik issues a single cert for *.<domain> rather than one per
-    # subdomain. This is much faster and avoids Let's Encrypt rate limits.
-    return [
+    use_tinyauth = (
+        request is not None
+        and request.tinyauth_enabled
+        and _has_tinyauth(request)
+    )
+
+    # Base labels shared by both router patterns
+    base = [
         "traefik.enable=true",
-        f"traefik.http.routers.{router}.rule=Host(`{host}`)",
-        f"traefik.http.routers.{router}.entrypoints=websecure",
+        # Service definition — same for both routers
+        f"traefik.http.services.{router}.loadbalancer.server.port={svc.web_port}",
+        # TLS/cert config on the primary router
         f"traefik.http.routers.{router}.tls=true",
         f"traefik.http.routers.{router}.tls.certresolver={resolver}",
         f"traefik.http.routers.{router}.tls.domains[0].main={domain}",
         f"traefik.http.routers.{router}.tls.domains[0].sans=*.{domain}",
-        f"traefik.http.services.{router}.loadbalancer.server.port={svc.web_port}",
     ]
+
+    if not use_tinyauth:
+        # Simple single-router setup — no auth middleware
+        return base + [
+            f"traefik.http.routers.{router}.rule=Host(`{host}`)",
+            f"traefik.http.routers.{router}.entrypoints=websecure",
+        ]
+
+    # Two-router pattern for Option C
+    lan = (request.lan_subnet or "10.0.0.0/22").strip()
+    return base + [
+        # --- Router 1: LAN bypass (high priority, no middleware) ---
+        f"traefik.http.routers.{router}-lan.rule=Host(`{host}`) && ClientIP(`{lan}`)",
+        f"traefik.http.routers.{router}-lan.entrypoints=websecure",
+        f"traefik.http.routers.{router}-lan.priority=10",
+        f"traefik.http.routers.{router}-lan.tls=true",
+        f"traefik.http.routers.{router}-lan.tls.certresolver={resolver}",
+        f"traefik.http.routers.{router}-lan.service={router}",
+        # --- Router 2: Catch-all with Tinyauth (low priority) ---
+        f"traefik.http.routers.{router}.rule=Host(`{host}`)",
+        f"traefik.http.routers.{router}.entrypoints=websecure",
+        f"traefik.http.routers.{router}.priority=5",
+        f"traefik.http.routers.{router}.middlewares=tinyauth-auth@docker",
+        f"traefik.http.routers.{router}.service={router}",
+    ]
+
+
+def _has_tinyauth(request: "StackRequest") -> bool:
+    """True if tinyauth is in the selected services."""
+    return any(
+        s.key == "tinyauth" and s.enabled
+        for s in request.services
+    )
 
 
 def _render_traefik(request: StackRequest, domain: str | None) -> dict[str, Any]:
@@ -344,6 +401,63 @@ def _render_tailscale(request: StackRequest) -> dict[str, Any]:
             "TS_USERSPACE": "false",
             "TS_EXTRA_ARGS": "${TS_EXTRA_ARGS:-}",
         },
+    }
+
+
+def _render_tinyauth(request: StackRequest) -> dict[str, Any]:
+    """Tinyauth ForwardAuth container — gates Tailscale/WAN, passes LAN through.
+
+    Tinyauth sits behind Traefik as a ForwardAuth endpoint. When a request
+    hits the catch-all router (priority=5), Traefik calls Tinyauth at
+    /api/auth before forwarding. Tinyauth returns 200 (allow) or 401
+    (redirect to login page).
+
+    The LAN bypass is handled entirely at the Traefik router level (two-router
+    pattern in _traefik_labels) — Tinyauth never even sees LAN requests.
+
+    Environment variables:
+      SECRET      — random string used to sign session cookies. Generate:
+                    python3 -c "import secrets; print(secrets.token_hex(32))"
+      APP_URL     — base URL for the Tinyauth login page (your domain).
+                    Used to set the cookie domain and redirect after login.
+                    e.g. https://auth.nyrdalyrt.com
+      USERS       — comma-separated user:bcrypt_hash pairs.
+                    Generate a hash: htpasswd -nBC 10 "" | tr -d ':\\n'
+                    Or: docker run --rm ghcr.io/steveiliop56/tinyauth:latest
+                         generate-hash --password yourpassword
+      TOTP_ENABLED — "true" to require TOTP (Google Authenticator) in
+                     addition to password. Off by default.
+
+    The ForwardAuth middleware definition lives as labels on this container
+    so Traefik picks it up from Docker's label API. The middleware name
+    "tinyauth-auth" is referenced by all protected routers.
+    """
+    env: dict[str, str] = {
+        "SECRET":  request.tinyauth_secret  or "${TINYAUTH_SECRET}",
+        "APP_URL": request.tinyauth_app_url or "${TINYAUTH_APP_URL}",
+        "USERS":   request.tinyauth_users   or "${TINYAUTH_USERS}",
+    }
+    if request.tinyauth_totp:
+        env["TOTP_ENABLED"] = "true"
+
+    labels = [
+        "traefik.enable=true",
+        # ForwardAuth middleware — Traefik calls this before any protected route.
+        # trustForwardHeader lets Tinyauth see the original client IP via
+        # X-Forwarded-For (set by Traefik) rather than the Docker gateway IP.
+        "traefik.http.middlewares.tinyauth-auth.forwardauth.address=http://tinyauth:3000/api/auth",
+        "traefik.http.middlewares.tinyauth-auth.forwardauth.trustForwardHeader=true",
+        # Forward the authenticated username header to upstream services.
+        "traefik.http.middlewares.tinyauth-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-User-Groups",
+    ]
+
+    return {
+        "image": "ghcr.io/steveiliop56/tinyauth:latest",
+        "container_name": "tinyauth",
+        "restart": "unless-stopped",
+        "networks": [STACK_NETWORK],
+        "environment": env,
+        "labels": labels,
     }
 
 

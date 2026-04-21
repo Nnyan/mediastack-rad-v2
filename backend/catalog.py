@@ -214,6 +214,17 @@ CATALOG: dict[str, ServiceDef] = {
         # Those are added by the generator, not here.
         skip_traefik=False,
     ),
+    "tinyauth": ServiceDef(
+        key="tinyauth",
+        display_name="Tinyauth",
+        description="Lightweight ForwardAuth — gates Tailscale access, passes LAN through",
+        image="ghcr.io/steveiliop56/tinyauth:latest",
+        category="infra",
+        # Tinyauth has a small settings UI but we don't expose it externally.
+        # It is purely a Traefik ForwardAuth endpoint.
+        skip_traefik=True,
+        web_port=3000,
+    ),
     "tailscale": ServiceDef(
         key="tailscale",
         display_name="Tailscale",

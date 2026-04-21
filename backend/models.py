@@ -75,6 +75,14 @@ class StackRequest(BaseModel):
     tailscale_auth_key: str | None = None  # TS_AUTHKEY — reusable key from admin console
     tailscale_routes: str | None = None    # TS_ROUTES — subnet CIDR to advertise
     tailscale_hostname: str = "mediastack" # how node appears in Tailscale admin
+    # Tinyauth — Traefik ForwardAuth for Tailscale / non-LAN access
+    # LAN traffic bypasses auth via an IPAllowList middleware chain.
+    tinyauth_enabled: bool = False
+    tinyauth_secret: str | None = None      # random string for session cookie signing
+    tinyauth_users: str | None = None       # "user:bcrypt_hash" comma-separated
+    tinyauth_app_url: str | None = None     # e.g. https://auth.nyrdalyrt.com
+    tinyauth_totp: bool = False             # require TOTP on top of password
+    lan_subnet: str = "10.0.0.0/22"        # this subnet bypasses Tinyauth entirely
 
 
 # ---------------------------------------------------------------------------
