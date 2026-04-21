@@ -103,10 +103,16 @@
           <div class="config-heading">Configuration</div>
 
           <!-- Core settings — always visible -->
-          <CfgSection
-            title="Core settings" icon="⚙️" badge="required"
-            :open="expanded === 'core'" @toggle="toggleCfg('core')"
-          >
+          <div class="cfg-section" :class="{ open: expanded === 'core' }">
+          <div class="cfg-head" @click="toggleCfg('core')">
+            <span class="cfg-icon">⚙️</span>
+            <span class="cfg-title">Core settings</span>
+          <span class="cfg-badge"
+            :style="{ background: 'var(--fg-2)' + '18', color: 'var(--fg-2)', borderColor: 'var(--fg-2)' + '40' }"
+          >required</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'core' }">›</span>
+          </div>
+          <div v-if="expanded === 'core'" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">Domain</span>
@@ -135,15 +141,21 @@
                 <input v-model.number="req.pgid" type="number" />
               </label>
             </div>
-          </CfgSection>
+          </div>
+          </div>
 
           <!-- Cloudflare — only when cloudflared is selected -->
-          <CfgSection
-            v-if="pick['cloudflared']"
-            title="Cloudflare Tunnel" icon="☁️"
-            badge="required by Cloudflare Tunnel" badge-color="var(--teal)"
-            :open="expanded === 'cloudflare'" @toggle="toggleCfg('cloudflare')"
-          >
+                    <template v-if="pick['cloudflared']">
+          <div class="cfg-section" :class="{ open: expanded === 'cloudflare' }">
+          <div class="cfg-head" @click="toggleCfg('cloudflare')">
+            <span class="cfg-icon">☁️</span>
+            <span class="cfg-title">Cloudflare Tunnel</span>
+          <span class="cfg-badge"
+            :style="{ background: 'var(--teal)' + '18', color: 'var(--teal)', borderColor: 'var(--teal)' + '40' }"
+          >required by Cloudflare Tunnel</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'cloudflare' }">›</span>
+          </div>
+          <div v-if="expanded === 'cloudflare'" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">
@@ -158,15 +170,22 @@
                 <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="Cloudflare Zero Trust → Networks → Tunnels" />
               </label>
             </div>
-          </CfgSection>
+          </div>
+          </div>
+          </template>
 
           <!-- Tailscale — only when tailscale is selected -->
-          <CfgSection
-            v-if="pick['tailscale']"
-            title="Tailscale" icon="🔗"
-            badge="required by Tailscale" badge-color="var(--blue)"
-            :open="expanded === 'tailscale'" @toggle="toggleCfg('tailscale')"
-          >
+                    <template v-if="pick['tailscale']">
+          <div class="cfg-section" :class="{ open: expanded === 'tailscale' }">
+          <div class="cfg-head" @click="toggleCfg('tailscale')">
+            <span class="cfg-icon">🔗</span>
+            <span class="cfg-title">Tailscale</span>
+          <span class="cfg-badge"
+            :style="{ background: 'var(--blue)' + '18', color: 'var(--blue)', borderColor: 'var(--blue)' + '40' }"
+          >required by Tailscale</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'tailscale' }">›</span>
+          </div>
+          <div v-if="expanded === 'tailscale'" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">
@@ -187,15 +206,22 @@
                 <span class="cfg-hint">Docker network CIDR — gives enrolled devices direct container access</span>
               </label>
             </div>
-          </CfgSection>
+          </div>
+          </div>
+          </template>
 
           <!-- Tinyauth — only when tinyauth is selected -->
-          <CfgSection
-            v-if="pick['tinyauth']"
-            title="Tinyauth" icon="🔒"
-            badge="required by Tinyauth" badge-color="var(--purple)"
-            :open="expanded === 'tinyauth'" @toggle="toggleCfg('tinyauth')"
-          >
+                    <template v-if="pick['tinyauth']">
+          <div class="cfg-section" :class="{ open: expanded === 'tinyauth' }">
+          <div class="cfg-head" @click="toggleCfg('tinyauth')">
+            <span class="cfg-icon">🔒</span>
+            <span class="cfg-title">Tinyauth</span>
+          <span class="cfg-badge"
+            :style="{ background: 'var(--purple)' + '18', color: 'var(--purple)', borderColor: 'var(--purple)' + '40' }"
+          >required by Tinyauth</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'tinyauth' }">›</span>
+          </div>
+          <div v-if="expanded === 'tinyauth'" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
               🔒 <strong>LAN users ({{ req.lan_subnet }}) pass through automatically.</strong>
               Only Tailscale and internet traffic is challenged.
@@ -233,15 +259,19 @@
                 </label>
               </label>
             </div>
-          </CfgSection>
+          </div>
+          </div>
+          </template>
 
           <!-- Plex — only when plex is selected -->
-          <CfgSection
-            v-if="pick['plex']"
-            :title="`Plex (${plexMode === 'local' ? 'on this stack' : 'external server'})`"
-            icon="🎬" badge-color="var(--pink)"
-            :open="expanded === 'plex'" @toggle="toggleCfg('plex')"
-          >
+                    <template v-if="pick['plex']">
+          <div class="cfg-section" :class="{ open: expanded === 'plex' }">
+          <div class="cfg-head" @click="toggleCfg('plex')">
+            <span class="cfg-icon">🎬</span>
+            <span class="cfg-title">{{ `Plex (${plexMode === 'local' ? 'on this stack' : 'external server'})` }}</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'plex' }">›</span>
+          </div>
+          <div v-if="expanded === 'plex'" class="cfg-body">
             <div class="mode-toggle">
               <button :class="['mode-btn', { active: plexMode === 'local' }]" @click="plexMode = 'local'">Running on this stack</button>
               <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">External server</button>
@@ -290,15 +320,19 @@
                 </label>
               </div>
             </template>
-          </CfgSection>
+          </div>
+          </div>
+          </template>
 
           <!-- Add custom app — shown when custom tile is toggled on -->
-          <CfgSection
-            v-if="addCustom"
-            title="Add custom app" icon="＋"
-            badge-color="var(--fg-2)"
-            :open="expanded === 'custom'" @toggle="toggleCfg('custom')"
-          >
+                    <template v-if="addCustom">
+          <div class="cfg-section" :class="{ open: expanded === 'custom' }">
+          <div class="cfg-head" @click="toggleCfg('custom')">
+            <span class="cfg-icon">＋</span>
+            <span class="cfg-title">Add custom app</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'custom' }">›</span>
+          </div>
+          <div v-if="expanded === 'custom'" class="cfg-body">
             <div class="tab-row">
               <button
                 v-for="[t, label] in [['compose','Paste docker-compose'],['url','Image URL'],['file','Upload file']]"
@@ -327,13 +361,18 @@
             <div class="custom-actions">
               <button class="primary">Parse & add →</button>
             </div>
-          </CfgSection>
+          </div>
+          </div>
+          </template>
 
           <!-- Review & deploy — always visible -->
-          <CfgSection
-            title="Review & deploy" icon="🚀"
-            :open="expanded === 'deploy'" @toggle="toggleCfg('deploy')"
-          >
+          <div class="cfg-section" :class="{ open: expanded === 'deploy' }">
+          <div class="cfg-head" @click="toggleCfg('deploy')">
+            <span class="cfg-icon">🚀</span>
+            <span class="cfg-title">Review &amp; deploy</span>
+            <span class="cfg-chevron" :class="{ open: expanded === 'deploy' }">›</span>
+          </div>
+          <div v-if="expanded === 'deploy'" class="cfg-body">
             <div class="deploy-row">
               <button @click="preview" :disabled="previewLoading">
                 {{ previewLoading ? 'Generating…' : 'Preview compose.yml' }}
@@ -348,7 +387,8 @@
               <div class="output-label">{{ deployOk ? '✓ Deploy complete' : '✗ Deploy failed' }}</div>
               <pre class="output mono">{{ deployOutput }}</pre>
             </div>
-          </CfgSection>
+          </div>
+          </div>
 
         </div>
       </div><!-- /config-panel -->
@@ -593,37 +633,6 @@ async function deploy() {
   } finally {
     deploying.value = false
   }
-}
-
-// ── CfgSection component ───────────────────────────────────────────────────
-// Defined inside <script setup> so Vue 3 auto-registers it for this template.
-// A sibling <script> block does NOT make components available in setup context.
-const CfgSection = {
-  name: 'CfgSection',
-  props: {
-    title:      String,
-    icon:       String,
-    badge:      String,
-    badgeColor: { type: String, default: 'var(--fg-2)' },
-    open:       Boolean,
-  },
-  emits: ['toggle'],
-  template: `
-    <div class="cfg-section" :class="{ open }">
-      <div class="cfg-head" @click="$emit('toggle')">
-        <span class="cfg-icon">{{ icon }}</span>
-        <span class="cfg-title">{{ title }}</span>
-        <span v-if="badge" class="cfg-badge"
-          :style="{ background: badgeColor + '18', color: badgeColor, borderColor: badgeColor + '40' }">
-          {{ badge }}
-        </span>
-        <span class="cfg-chevron" :class="{ open }">›</span>
-      </div>
-      <div v-if="open" class="cfg-body">
-        <slot />
-      </div>
-    </div>
-  `,
 }
 
 onMounted(loadCatalog)
