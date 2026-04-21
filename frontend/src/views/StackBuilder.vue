@@ -107,6 +107,7 @@
               on: pick[s.key],
               warn: pick[s.key] && pick['cloudflared'] && s.cf_tunnel_unsuitable && !(s.key === 'plex' && req.external_plex_url)
             }]"
+            :style="pick[s.key] ? { '--tile-color': catColor(activeCategory) } : {}"
             @click="toggle(s.key)"
             :title="s.description"
           >
@@ -234,6 +235,17 @@ const selectedServices = computed(() =>
 
 function selectedInCategory(cat) {
   return (catalog.value[cat] || []).filter(s => pick[s.key]).length
+}
+
+function catColor(cat) {
+  const map = {
+    media: 'var(--cat-media)',
+    indexers: 'var(--cat-indexers)',
+    downloaders: 'var(--cat-downloaders)',
+    requests: 'var(--cat-requests)',
+    infra: 'var(--cat-infra)',
+  }
+  return map[cat] || 'var(--accent)'
 }
 
 function toggle(key) {
@@ -400,89 +412,111 @@ onMounted(loadCatalog)
 /* Category tabs */
 .cat-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: var(--space-3);
+  gap: 6px;
+  margin-bottom: var(--space-4);
   flex-wrap: wrap;
 }
 .cat-tab {
-  padding: 5px 14px;
+  padding: 6px 16px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   background: var(--bg-0);
-  border-color: var(--border);
+  border: 1.5px solid var(--border);
   color: var(--fg-2);
-  transition: all 0.1s;
+  transition: all 0.15s;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   text-transform: capitalize;
+  cursor: pointer;
 }
-.cat-tab:hover { color: var(--fg-0); border-color: var(--border-strong); }
+.cat-tab:hover { color: var(--fg-0); border-color: var(--border-strong); background: var(--bg-2); }
 .cat-tab.active {
-  background: var(--bg-3);
+  background: var(--bg-1);
   border-color: var(--border-strong);
   color: var(--fg-0);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
 }
 .cat-count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--fg-2);
+  background: var(--bg-2);
+  padding: 1px 6px;
+  border-radius: 10px;
 }
-.cat-tab.active .cat-count { color: var(--accent); }
+.cat-tab.active .cat-count { background: var(--accent-dim); color: var(--accent); }
 
 /* Service tiles */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
   gap: var(--space-2);
   margin-bottom: var(--space-4);
 }
 .tile {
+  --tile-color: var(--accent);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   padding: var(--space-3);
   background: var(--bg-0);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.1s, background 0.1s;
-  min-height: 72px;
+  transition: all 0.15s;
+  min-height: 76px;
+  position: relative;
+  overflow: hidden;
 }
-.tile:hover { border-color: var(--border-strong); background: var(--bg-2); }
+.tile::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--tile-color);
+  opacity: 0;
+  transition: opacity 0.15s;
+  border-radius: 2px 0 0 2px;
+}
+.tile:hover { border-color: var(--border-strong); background: var(--bg-1); box-shadow: var(--shadow-1); }
 .tile.on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-1));
+  border-color: var(--tile-color);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-1);
 }
-.tile.warn { border-color: var(--warn); }
+.tile.on::before { opacity: 1; }
+.tile.warn { border-color: var(--warn) !important; }
 
 .tile-top {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .tile-check {
-  width: 16px; height: 16px;
-  border-radius: 4px;
+  width: 17px; height: 17px;
+  border-radius: 5px;
   border: 1.5px solid var(--border-strong);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.1s;
+  transition: all 0.15s;
+  background: var(--bg-1);
 }
 .tile-check.checked {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #0a1a0a;
+  background: var(--tile-color);
+  border-color: var(--tile-color);
+  color: #fff;
 }
 .tile-check svg { width: 10px; height: 10px; }
 
 .tile-name {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--fg-0);
   flex: 1;
@@ -497,11 +531,11 @@ onMounted(loadCatalog)
   color: var(--fg-2);
   background: var(--bg-2);
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   flex-shrink: 0;
 }
 .tile-desc {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--fg-2);
   line-height: 1.4;
   overflow: hidden;
@@ -510,12 +544,13 @@ onMounted(loadCatalog)
   -webkit-box-orient: vertical;
 }
 .tile-warn {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--warn);
-  background: var(--warn-dim);
+  background: var(--warn-bg);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   margin-top: 2px;
+  font-weight: 500;
 }
 
 /* Tailscale panel */

@@ -177,6 +177,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
 }
-.status-pill.ok { background: var(--ok-dim); color: var(--ok); }
-.status-pill.err { background: var(--err-dim); color: var(--err); }
+.status-pill.ok { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+.status-pill.err { background: var(--err-bg); color: var(--err); font-weight: 600; }
 </style>
