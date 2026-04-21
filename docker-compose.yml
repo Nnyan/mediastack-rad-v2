@@ -1,0 +1,41 @@
+# MediaStack-RAD — the dashboard service itself.
+#
+# Deploy this first, then use the Stack Builder inside RAD to generate
+# your mediacenter stack. RAD needs three things:
+#
+#   1. The Docker socket, so it can inspect and manage containers
+#   2. A directory on the host for the generated stack (mounted at /compose)
+#   3. Network access to the stack it manages (added at runtime)
+#
+# By default RAD listens on port 8090. Expose it only on the LAN —
+# there is no built-in authentication because this is a home lab tool.
+
+services:
+  mediastack-rad:
+    image: ghcr.io/nnyan/mediastack-rad-v2:latest
+    container_name: mediastack-rad
+    restart: unless-stopped
+    ports:
+      # Bind to the LAN only if you want — e.g. "10.0.1.60:8090:8090"
+      - "8090:8090"
+    volumes:
+      # Docker socket: read-write is required for container operations
+      # (start/stop/remove). Mount read-only if you only want monitoring.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Stack directory — where docker-compose.yml gets written
+      - ${STACK_DIR:-/home/stack/mediacenter}:/compose
+    environment:
+      RAD_STACK_DIR: /compose
+      RAD_TRAEFIK_DIR: /compose/config/traefik
+      # RAD_HEALTH_INTERVAL: 30   # seconds between background health checks
+      # RAD_STATS_INTERVAL: 2.0   # seconds between stats WebSocket pushes
+    networks:
+      - mediastack
+
+# The same network that the stack builder generates. Once RAD is on
+# this network, it can talk to every service by container name, and
+# Traefik's provider can see RAD's Docker labels (if you add any).
+networks:
+  mediastack:
+    name: mediastack
+    external: true

@@ -1,0 +1,251 @@
+<template>
+  <div>
+    <h1 class="page-title">
+      Traefik & HTTPS
+      <span class="sub">routing, certificates, DNS</span>
+    </h1>
+
+    <div class="card">
+      <h3 class="section-title">Status</h3>
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="dot" :class="pingClass"></span>
+          <span>Traefik API</span>
+          <span class="mono small muted">{{ pingMsg }}</span>
+        </div>
+        <div class="status-item">
+          <span class="dot" :class="apiVersionClass"></span>
+          <span>Cloudflare API</span>
+          <span class="mono small muted">{{ cfMsg }}</span>
+        </div>
+        <div class="status-item">
+          <span class="dot" :class="acmeClass"></span>
+          <span>ACME storage</span>
+          <span class="mono small muted">{{ acmeMsg }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Routes</h3>
+      <p class="small muted mb-3">
+        These are the hosts Traefik is currently serving. A green dot
+        means the router is up and has a valid cert; amber means the
+        router exists but no cert is issued yet; red means something is
+        wrong (check the Health tab).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Router</th>
+            <th>Host</th>
+            <th>Service</th>
+            <th>TLS</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in routers" :key="r.name">
+            <td class="mono">{{ r.name }}</td>
+            <td class="mono">
+              <a :href="`https://${r.host}`" target="_blank" v-if="r.host">
+                {{ r.host }}
+              </a>
+              <span v-else class="muted">—</span>
+            </td>
+            <td class="mono small">{{ r.service }}</td>
+            <td>
+              <span v-if="r.tls" class="dot ok"></span>
+              <span v-else class="dot off"></span>
+              <span class="small mono">{{ r.tls ? 'on' : 'off' }}</span>
+            </td>
+            <td>
+              <span class="badge-status" :class="r.statusClass">{{ r.status }}</span>
+            </td>
+          </tr>
+          <tr v-if="routers.length === 0">
+            <td colspan="5" class="muted">No routers registered yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Cleanup tools</h3>
+      <p class="small muted mb-3">
+        If DNS-01 challenges are failing with "time limit exceeded",
+        stale <code>_acme-challenge</code> TXT records in Cloudflare can
+        poison propagation checks. Use the cleanup button to wipe them.
+      </p>
+      <div class="flex gap-3">
+        <button @click="cleanupAcmeJson">Reset acme.json</button>
+        <button @click="restartTraefik">Restart Traefik</button>
+      </div>
+      <pre v-if="toolOutput" class="mono preview mt-3">{{ toolOutput }}</pre>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
+
+const showToast = inject('showToast')
+
+// Traefik API runs on port 8081 of the Traefik container. We call
+// through the RAD backend which proxies — or, in the simple case,
+// directly via window.location since Traefik is on the same host.
+// To stay simple we expose a small relay endpoint if needed.
+
+const routers = ref([])
+const pingMsg = ref('checking…')
+const pingClass = ref('off')
+const cfMsg = ref('checking…')
+const apiVersionClass = ref('off')
+const acmeMsg = ref('checking…')
+const acmeClass = ref('off')
+const toolOutput = ref('')
+
+let pollTimer = null
+
+async function refresh() {
+  // Pull the current health report — it already checks CF token and ACME.
+  try {
+    const h = await fetch('/api/health').then(r => r.json())
+    const cfIssue = (h.issues || []).find(i => i.id.startsWith('cloudflare.'))
+    if (cfIssue) {
+      cfMsg.value = cfIssue.title
+      apiVersionClass.value = cfIssue.severity === 'error' ? 'err' : 'warn'
+    } else {
+      cfMsg.value = 'valid'
+      apiVersionClass.value = 'ok'
+    }
+    const acmeIssue = (h.issues || []).find(i => i.id.startsWith('acme.'))
+    if (acmeIssue) {
+      acmeMsg.value = acmeIssue.title
+      acmeClass.value = 'err'
+    } else {
+      acmeMsg.value = 'mode 0600'
+      acmeClass.value = 'ok'
+    }
+  } catch {}
+
+  // Traefik's own API lives on the host at :8081 — hit it directly.
+  try {
+    const host = window.location.hostname
+    const r = await fetch(`http://${host}:8081/api/http/routers`)
+    if (r.ok) {
+      const data = await r.json()
+      routers.value = data
+        .filter(r => !r.name.endsWith('@internal'))
+        .map(r => ({
+          name: r.name,
+          host: extractHost(r.rule),
+          service: r.service,
+          tls: !!r.tls,
+          status: r.status,
+          statusClass: r.status === 'enabled' ? 'ok' : 'warn',
+        }))
+      pingMsg.value = `${routers.value.length} routers`
+      pingClass.value = 'ok'
+    } else {
+      pingMsg.value = `HTTP ${r.status}`
+      pingClass.value = 'err'
+    }
+  } catch (e) {
+    pingMsg.value = 'unreachable'
+    pingClass.value = 'off'
+  }
+}
+
+function extractHost(rule) {
+  // rule looks like: Host(`sonarr.example.com`)
+  const m = /Host\(`([^`]+)`\)/.exec(rule || '')
+  return m ? m[1] : ''
+}
+
+async function cleanupAcmeJson() {
+  if (!confirm('Reset acme.json? Traefik will re-request every cert.')) return
+  try {
+    const r = await fetch('/api/health/fix/acme.perms', { method: 'POST' })
+    const data = await r.json()
+    toolOutput.value = data.message
+    showToast(data.ok ? 'acme.json permissions fixed' : data.message,
+              data.ok ? 'ok' : 'err')
+  } catch (e) {
+    toolOutput.value = String(e)
+  }
+}
+
+async function restartTraefik() {
+  try {
+    const r = await fetch('/api/containers/traefik/restart', { method: 'POST' })
+    if (r.ok) {
+      showToast('Traefik restarted')
+      setTimeout(refresh, 3000)
+    } else {
+      showToast('Restart failed', 'err')
+    }
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'err')
+  }
+}
+
+onMounted(() => {
+  refresh()
+  pollTimer = setInterval(refresh, 10000)
+})
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
+</script>
+
+<style scoped>
+.section-title {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-0);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.badge-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+.badge-status.ok { background: var(--ok-dim); color: var(--ok); }
+.badge-status.warn { background: var(--warn-dim); color: var(--warn); }
+.badge-status.err { background: var(--err-dim); color: var(--err); }
+
+.preview {
+  max-height: 260px;
+  overflow: auto;
+  background: var(--bg-0);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.mt-3 { margin-top: var(--space-3); }
+</style>

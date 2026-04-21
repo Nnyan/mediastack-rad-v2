@@ -1,0 +1,144 @@
+name: build-and-publish
+
+# Triggers:
+#   - Push to main → publishes :latest and :<sha>
+#   - Tags v* → publishes :<tag> and :latest
+#   - Manual dispatch for testing
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        # Multi-arch builds (amd64 + arm64) require QEMU for cross-compilation.
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64,amd64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        # Don't try to log in on PRs from forks — they don't have write perm.
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Use GitHub Actions cache to speed up subsequent builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend deps
+        run: |
+          pip install -r backend/requirements.txt
+
+      - name: Smoke test — validators catch duplicate env keys
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from backend.validators import _scan_duplicate_env_keys
+          # The exact bug that burned an hour of debugging.
+          compose = '''services:
+            traefik:
+              environment:
+                CF_DNS_API_TOKEN: abc
+                CF_DNS_API_TOKEN:
+          '''
+          issues = _scan_duplicate_env_keys(compose)
+          assert len(issues) == 1, f'Expected 1 issue, got {len(issues)}'
+          assert 'CF_DNS_API_TOKEN' in issues[0].message
+          print('OK: duplicate env key detection works')
+          "
+
+      - name: Smoke test — generator produces valid compose
+        run: |
+          python -c "
+          import sys, tempfile; sys.path.insert(0, '.')
+          from pathlib import Path
+          from backend.models import StackRequest, ServiceChoice
+          from backend.generator import generate
+          from backend.validators import validate_compose_file
+          req = StackRequest(
+              domain='example.com',
+              services=[
+                  ServiceChoice(key='sonarr'),
+                  ServiceChoice(key='radarr'),
+                  ServiceChoice(key='prowlarr'),
+                  ServiceChoice(key='traefik'),
+              ],
+          )
+          text = generate(req)
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+              f.write(text)
+              path = Path(f.name)
+          issues = validate_compose_file(path)
+          errors = [i for i in issues if i.severity == 'error']
+          assert len(errors) == 0, f'Generator produced invalid compose: {errors}'
+          print('OK: generator output validates clean')
+          "
+
+      - name: Smoke test — main.py imports and route ordering check passes
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from backend import main  # _verify_route_order runs on import
+          from fastapi.routing import APIRoute
+          api_routes = [r for r in main.app.router.routes if isinstance(r, APIRoute)]
+          # Last API route must be the SPA catch-all
+          assert api_routes[-1].path == '/{full_path:path}', \
+              f'SPA not last: {api_routes[-1].path}'
+          print('OK: SPA catch-all is last')
+          "
