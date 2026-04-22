@@ -25,7 +25,7 @@
     </div>
 
     <!-- ── Check groups ─────────────────────────────────────────────────── -->
-    <div v-else class="check-groups">
+    <div v-else class="check-groups" :class="{ 'groups-refreshing': refreshing }">
       <div
         v-for="group in groups"
         :key="group.category"
@@ -123,7 +123,10 @@ const totalChecks = computed(() => checks.value.length)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(unix) {
-  return new Date(unix * 1000).toLocaleTimeString()
+  if (!unix) return '—'
+  return new Date(unix * 1000).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
 }
 
 function toggle(check) {
@@ -135,10 +138,30 @@ function toggle(check) {
 async function refresh(force = false) {
   if (force) refreshing.value = true
   try {
-    const r = await fetch(`/api/health${force ? '?refresh=true' : ''}`)
-    report.value = await r.json()
+    // Run the fetch and a minimum 600ms delay concurrently so the spinner
+    // is always visible long enough for the user to see it
+    const [r] = await Promise.all([
+      fetch(`/api/health${force ? '?refresh=true' : ''}`),
+      force ? new Promise(res => setTimeout(res, 600)) : Promise.resolve(),
+    ])
+    const data = await r.json()
+    report.value = data
+
+    // Toast after manual re-run so it's clear something happened
+    if (force) {
+      const errs  = (data.checks || []).filter(c => c.status === 'error').length
+      const warns = (data.checks || []).filter(c => c.status === 'warning').length
+      if (errs === 0 && warns === 0) {
+        showToast(`All ${(data.checks || []).length} checks passed`, 'ok')
+      } else if (errs > 0) {
+        showToast(`${errs} error${errs !== 1 ? 's' : ''}, ${warns} warning${warns !== 1 ? 's' : ''}`, 'err')
+      } else {
+        showToast(`${warns} warning${warns !== 1 ? 's' : ''} — check Health tab`, 'warn')
+      }
+    }
   } catch (e) {
     console.error('Health refresh failed:', e)
+    if (force) showToast('Health check failed — backend unreachable', 'err')
   } finally {
     refreshing.value = false
   }
@@ -354,6 +377,13 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   transition: opacity 0.13s;
 }
 .fix-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Refreshing overlay on check groups */
+.groups-refreshing {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
 
 /* Spinner */
 .spinner {
