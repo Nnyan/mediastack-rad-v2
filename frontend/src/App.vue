@@ -243,7 +243,15 @@ onUnmounted(() => {
   background: var(--bg-2); border-color: var(--border);
 }
 
-.main-content { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6); }
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+  /* Reserve scrollbar gutter at all times so the scrollbar appearing/disappearing
+     never shifts the page content horizontally (was causing ~15px tile reflow
+     when config sections opened and page height crossed the viewport threshold) */
+  scrollbar-gutter: stable;
+}
 
 .fade-up-enter-active, .fade-up-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .fade-up-enter-from { opacity: 0; transform: translateY(6px); }

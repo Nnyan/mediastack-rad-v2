@@ -286,7 +286,7 @@
               <button :class="['mode-btn', { active: plexMode === 'local' }]" @click="plexMode = 'local'">Running on this stack</button>
               <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">External server</button>
             </div>
-            <template v-if="plexMode === 'local'">
+            <div v-show="plexMode === 'local'">
               <div class="cfg-grid">
                 <label class="cfg-field">
                   <span class="cfg-label">Server name</span>
@@ -313,8 +313,8 @@
                   <span class="cfg-hint">Used by Sonarr, Radarr, and other apps for API auth. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
                 </label>
               </div>
-            </template>
-            <template v-else>
+            </div>
+            <div v-show="plexMode !== 'local'">
               <div class="cfg-grid">
                 <label class="cfg-field span2">
                   <span class="cfg-label">Plex server URL</span>
@@ -330,7 +330,7 @@
                   <span class="cfg-hint">Required for API access. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
                 </label>
               </div>
-            </template>
+            </div>
           </div>
           </div>
           </template>
