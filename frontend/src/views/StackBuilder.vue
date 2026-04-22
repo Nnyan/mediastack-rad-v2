@@ -124,16 +124,16 @@
           <div class="config-heading">Configuration</div>
 
           <!-- Core settings — always visible -->
-          <div class="cfg-section" :class="{ open: expanded === 'core' }">
+          <div class="cfg-section" :class="{ open: expanded.has('core') }">
           <div class="cfg-head" @click="toggleCfg('core')">
             <span class="cfg-icon">⚙️</span>
             <span class="cfg-title">Core settings</span>
           <span class="cfg-badge"
             :style="{ background: 'var(--fg-2)' + '18', color: 'var(--fg-2)', borderColor: 'var(--fg-2)' + '40' }"
           >required</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'core' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('core') }">›</span>
           </div>
-          <div v-if="expanded === 'core'" class="cfg-body">
+          <div v-if="expanded.has('core')" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">Domain</span>
@@ -167,16 +167,16 @@
 
           <!-- Cloudflare — only when cloudflared is selected -->
                     <template v-if="pick['cloudflared']">
-          <div class="cfg-section" :class="{ open: expanded === 'cloudflare' }">
+          <div class="cfg-section" :class="{ open: expanded.has('cloudflare') }">
           <div class="cfg-head" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
             <span class="cfg-title">Cloudflare Tunnel</span>
           <span class="cfg-badge"
             :style="{ background: 'var(--teal)' + '18', color: 'var(--teal)', borderColor: 'var(--teal)' + '40' }"
           >required by Cloudflare Tunnel</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'cloudflare' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('cloudflare') }">›</span>
           </div>
-          <div v-if="expanded === 'cloudflare'" class="cfg-body">
+          <div v-if="expanded.has('cloudflare')" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">
@@ -197,16 +197,16 @@
 
           <!-- Tailscale — only when tailscale is selected -->
                     <template v-if="pick['tailscale']">
-          <div class="cfg-section" :class="{ open: expanded === 'tailscale' }">
+          <div class="cfg-section" :class="{ open: expanded.has('tailscale') }">
           <div class="cfg-head" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
             <span class="cfg-title">Tailscale</span>
           <span class="cfg-badge"
             :style="{ background: 'var(--blue)' + '18', color: 'var(--blue)', borderColor: 'var(--blue)' + '40' }"
           >required by Tailscale</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'tailscale' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('tailscale') }">›</span>
           </div>
-          <div v-if="expanded === 'tailscale'" class="cfg-body">
+          <div v-if="expanded.has('tailscale')" class="cfg-body">
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">
@@ -233,16 +233,16 @@
 
           <!-- Tinyauth — only when tinyauth is selected -->
                     <template v-if="pick['tinyauth']">
-          <div class="cfg-section" :class="{ open: expanded === 'tinyauth' }">
+          <div class="cfg-section" :class="{ open: expanded.has('tinyauth') }">
           <div class="cfg-head" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
             <span class="cfg-title">Tinyauth</span>
           <span class="cfg-badge"
             :style="{ background: 'var(--purple)' + '18', color: 'var(--purple)', borderColor: 'var(--purple)' + '40' }"
           >required by Tinyauth</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'tinyauth' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('tinyauth') }">›</span>
           </div>
-          <div v-if="expanded === 'tinyauth'" class="cfg-body">
+          <div v-if="expanded.has('tinyauth')" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
               🔒 <strong>LAN users ({{ req.lan_subnet }}) pass through automatically.</strong>
               Only Tailscale and internet traffic is challenged.
@@ -286,13 +286,13 @@
 
           <!-- Plex — only when plex is selected -->
                     <template v-if="pick['plex']">
-          <div class="cfg-section" :class="{ open: expanded === 'plex' }">
+          <div class="cfg-section" :class="{ open: expanded.has('plex') }">
           <div class="cfg-head" @click="toggleCfg('plex')">
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">{{ `Plex (${plexMode === 'local' ? 'on this stack' : 'external server'})` }}</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'plex' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('plex') }">›</span>
           </div>
-          <div v-if="expanded === 'plex'" class="cfg-body">
+          <div v-if="expanded.has('plex')" class="cfg-body">
             <div class="mode-toggle">
               <button :class="['mode-btn', { active: plexMode === 'local' }]" @click="plexMode = 'local'">Running on this stack</button>
               <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">External server</button>
@@ -347,13 +347,13 @@
 
           <!-- Add custom app — shown when custom tile is toggled on -->
                     <template v-if="addCustom">
-          <div class="cfg-section" :class="{ open: expanded === 'custom' }">
+          <div class="cfg-section" :class="{ open: expanded.has('custom') }">
           <div class="cfg-head" @click="toggleCfg('custom')">
             <span class="cfg-icon">＋</span>
             <span class="cfg-title">Add custom app</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'custom' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('custom') }">›</span>
           </div>
-          <div v-if="expanded === 'custom'" class="cfg-body">
+          <div v-if="expanded.has('custom')" class="cfg-body">
             <div class="tab-row">
               <button
                 v-for="[t, label] in [['compose','Paste docker-compose'],['url','Image URL'],['file','Upload file']]"
@@ -409,13 +409,13 @@
           </template>
 
           <!-- Review & deploy — always visible -->
-          <div class="cfg-section" :class="{ open: expanded === 'deploy' }">
+          <div class="cfg-section" :class="{ open: expanded.has('deploy') }">
           <div class="cfg-head" @click="toggleCfg('deploy')">
             <span class="cfg-icon">🚀</span>
             <span class="cfg-title">Review &amp; deploy</span>
-            <span class="cfg-chevron" :class="{ open: expanded === 'deploy' }">›</span>
+            <span class="cfg-chevron" :class="{ open: expanded.has('deploy') }">›</span>
           </div>
-          <div v-if="expanded === 'deploy'" class="cfg-body">
+          <div v-if="expanded.has('deploy')" class="cfg-body">
             <div class="deploy-row">
               <button @click="preview" :disabled="previewLoading">
                 {{ previewLoading ? 'Generating…' : 'Preview compose.yml' }}
@@ -468,7 +468,7 @@ const rawCatalog   = ref({})
 const pick         = reactive({})
 const search       = ref('')
 const activeFilter = ref('')
-const expanded     = ref('core')
+const expanded     = reactive(new Set(['core', 'deploy']))  // multi-open; reactive Set tracks add/delete
 const plexMode     = ref('local')
 const addCustom    = ref(false)
 const addTab       = ref('compose')
@@ -595,11 +595,11 @@ function toggle(key) { pick[key] = !pick[key] }
 
 function toggleAddCustom() {
   addCustom.value = !addCustom.value
-  expanded.value = addCustom.value ? 'custom' : 'core'
+  if (addCustom.value) expanded.add('custom'); else expanded.delete('custom')
 }
 
 // camelCase throughout — was mixed snake_case/camelCase previously
-function toggleCfg(id) { expanded.value = expanded.value === id ? '' : id }
+function toggleCfg(id) { if (expanded.has(id)) expanded.delete(id); else expanded.add(id) }
 
 async function parseAndAdd() {
   const content = addInput.value.trim()
@@ -713,7 +713,7 @@ function buildRequest() {
 async function preview() {
   previewLoading.value = true
   previewText.value = ''
-  expanded.value = 'deploy'
+  expanded.add('deploy')
   try {
     const r = await fetch('/api/stack/generate', {
       method: 'POST',
@@ -739,7 +739,7 @@ async function deploy() {
   if (!confirm('Deploy this stack? Running containers may be recreated.')) return
   deploying.value = true
   deployOutput.value = ''
-  expanded.value = 'deploy'
+  expanded.add('deploy')
   try {
     const r = await fetch('/api/stack/deploy', {
       method: 'POST',
