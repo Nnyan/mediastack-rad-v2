@@ -128,8 +128,13 @@ def _summarize(c: Container) -> ContainerSummary:
     host_cfg = attrs.get("HostConfig") or {}
 
     # Parse port bindings. Docker returns a mapping like:
-    #   {"8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8080"}], ...}
+    #   {"8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8080"},
+    #                 {"HostIp": "::",       "HostPort": "8080"}], ...}
+    # Docker binds each port on both IPv4 (0.0.0.0) and IPv6 (::) interfaces,
+    # producing duplicate entries. We deduplicate on (host_port, container_port,
+    # protocol) — the HostIp doesn't matter for our display purposes.
     ports: list[ContainerPort] = []
+    seen_ports: set[tuple] = set()
     bindings = net.get("Ports") or host_cfg.get("PortBindings") or {}
     for port_key, hosts in (bindings or {}).items():
         if "/" in port_key:
@@ -140,23 +145,30 @@ def _summarize(c: Container) -> ContainerSummary:
             cport = int(cport_s)
         except ValueError:
             continue
+        proto = proto if proto in ("tcp", "udp") else "tcp"
         if hosts:
             for h in hosts:
                 try:
-                    hp = int(h.get("HostPort") or 0)
+                    hp = int(h.get("HostPort") or 0) or None
                 except (TypeError, ValueError):
                     hp = None
+                key = (hp, cport, proto)
+                if key in seen_ports:
+                    continue
+                seen_ports.add(key)
                 ports.append(ContainerPort(
-                    host_port=hp or None,
+                    host_port=hp,
                     container_port=cport,
-                    protocol=proto if proto in ("tcp", "udp") else "tcp",
+                    protocol=proto,
                 ))
         else:
-            # Exposed but not published
-            ports.append(ContainerPort(
-                container_port=cport,
-                protocol=proto if proto in ("tcp", "udp") else "tcp",
-            ))
+            key = (None, cport, proto)
+            if key not in seen_ports:
+                seen_ports.add(key)
+                ports.append(ContainerPort(
+                    container_port=cport,
+                    protocol=proto,
+                ))
 
     # Networks as a simple name list
     networks = list((net.get("Networks") or {}).keys())
