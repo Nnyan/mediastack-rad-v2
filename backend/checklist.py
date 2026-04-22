@@ -217,9 +217,13 @@ def _build() -> list[ChecklistItem]:
                 id="tunnel.hostnames",
                 title=f"Add Tunnel hostnames for: {', '.join(unrouted)}",
                 detail=(
-                    "Cloudflared is running but these services have no public hostname. "
-                    "Go to Cloudflare Zero Trust → Networks → Tunnels → your tunnel → "
-                    "Public Hostnames and add each one (e.g. sonarr → http://sonarr:8989)."
+                    "Cloudflared is running but these services have no Traefik route yet. "
+                    "In Cloudflare Zero Trust → Networks → Tunnels → your tunnel → Public Hostnames, "
+                    "add each service subdomain. IMPORTANT: all services must route through Traefik, "
+                    "NOT directly to the container port. Set Service Type=HTTPS, "
+                    "URL=<your-server-ip>:443, and enable 'No TLS Verify' under TLS settings. "
+                    "Routing directly to container ports (e.g. http://10.0.1.60:9696) bypasses "
+                    "Traefik and Tinyauth — Tinyauth will never intercept those requests."
                 ),
                 done=False,
                 category="essential",
@@ -229,18 +233,37 @@ def _build() -> list[ChecklistItem]:
             items.append(ChecklistItem(
                 id="external.access",
                 title="External access via Cloudflare Tunnel ✓",
-                detail="Tunnel running and all services have registered routes.",
+                detail="Tunnel running and all services have registered routes through Traefik.",
                 done=True,
                 category="essential",
             ))
+
+        # Separate item: always shown when cloudflared is running, reminding
+        # about the correct routing pattern (easy to get wrong)
+        items.append(ChecklistItem(
+            id="tunnel.routing",
+            title="Cloudflare Tunnel hostnames route through Traefik",
+            detail=(
+                "Each public hostname in your Cloudflare Tunnel must point to Traefik, not directly "
+                "to individual containers. Correct setup: Service Type=HTTPS, "
+                "URL=<your-server-ip>:443, TLS → No TLS Verify=enabled. "
+                "Pointing directly to a container port (e.g. http://10.0.1.60:9696) bypasses "
+                "Traefik completely — Tinyauth auth and HTTPS certificates will not apply. "
+                "Exception: auth.yourdomain.com should point to http://tinyauth:3000 directly."
+            ),
+            done=has_live_routes,
+            category="recommended",
+            action_url="https://one.dash.cloudflare.com/",
+        ))
     else:
         items.append(ChecklistItem(
             id="external.access",
             title="Configure external access",
             detail=(
-                "Option A (recommended): Add cloudflared with a TUNNEL_TOKEN and configure "
-                "public hostnames in Cloudflare Zero Trust. "
-                "Option B: Forward ports 80 and 443 from your router and add DNS A records."
+                "Option A (recommended): Add cloudflared with a TUNNEL_TOKEN, then in Cloudflare "
+                "Zero Trust add each service hostname pointing to Traefik "
+                "(Type=HTTPS, URL=<server-ip>:443, No TLS Verify=on). "
+                "Option B: Forward ports 80+443 from your router and add DNS A records."
             ),
             done=has_live_routes,
             category="essential",
