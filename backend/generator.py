@@ -36,6 +36,24 @@ logger = logging.getLogger(__name__)
 STACK_NETWORK = "mediastack"
 
 
+def _esc(value: str) -> str:
+    """Escape $ in user-supplied values so Docker Compose doesn't interpolate them.
+
+    Bcrypt hashes look like '$2b$10$...' — Docker Compose treats every '$X'
+    as an environment variable reference and silently replaces it with an empty
+    string. Doubling to '$$' makes Compose output a literal '$' at runtime.
+
+    Values that ARE intentional placeholders (e.g. '${TINYAUTH_SECRET}') are
+    left unchanged — they're meant to be resolved from .env.
+    """
+    if not value:
+        return value
+    # Placeholder pattern: starts with ${ and ends with } — leave as-is
+    if value.startswith("${") and value.endswith("}"):
+        return value
+    return value.replace("$", "$$")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -600,9 +618,9 @@ def _render_tinyauth(request: StackRequest) -> dict[str, Any]:
     "tinyauth-auth" is referenced by all protected routers.
     """
     env: dict[str, str] = {
-        "SECRET":  request.tinyauth_secret  or "${TINYAUTH_SECRET}",
+        "SECRET":  _esc(request.tinyauth_secret  or "${TINYAUTH_SECRET}"),
         "APP_URL": request.tinyauth_app_url or "${TINYAUTH_APP_URL}",
-        "USERS":   request.tinyauth_users   or "${TINYAUTH_USERS}",
+        "USERS":   _esc(request.tinyauth_users   or "${TINYAUTH_USERS}"),
     }
     if request.tinyauth_totp:
         env["TOTP_ENABLED"] = "true"
