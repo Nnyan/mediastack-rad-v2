@@ -263,9 +263,11 @@
                 <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate to create admin credentials</span>
               </label>
               <div v-if="generatedPassword" class="generated-password-box">
-                <span class="gen-pw-label">⚠ Save this password — it will not be shown again:</span>
+                <span class="gen-pw-label">
+                  ⚠ Save this — not shown again
+                  <button class="gen-pw-dismiss" @click="generatedPassword = ''">✕ dismiss</button>
+                </span>
                 <code class="gen-pw-value">{{ generatedPassword }}</code>
-                <button class="gen-pw-dismiss" @click="generatedPassword = ''">✕ dismiss</button>
               </div>
               <label class="cfg-field span2 toggle-field">
                 <span class="cfg-label">Require TOTP (2FA)</span>
@@ -1037,34 +1039,33 @@ onMounted(loadCatalog)
 .cfg-body input   { padding: 3px 7px; font-size: 11.5px; }
 
 .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
-.cfg-field        { display: flex; flex-direction: column; gap: 1px; }
+.cfg-field        { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
 .cfg-field.span2  { grid-column: span 2; }
 .cfg-field .cfg-label:empty, .cfg-label:only-child:empty { visibility: hidden; }
-.cfg-label        { font-size: 11px; font-weight: 600; color: var(--fg-1); display: flex; align-items: center; gap: 6px; }
+.cfg-label        { font-size: 11px; font-weight: 600; color: var(--fg-1); display: flex; align-items: center; gap: 6px; justify-content: space-between; min-width: 0; width: 100%; }
 .cfg-link         { font-size: 11px; color: var(--accent); margin-left: auto; text-decoration: none; }
 .cfg-link:hover   { text-decoration: underline; }
 
 /* Generate buttons inside label rows */
 .gen-btn {
-  margin-left: auto;
   font-size: 10px; font-weight: 600; font-family: var(--font-sans);
   padding: 1px 8px; border-radius: 20px; cursor: pointer;
   background: var(--accent-subtle); color: var(--accent);
   border: 1px solid var(--accent-dim); transition: all 0.13s;
+  flex-shrink: 0; white-space: nowrap;
 }
 .gen-btn:hover { background: var(--accent); color: #fff; }
 
 /* Generated password reveal box */
 .generated-password-box {
   grid-column: span 2;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 7px 10px; border-radius: 6px;
   background: var(--warn-bg); border: 1.5px solid rgba(217,119,6,0.3);
-  font-size: 11.5px;
+  min-width: 0; overflow: hidden;
 }
-.gen-pw-label  { color: var(--warn); font-weight: 600; flex-shrink: 0; }
-.gen-pw-value  { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); background: var(--bg-1); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); flex: 1; word-break: break-all; }
-.gen-pw-dismiss { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; flex-shrink: 0; }
+.gen-pw-label  { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--warn); font-weight: 600; margin-bottom: 4px; }
+.gen-pw-value  { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); background: var(--bg-1); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); word-break: break-all; width: 100%; box-sizing: border-box; }
+.gen-pw-dismiss { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; }
 .gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
@@ -1136,7 +1137,7 @@ onMounted(loadCatalog)
 
 /* Deploy area */
 .deploy-row    { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3); }
-.output        { max-height: 380px; overflow: auto; background: var(--bg-0); padding: var(--space-3); border-radius: var(--radius); font-size: 12px; line-height: 1.4; white-space: pre; border: 1px solid var(--border); margin: 0; }
+.output        { max-height: 380px; overflow: auto; background: var(--bg-0); padding: var(--space-3); border-radius: var(--radius); font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border); margin: 0; }
 .output-block  { border-radius: var(--radius); overflow: hidden; margin-top: var(--space-2); }
 .output-label  { padding: 6px 12px; font-size: 12px; font-weight: 600; }
 .output-block.ok  .output-label { background: var(--ok-bg);  color: var(--ok);  }
