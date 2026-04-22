@@ -451,7 +451,7 @@ const showToast = inject('showToast')
 
 // ── State ──────────────────────────────────────────────────────────────────
 const rawCatalog   = ref({})
-const pick         = reactive({})
+const pick         = reactive(JSON.parse(localStorage.getItem('rad-stack-builder-pick') || '{}'))
 const search       = ref('')
 const activeFilter = ref('')
 // Plain reactive object — boolean per section. More reliable than reactive(Set)
@@ -504,7 +504,8 @@ if (!_stored || Object.keys(_stored).length === 0) {
 }
 const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
-watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
+watch(req,  v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
+watch(pick, v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TAG_LABELS = {
