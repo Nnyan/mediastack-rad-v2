@@ -384,6 +384,15 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   pointer-events: none;
   transition: opacity 0.15s;
 }
+.groups-refreshing .dot {
+  background: var(--warn) !important;
+  box-shadow: 0 0 4px rgba(217,119,6,0.5) !important;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1;   }
+}
 
 /* Spinner */
 .spinner {
