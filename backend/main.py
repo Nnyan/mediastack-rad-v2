@@ -135,15 +135,6 @@ def _auto_connect_network(network_name: str = "mediastack") -> None:
     except Exception as e:
         logger.warning("Network auto-connect failed (non-fatal): %s", e)
 
-    try:
-        yield
-    finally:
-        logger.info("MediaStack-RAD shutting down")
-        loop_task.cancel()
-        try:
-            await loop_task
-        except asyncio.CancelledError:
-            pass
 
 
 app = FastAPI(
