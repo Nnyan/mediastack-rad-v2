@@ -57,6 +57,11 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 ok "docker compose: $(docker compose version --short)"
 
+if ! command -v curl >/dev/null 2>&1; then
+    fail "curl is required for the post-install health check. Install curl and rerun."
+fi
+ok "curl: $(curl --version | head -n 1)"
+
 if ! docker info >/dev/null 2>&1; then
     fail "Cannot talk to the Docker daemon. Are you in the 'docker' group,
       or running with sudo?"

@@ -85,10 +85,12 @@ def validate_request(request: StackRequest) -> StackValidation:
             message="Domain is required — at least one selected service needs a domain for HTTPS routing.",
         ))
 
-    # Cloudflare token required when cloudflared selected
-    if "cloudflared" in enabled_keys and not request.cloudflare_token:
+    # Traefik always uses Cloudflare DNS-01 for HTTPS when a domain-backed
+    # web service is selected, so the DNS token is required even without
+    # Cloudflare Tunnel.
+    if request.domain and _has_web_service(request) and not request.cloudflare_token:
         errors.append(ValidationIssue(
-            service="cloudflared", field="cloudflare_token",
+            service="traefik", field="cloudflare_token",
             severity="error",
             message="CF_DNS_API_TOKEN is required for DNS-01 certificate issuance. "
                     "Generate at dash.cloudflare.com → My Profile → API Tokens "
@@ -152,15 +154,17 @@ def check_port_conflicts(
     # Ports already claimed within THIS request (accumulate as we go)
     claimed_by_request: set[int] = set()
 
-    # Collect extra_ports from all enabled services to include in conflict check
     conflicts: list[PortConflict] = []
 
     for key in enabled_keys:
         svc = get(key)
-        if not svc or not svc.web_port:
+        if not svc:
             continue
-        host_port = overrides.get(key) or svc.web_port
-        if host_port in running_ports or host_port in claimed_by_request:
+        for host_port in _requested_host_ports(svc, overrides.get(key)):
+            if host_port not in running_ports and host_port not in claimed_by_request:
+                claimed_by_request.add(host_port)
+                continue
+
             conflict_with = running_ports.get(host_port, "another selected service")
             suggested = _suggest_port(host_port, running_ports, claimed_by_request, enabled_keys)
             conflicts.append(PortConflict(
@@ -170,10 +174,38 @@ def check_port_conflicts(
                 suggested_port=suggested,
             ))
             claimed_by_request.add(suggested)
-        else:
-            claimed_by_request.add(host_port)
 
     return conflicts
+
+
+def _requested_host_ports(svc: ServiceDef, override_port: int | None) -> list[int]:
+    """Return every host port the service would claim in the generated compose file."""
+    ports: list[int] = []
+    if svc.web_port:
+        ports.append(override_port or svc.web_port)
+
+    for port_spec in svc.extra_ports:
+        parsed = _parse_host_port(port_spec)
+        if parsed is not None:
+            ports.append(parsed)
+
+    return ports
+
+
+def _parse_host_port(port_spec: str) -> int | None:
+    """Parse the host side from a short-form compose port string."""
+    spec = str(port_spec)
+    if "/" in spec:
+        spec = spec.rsplit("/", 1)[0]
+    parts = spec.split(":")
+    try:
+        if len(parts) == 1:
+            return int(parts[0])
+        if len(parts) >= 2:
+            return int(parts[-2])
+    except ValueError:
+        return None
+    return None
 
 
 def _suggest_port(
@@ -191,8 +223,10 @@ def _suggest_port(
     }
     forbidden = set(running_ports.keys()) | claimed | catalog_ports
     candidate = base + 1
-    while candidate in forbidden or candidate > 65535:
+    while candidate <= 65535 and candidate in forbidden:
         candidate += 1
+    if candidate > 65535:
+        return base
     return candidate
 
 

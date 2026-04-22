@@ -162,12 +162,12 @@
           </div>
           </div>
 
-          <!-- Cloudflare — only when cloudflared is selected -->
-                    <template v-if="pick['cloudflared']">
+          <!-- Cloudflare / HTTPS — shown whenever DNS-01 settings are relevant -->
+                    <template v-if="needsCloudflareConfig">
           <div class="cfg-section" :class="{ open: expanded.cloudflare }">
           <div class="cfg-head" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
-            <span class="cfg-title">Cloudflare Tunnel</span>
+            <span class="cfg-title">Cloudflare / HTTPS</span>
             <span class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
@@ -178,9 +178,9 @@
                   <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="cfg-link">Create token ↗</a>
                 </span>
                 <input v-model="req.cloudflare_token" type="password" placeholder="Zone:DNS:Edit + Zone:Zone:Read" />
-                <span class="cfg-hint">Required for DNS-01 certificate issuance via Let's Encrypt.</span>
+                <span class="cfg-hint">Required for DNS-01 certificate issuance via Let's Encrypt whenever you deploy domain-backed web services.</span>
               </label>
-              <label class="cfg-field span2">
+              <label v-if="pick['cloudflared']" class="cfg-field span2">
                 <span class="cfg-label">Tunnel token</span>
                 <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="Cloudflare Zero Trust → Networks → Tunnels" />
               </label>
@@ -300,14 +300,6 @@
                   <input v-model="req.plex_claim" placeholder="claim-xxxxxxxxxxxxxxxxxxxx" />
                   <span class="cfg-hint">Links this server to your Plex account on first start. Expires in 4 minutes — grab it right before deploying.</span>
                 </label>
-                <label class="cfg-field span2">
-                  <span class="cfg-label">
-                    X-Plex-Token
-                    <a href="https://support.plex.tv/articles/204059436" target="_blank" class="cfg-link">How to find it ↗</a>
-                  </span>
-                  <input v-model="req.plex_token" type="password" placeholder="Your Plex authentication token" />
-                  <span class="cfg-hint">Used by Sonarr, Radarr, and other apps for API auth. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
-                </label>
               </div>
             </div>
             <div v-show="plexMode !== 'local'">
@@ -316,14 +308,6 @@
                   <span class="cfg-label">Plex server URL</span>
                   <input v-model="req.external_plex_url" placeholder="http://192.168.1.50:32400" />
                   <span class="cfg-hint">LAN address preferred — avoids unnecessary external routing.</span>
-                </label>
-                <label class="cfg-field span2">
-                  <span class="cfg-label">
-                    X-Plex-Token
-                    <a href="https://support.plex.tv/articles/204059436" target="_blank" class="cfg-link">How to find it ↗</a>
-                  </span>
-                  <input v-model="req.plex_token" type="password" placeholder="Your Plex authentication token" />
-                  <span class="cfg-hint">Required for API access. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
                 </label>
               </div>
             </div>
@@ -488,7 +472,6 @@ const defaults = {
   external_plex_url: '',
   plex_claim: '',
   plex_server_name: '',
-  plex_token: '',  // kept for UI only — goes to Settings/Secrets
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
@@ -560,6 +543,14 @@ const flatServices = computed(() => {
     }
   }
   return out
+})
+const needsCloudflareConfig = computed(() => {
+  if (pick['cloudflared']) return true
+  if (!req.domain?.trim()) return false
+  return selectedServices.value.some(key => {
+    const svc = svcByKey.value[key]
+    return svc && svc.web_port && key !== 'traefik'
+  })
 })
 
 // Lookup map: key → service. Avoids repeated .find() calls in helpers.
