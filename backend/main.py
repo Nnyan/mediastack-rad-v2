@@ -33,6 +33,7 @@ from . import catalog as catalog_mod
 from . import checklist as checklist_mod
 from . import docker_client
 from . import generator as generator_mod
+from .models import StackValidation
 from . import health as health_mod
 from . import websocket as ws_mod
 from .config import config
@@ -174,17 +175,37 @@ async def api_catalog() -> dict:
 
 @app.post("/api/stack/generate")
 async def api_stack_generate(req: StackRequest) -> dict:
-    """Generate (but do not deploy) a compose file. Returns the YAML text."""
+    """Generate (but do not deploy) a compose file.
+
+    Runs pre-generation validation and returns any issues alongside the YAML.
+    Errors block generation; warnings are advisory.
+    """
+    validation = generator_mod.validate_request(req)
+    if not validation.valid:
+        raise HTTPException(400, {
+            "message": "Request failed validation",
+            "errors": [e.model_dump() for e in validation.errors],
+        })
     try:
         text = generator_mod.generate(req)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"yaml": text, "bytes": len(text)}
+    return {
+        "yaml": text,
+        "bytes": len(text),
+        "warnings": [w.model_dump() for w in validation.warnings],
+    }
 
 
 @app.post("/api/stack/deploy")
 async def api_stack_deploy(req: StackRequest) -> dict:
     """Generate, write, and bring up the stack."""
+    validation = generator_mod.validate_request(req)
+    if not validation.valid:
+        raise HTTPException(400, {
+            "message": "Deploy blocked — fix these errors first",
+            "errors": [e.model_dump() for e in validation.errors],
+        })
     try:
         path = generator_mod.write(req)
     except ValueError as e:
@@ -261,6 +282,45 @@ async def api_health_fix(issue_id: str) -> dict:
         # Re-run health so the fixed issue drops off the list
         await health_mod.cache.refresh()
     return {"ok": success, "message": msg}
+
+
+@app.post("/api/stack/port-check")
+async def api_stack_port_check(req: StackRequest) -> dict:
+    """Check selected services for host-port conflicts with running containers.
+
+    Only checks against containers that are NOT part of the services being
+    deployed — so redeploying the same stack never generates false positives.
+
+    Returns { conflicts: [...], running_ports: {...} }.
+    """
+    # Get all running host ports, excluding services in this request
+    # (they're being replaced, not competing)
+    requesting_names = {s.key for s in req.services if s.enabled}
+    running_ports: dict[int, str] = {}  # host_port → container_name
+    try:
+        containers = docker_client.client().containers.list()
+        for c in containers:
+            if c.name in requesting_names:
+                continue  # skip — being replaced by this deploy
+            bindings = (c.attrs.get("NetworkSettings") or {}).get("Ports") or {}
+            for _, hosts in bindings.items():
+                if not hosts:
+                    continue
+                for h in hosts:
+                    try:
+                        hp = int(h.get("HostPort") or 0)
+                        if hp:
+                            running_ports[hp] = c.name
+                    except (TypeError, ValueError):
+                        pass
+    except Exception as e:
+        logger.warning("Port check: cannot list containers: %s", e)
+
+    conflicts = generator_mod.check_port_conflicts(req, running_ports)
+    return {
+        "conflicts": [c.model_dump() for c in conflicts],
+        "running_ports": running_ports,
+    }
 
 
 @app.get("/api/traefik/routers")

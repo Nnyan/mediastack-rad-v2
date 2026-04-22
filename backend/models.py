@@ -54,36 +54,69 @@ class ContainerStats(BaseModel):
 
 class ServiceChoice(BaseModel):
     """A service the user has selected to include in the generated stack."""
-    key: str  # matches catalog entry
+    key: str                           # matches catalog entry
     enabled: bool = True
-    config: dict[str, Any] = {}  # arbitrary overrides (ports, volumes)
+    port_override: int | None = None   # override the host-side port only
+                                       # (Traefik still routes to the internal port)
+    extra_env: dict[str, str] = {}     # arbitrary env vars merged in last,
+                                       # after catalog defaults and request values
 
 
 class StackRequest(BaseModel):
     """Payload for generating or deploying a full stack."""
-    domain: str | None = None  # e.g. nyrdalyrt.com
-    cert_resolver: str = "letsencrypt"  # traefik resolver name
+    domain: str | None = None          # e.g. nyrdalyrt.com
+    cert_resolver: str = "letsencrypt" # traefik resolver name
     puid: int = 1000
     pgid: int = 1000
     timezone: str = "UTC"
     media_root: str = "/mnt/media"
     config_root: str = "/home/stack/mediacenter/config"
-    cloudflare_token: str | None = None  # CF_DNS_API_TOKEN for DNS-01
+    cloudflare_token: str | None = None         # CF_DNS_API_TOKEN for DNS-01
+    cloudflare_tunnel_token: str | None = None  # TUNNEL_TOKEN for cloudflared
+    plex_claim: str | None = None               # PLEX_CLAIM — required for first boot
     services: list[ServiceChoice] = []
     external_plex_url: str | None = None  # if user has Plex elsewhere
     # Tailscale
-    tailscale_auth_key: str | None = None  # TS_AUTHKEY — reusable key from admin console
-    tailscale_routes: str | None = None    # TS_ROUTES — subnet CIDR to advertise
-    tailscale_hostname: str = "mediastack" # how node appears in Tailscale admin
+    tailscale_auth_key: str | None = None   # TS_AUTHKEY — reusable key from admin console
+    tailscale_routes: str | None = None     # TS_ROUTES — subnet CIDR to advertise
+    tailscale_hostname: str = "mediastack"  # how node appears in Tailscale admin
     # Tinyauth — Traefik ForwardAuth for Tailscale / non-LAN access
-    # LAN traffic bypasses auth via an IPAllowList middleware chain.
     tinyauth_enabled: bool = False
-    tinyauth_secret: str | None = None      # random string for session cookie signing
-    tinyauth_users: str | None = None       # "user:bcrypt_hash" comma-separated
-    tinyauth_app_url: str | None = None     # e.g. https://auth.nyrdalyrt.com
-    tinyauth_totp: bool = False             # require TOTP on top of password
-    lan_subnet: str = "10.0.0.0/22"        # this subnet bypasses Tinyauth entirely
-    custom_yaml: str | None = None          # raw compose YAML fragment to merge into the stack
+    tinyauth_secret: str | None = None     # random string for session cookie signing
+    tinyauth_users: str | None = None      # "user:bcrypt_hash" comma-separated
+    tinyauth_app_url: str | None = None    # e.g. https://auth.nyrdalyrt.com
+    tinyauth_totp: bool = False            # require TOTP on top of password
+    lan_subnet: str = "10.0.0.0/22"       # this subnet bypasses Tinyauth entirely
+    custom_yaml: str | None = None         # raw compose YAML fragment to merge
+
+
+# ---------------------------------------------------------------------------
+# Stack validation models
+# ---------------------------------------------------------------------------
+
+
+class ValidationIssue(BaseModel):
+    """A single problem found during pre-generation validation."""
+    service: str | None = None   # None = request-level issue
+    field: str | None = None
+    severity: Literal["error", "warning"]
+    message: str
+
+
+class PortConflict(BaseModel):
+    """A port clash between a requested service and a currently running container."""
+    service: str          # catalog key of the requesting service
+    port: int             # the conflicting host port
+    conflict_with: str    # name of the container currently holding the port
+    suggested_port: int   # next available port we recommend
+
+
+class StackValidation(BaseModel):
+    """Result of pre-generation validation: conflicts + missing fields."""
+    valid: bool
+    errors: list[ValidationIssue] = []
+    warnings: list[ValidationIssue] = []
+    port_conflicts: list[PortConflict] = []
 
 
 # ---------------------------------------------------------------------------

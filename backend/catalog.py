@@ -168,9 +168,13 @@ CATALOG: dict[str, ServiceDef] = {
         description="Usenet binary newsreader",
         image="lscr.io/linuxserver/sabnzbd:latest",
         category="downloaders",
-        web_port=8080,  # remapped below via extra_ports to avoid clash
+        # SABnzbd defaults to 8080 — same as qBittorrent. We set WEB_PORT=8085
+        # so both can coexist. web_port must match what SABnzbd actually listens on
+        # (set by WEB_PORT) so Traefik routes to the right port.
+        web_port=8085,
         config_volumes=["/config"],
         media_volumes=["/data"],
+        env={"WEB_PORT": "8085"},
     ),
     "nzbget": ServiceDef(
         key="nzbget",

@@ -25,7 +25,7 @@ import yaml
 
 from .catalog import CATALOG, ServiceDef, get
 from .config import config
-from .models import ServiceChoice, StackRequest
+from .models import PortConflict, ServiceChoice, StackRequest, StackValidation, ValidationIssue
 from .validators import validate_compose_file
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,145 @@ STACK_NETWORK = "mediastack"
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Pre-generation validation
+# ---------------------------------------------------------------------------
+
+
+def validate_request(request: StackRequest) -> StackValidation:
+    """Check a StackRequest for missing required fields before generating.
+
+    Returns a StackValidation with structured errors and warnings.
+    Callers should abort generation if valid=False.
+    """
+    errors: list[ValidationIssue] = []
+    warnings: list[ValidationIssue] = []
+
+    enabled_keys = {s.key for s in request.services if s.enabled}
+
+    # Domain required when any web-facing service is selected
+    if not request.domain and any(
+        get(k) and get(k).web_port and not get(k).skip_traefik
+        for k in enabled_keys
+    ):
+        errors.append(ValidationIssue(
+            severity="error",
+            message="Domain is required — at least one selected service needs a domain for HTTPS routing.",
+        ))
+
+    # Cloudflare token required when cloudflared selected
+    if "cloudflared" in enabled_keys and not request.cloudflare_token:
+        errors.append(ValidationIssue(
+            service="cloudflared", field="cloudflare_token",
+            severity="error",
+            message="CF_DNS_API_TOKEN is required for DNS-01 certificate issuance. "
+                    "Generate at dash.cloudflare.com → My Profile → API Tokens "
+                    "(Zone:DNS:Edit + Zone:Zone:Read).",
+        ))
+
+    # Plex claim — warning only (it's optional after first boot)
+    if "plex" in enabled_keys and not request.plex_claim and not request.external_plex_url:
+        warnings.append(ValidationIssue(
+            service="plex", field="plex_claim",
+            severity="warning",
+            message="PLEX_CLAIM is not set. Plex will start but won't be linked to your account "
+                    "on first boot. Get a 4-minute token at plex.tv/claim.",
+        ))
+
+    # Tailscale auth key required
+    if "tailscale" in enabled_keys and not request.tailscale_auth_key:
+        errors.append(ValidationIssue(
+            service="tailscale", field="tailscale_auth_key",
+            severity="error",
+            message="TS_AUTHKEY is required. Generate a reusable, non-ephemeral key at "
+                    "login.tailscale.com/admin/settings/keys.",
+        ))
+
+    # Tinyauth required fields
+    if "tinyauth" in enabled_keys or request.tinyauth_enabled:
+        for field, label, val in [
+            ("tinyauth_secret",  "SECRET",  request.tinyauth_secret),
+            ("tinyauth_users",   "USERS",   request.tinyauth_users),
+            ("tinyauth_app_url", "APP_URL", request.tinyauth_app_url),
+        ]:
+            if not val or not val.strip():
+                errors.append(ValidationIssue(
+                    service="tinyauth", field=field,
+                    severity="error",
+                    message=f"Tinyauth {label} is required. Without it the auth gateway "
+                            f"will not start.",
+                ))
+
+    return StackValidation(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+    )
+
+
+def check_port_conflicts(
+    request: StackRequest,
+    running_ports: dict[int, str],
+) -> list[PortConflict]:
+    """Detect host-port clashes between selected services and running containers.
+
+    running_ports: map of host_port → container_name for all currently running
+    containers that are NOT part of the services being deployed (so redeploying
+    the same stack doesn't generate false conflicts).
+
+    Returns a list of PortConflict objects with suggested alternatives.
+    """
+    enabled_keys = {s.key for s in request.services if s.enabled}
+    overrides = {s.key: s.port_override for s in request.services if s.port_override}
+
+    # Ports already claimed within THIS request (accumulate as we go)
+    claimed_by_request: set[int] = set()
+
+    # Collect extra_ports from all enabled services to include in conflict check
+    conflicts: list[PortConflict] = []
+
+    for key in enabled_keys:
+        svc = get(key)
+        if not svc or not svc.web_port:
+            continue
+        host_port = overrides.get(key) or svc.web_port
+        if host_port in running_ports or host_port in claimed_by_request:
+            conflict_with = running_ports.get(host_port, "another selected service")
+            suggested = _suggest_port(host_port, running_ports, claimed_by_request, enabled_keys)
+            conflicts.append(PortConflict(
+                service=key,
+                port=host_port,
+                conflict_with=conflict_with,
+                suggested_port=suggested,
+            ))
+            claimed_by_request.add(suggested)
+        else:
+            claimed_by_request.add(host_port)
+
+    return conflicts
+
+
+def _suggest_port(
+    base: int,
+    running_ports: dict[int, str],
+    claimed: set[int],
+    enabled_keys: set[str],
+) -> int:
+    """Find the next available port starting from base+1."""
+    # Collect all ports used by catalog services so we don't suggest
+    # a port that would conflict with another known service
+    catalog_ports: set[int] = {
+        svc.web_port for svc in CATALOG.values()
+        if svc.web_port and svc.key not in enabled_keys
+    }
+    forbidden = set(running_ports.keys()) | claimed | catalog_ports
+    candidate = base + 1
+    while candidate in forbidden or candidate > 65535:
+        candidate += 1
+    return candidate
+
 
 
 def generate(request: StackRequest) -> str:
@@ -65,13 +204,13 @@ def generate(request: StackRequest) -> str:
         # but still install Overseerr with PLEX_URL set externally.
         if svc_def.key == "plex" and request.external_plex_url:
             continue
-        rendered = _render_service(svc_def, request, domain)
+        rendered = _render_service(svc_def, request, domain, choice)
         services_section[svc_def.key] = rendered
 
     # Always add Traefik if any web-facing service was selected.
     if domain and _has_web_service(request) and "traefik" not in services_section:
         traefik_def = CATALOG["traefik"]
-        services_section["traefik"] = _render_service(traefik_def, request, domain)
+        services_section["traefik"] = _render_service(traefik_def, request, domain, None)
 
     compose: dict[str, Any] = {
         "services": services_section,
@@ -164,6 +303,7 @@ def _render_service(
     svc: ServiceDef,
     request: StackRequest,
     domain: str | None,
+    choice: "ServiceChoice | None" = None,
 ) -> dict[str, Any]:
     """Build the compose dict for one service.
 
@@ -199,8 +339,6 @@ def _render_service(
     env.update(svc.env)
     # SABnzbd claim its own 8080 — remap at env level, and we'll remap
     # the host port too via extra_ports to avoid collision with qbit.
-    if svc.key == "sabnzbd":
-        env.setdefault("WEB_PORT", "8085")
     svc_dict["environment"] = env
 
     # Volumes: config path is local to the stack; media is the shared root.
@@ -215,12 +353,12 @@ def _render_service(
     # Port mappings. For services with a web UI we still expose the
     # host port — some users want direct LAN access without going
     # through Traefik.
+    # choice.port_override lets the user change the host-side port when there's
+    # a conflict. The container-side port (svc.web_port) never changes —
+    # Traefik routes to that and must stay stable.
     ports: list[str] = []
     if svc.web_port:
-        host_port = svc.web_port
-        # Special case: SAB and qbit both default to 8080
-        if svc.key == "sabnzbd":
-            host_port = 8085
+        host_port = (choice.port_override if choice and choice.port_override else svc.web_port)
         ports.append(f"{host_port}:{svc.web_port}")
     ports.extend(svc.extra_ports)
     if ports:
@@ -244,10 +382,21 @@ def _render_service(
     if domain and svc.web_port and not svc.skip_traefik and not skip_cf_unsuitable:
         svc_dict["labels"] = _traefik_labels(svc, domain, request.cert_resolver, request)
 
+    # Plex claim token — required on first boot to register with your account.
+    # Expires 4 minutes after generation from plex.tv/claim, so it's passed
+    # through here rather than hardcoded in the catalog.
+    if svc.key == "plex" and request.plex_claim:
+        svc_dict["environment"]["PLEX_CLAIM"] = request.plex_claim
+
     # Overseerr with external Plex: inject the URL as an env var
     # so the Overseerr setup wizard can find it.
     if svc.key == "overseerr" and request.external_plex_url:
         svc_dict["environment"]["PLEX_URL"] = request.external_plex_url
+
+    # Merge any per-service extra_env the user specified in the builder.
+    # Applied last so user values override catalog and generator defaults.
+    if choice and choice.extra_env:
+        svc_dict["environment"].update(choice.extra_env)
 
     return svc_dict
 
@@ -363,15 +512,17 @@ def _render_traefik(request: StackRequest, domain: str | None) -> dict[str, Any]
 
 def _render_cloudflared(request: StackRequest) -> dict[str, Any]:
     """Cloudflare Tunnel daemon. Requires TUNNEL_TOKEN to be set in .env."""
+    # Use the token if the user supplied it in the builder; fall back to the
+    # ${CLOUDFLARED_TOKEN} placeholder which Docker Compose reads from .env.
+    tunnel_token = request.cloudflare_tunnel_token or "${CLOUDFLARED_TOKEN}"
     return {
         "image": "cloudflare/cloudflared:latest",
         "container_name": "cloudflared",
         "restart": "unless-stopped",
         "networks": [STACK_NETWORK],
-        # Command is required — the default entrypoint alone won't run.
         "command": "tunnel --no-autoupdate run",
         "environment": {
-            "TUNNEL_TOKEN": "${CLOUDFLARED_TOKEN}",
+            "TUNNEL_TOKEN": tunnel_token,
         },
     }
 

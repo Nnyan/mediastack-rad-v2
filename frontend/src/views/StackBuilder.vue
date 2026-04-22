@@ -69,7 +69,9 @@
             <div class="tile-desc">{{ svc.short_desc }}</div>
             <div class="tile-foot">
               <span class="tile-tag" :style="tagStyle(svc.category)">{{ TAG_LABELS[svc.category] || svc.category }}</span>
-              <span v-if="svc.web_port" class="tile-port">{{ svc.web_port }}</span>
+              <span v-if="svc.web_port" class="tile-port" :class="{ 'tile-port-override': portOverrides[svc.key] }">
+              {{ portOverrides[svc.key] || svc.web_port }}
+            </span>
               <span v-if="LIVE_SERVICES.has(svc.key)" class="tile-live">live</span>
             </div>
           </button>
@@ -100,6 +102,25 @@
       <!-- Right: config accordion (sticky on wide screens) -->
       <div class="config-panel">
         <div class="config-area">
+          <!-- Port conflict banner -->
+          <div v-if="portConflicts.length" class="port-conflict-banner">
+            <div class="port-conflict-banner-head">
+              <span class="port-conflict-icon">⚠</span>
+              <span class="port-conflict-title">{{ portConflicts.length }} port conflict{{ portConflicts.length !== 1 ? 's' : '' }} detected</span>
+              <span v-if="portsChecking" class="port-conflict-checking">checking…</span>
+            </div>
+            <div v-for="c in portConflicts" :key="c.service" class="port-conflict-row">
+              <span class="port-conflict-svc">{{ svcName(c.service) }}</span>
+              <span class="port-conflict-detail">
+                port <strong>{{ c.port }}</strong> already used by
+                <code>{{ c.conflict_with }}</code>
+              </span>
+              <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
+                Use {{ c.suggested_port }} instead
+              </button>
+            </div>
+          </div>
+
           <div class="config-heading">Configuration</div>
 
           <!-- Core settings — always visible -->
@@ -452,6 +473,9 @@ const plexMode     = ref('local')
 const addCustom    = ref(false)
 const addTab       = ref('compose')
 const addInput     = ref('')
+const portOverrides  = reactive({})   // { service_key: override_port }
+const portConflicts  = ref([])        // [{service, port, conflict_with, suggested_port}]
+const portsChecking  = ref(false)
 const addParsing   = ref(false)
 const addResult    = ref(null)   // { yaml, services } from backend
 const customYaml   = ref('')     // confirmed YAML to include in deploy
@@ -471,7 +495,7 @@ const defaults = {
   cloudflare_tunnel_token: '',
   external_plex_url: '',
   plex_claim: '',
-  plex_token: '',
+  plex_token: '',  // kept for UI only — goes to Settings/Secrets
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
   tinyauth_secret: '', tinyauth_users: '', tinyauth_app_url: '', tinyauth_totp: false,
   lan_subnet: '10.0.0.0/22',
@@ -608,6 +632,42 @@ function confirmCustomApp() {
   showToast('Custom app added to stack — click Deploy to apply')
 }
 
+// ── Port conflict check ───────────────────────────────────────────────────────
+let _portCheckTimer = null
+function schedulePortCheck() {
+  clearTimeout(_portCheckTimer)
+  _portCheckTimer = setTimeout(checkPorts, 600)
+}
+
+async function checkPorts() {
+  if (!selectedServices.value.length) { portConflicts.value = []; return }
+  portsChecking.value = true
+  try {
+    const r = await fetch('/api/stack/port-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildRequest()),
+    })
+    if (r.ok) {
+      const data = await r.json()
+      portConflicts.value = data.conflicts || []
+    }
+  } catch (e) {
+    console.warn('Port check failed:', e)
+  } finally {
+    portsChecking.value = false
+  }
+}
+
+function acceptPortSuggestion(conflict) {
+  portOverrides[conflict.service] = conflict.suggested_port
+  // Remove this conflict from the list optimistically
+  portConflicts.value = portConflicts.value.filter(c => c.service !== conflict.service)
+  // Re-check with the new override applied
+  schedulePortCheck()
+  showToast(`Port changed: ${conflict.service} → ${conflict.suggested_port}`)
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function loadCatalog() {
   try {
@@ -629,8 +689,10 @@ function buildRequest() {
     pgid:                   req.pgid,
     config_root:            req.config_root,
     media_root:             req.media_root,
-    cloudflare_token:       req.cloudflare_token,
-    external_plex_url:      req.external_plex_url,
+    cloudflare_token:          req.cloudflare_token,
+    cloudflare_tunnel_token:   req.cloudflare_tunnel_token,
+    plex_claim:                req.plex_claim,
+    external_plex_url:         req.external_plex_url,
     tailscale_auth_key:     req.tailscale_auth_key,
     tailscale_routes:       req.tailscale_routes,
     tailscale_hostname:     req.tailscale_hostname,
@@ -640,7 +702,10 @@ function buildRequest() {
     tinyauth_app_url:       req.tinyauth_app_url,
     tinyauth_totp:          req.tinyauth_totp,
     lan_subnet:             req.lan_subnet,
-    services:               selectedServices.value.map(k => ({ key: k, enabled: true })),
+    services:               selectedServices.value.map(k => ({
+      key: k, enabled: true,
+      port_override: portOverrides[k] || undefined,
+    })),
     custom_yaml:            customYaml.value || undefined,
   }
 }
@@ -658,9 +723,13 @@ async function preview() {
     if (!r.ok) throw new Error(await r.text())
     const data = await r.json()
     previewText.value = data.yaml
-    showToast(`Generated — ${data.bytes} bytes`)
+    const warnCount = data.warnings?.length || 0
+    showToast(`Generated — ${data.bytes} bytes${warnCount ? ` · ${warnCount} warning(s)` : ''}`)
   } catch (e) {
-    showToast(`Generate failed: ${e.message}`, 'err')
+    const msg = typeof e === 'object' && e.errors
+      ? e.errors.map(x => x.message).join(' | ')
+      : e.message || String(e)
+    showToast(`Generate failed: ${msg}`, 'err', 8000)
   } finally {
     previewLoading.value = false
   }
@@ -694,6 +763,7 @@ async function deploy() {
 
 watch(addInput, () => { addResult.value = null })
 watch(addTab,   () => { addResult.value = null; addInput.value = '' })
+watch(selectedServices, schedulePortCheck)
 
 onMounted(loadCatalog)
 </script>
