@@ -584,7 +584,16 @@ function svcPillStyle(key) { const c = catColors(svcByKey.value[key]?.category);
 function svcName(key)      { return svcByKey.value[key]?.display_name || key }
 
 // ── Actions ────────────────────────────────────────────────────────────────
-function toggle(key) { pick[key] = !pick[key] }
+// Map service key → config section id (only services that have a config section)
+const SERVICE_SECTION = { cloudflared: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
+
+function toggle(key) {
+  pick[key] = !pick[key]
+  // Auto-open the config section when a service is selected,
+  // auto-close it when deselected (unless it was already open)
+  const section = SERVICE_SECTION[key]
+  if (section) expanded[section] = pick[key]
+}
 
 function toggleAddCustom() {
   addCustom.value = !addCustom.value
@@ -952,26 +961,26 @@ onMounted(loadCatalog)
 /* CfgSection — styles for the inline component template */
 .cfg-section      { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: box-shadow 0.13s; }
 .cfg-section.open { box-shadow: var(--shadow-1); }
-.cfg-head         { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; user-select: none; }
+.cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; user-select: none; }
 .cfg-head:hover   { background: var(--bg-2); }
 .cfg-icon         { font-size: 13px; }
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); }
 /* cfg-badge removed */
 .cfg-chevron      { margin-left: auto; color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
 .cfg-chevron.open { transform: rotate(90deg); }
-.cfg-body         { padding: 2px 12px 10px; border-top: 1px solid var(--border); }
-.cfg-body input   { padding: 4px 8px; font-size: 12px; }
+.cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
+.cfg-body input   { padding: 3px 7px; font-size: 11.5px; }
 
-.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px; }
-.cfg-field        { display: flex; flex-direction: column; gap: 2px; }
+.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
+.cfg-field        { display: flex; flex-direction: column; gap: 1px; }
 .cfg-field.span2  { grid-column: span 2; }
 .cfg-label        { font-size: 11px; font-weight: 600; color: var(--fg-1); display: flex; align-items: center; gap: 6px; }
 .cfg-link         { font-size: 11px; color: var(--accent); margin-left: auto; text-decoration: none; }
 .cfg-link:hover   { text-decoration: underline; }
-.cfg-hint         { font-size: 9.5px; color: var(--fg-2); line-height: 1.3; }
+.cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
 
-.cfg-note          { font-size: 11px; border-radius: 6px; padding: 5px 10px; line-height: 1.4; margin-top: 7px; }
+.cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
 .cfg-note-purple   { background: var(--accent-subtle); color: var(--fg-1); border: 1px solid var(--accent-dim); }
 .cfg-note-pink     { background: rgba(219,39,119,0.05); color: var(--fg-1); border: 1px solid rgba(219,39,119,0.15); }
 .cfg-note-neutral  { background: var(--bg-0); color: var(--fg-1); border: 1px solid var(--border); }
