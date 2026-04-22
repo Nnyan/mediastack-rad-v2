@@ -244,21 +244,29 @@
               <label class="cfg-field">
                 <span class="cfg-label">App URL</span>
                 <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" />
-                <span class="cfg-hint">Base URL for cookie scoping and post-login redirect</span>
+                <span class="cfg-hint">⚠ This URL must also be added as a public hostname in your Cloudflare Tunnel</span>
               </label>
               <label class="cfg-field span2">
-                <span class="cfg-label">Secret</span>
-                <input v-model="req.tinyauth_secret" type="password" placeholder="random 32-char hex" />
-                <span class="cfg-hint">Generate: <code>python3 -c "import secrets; print(secrets.token_hex(32))"</code></span>
-              </label>
-              <label class="cfg-field span2">
-                <span class="cfg-label">Users</span>
-                <input v-model="req.tinyauth_users" placeholder="rafael:$2y$10$..." />
-                <span class="cfg-hint">
-                  Format: <code>username:bcrypt_hash</code> — generate hash:
-                  <code>docker run --rm ghcr.io/steveiliop56/tinyauth:latest generate-hash --password yourpw</code>
+                <span class="cfg-label">
+                  Secret
+                  <button class="gen-btn" type="button" @click="generateSecret">Generate</button>
                 </span>
+                <input v-model="req.tinyauth_secret" type="password" placeholder="random 32-char hex" />
+                <span class="cfg-hint">Signs session cookies — click Generate to create a secure random value</span>
               </label>
+              <label class="cfg-field span2">
+                <span class="cfg-label">
+                  Users
+                  <button class="gen-btn" type="button" @click="generateCredentials">Generate admin</button>
+                </span>
+                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." />
+                <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate to create admin credentials</span>
+              </label>
+              <div v-if="generatedPassword" class="generated-password-box">
+                <span class="gen-pw-label">⚠ Save this password — it will not be shown again:</span>
+                <code class="gen-pw-value">{{ generatedPassword }}</code>
+                <button class="gen-pw-dismiss" @click="generatedPassword = ''">✕ dismiss</button>
+              </div>
               <label class="cfg-field span2 toggle-field">
                 <span class="cfg-label">Require TOTP (2FA)</span>
                 <label class="toggle">
@@ -481,7 +489,8 @@ const deployOk     = ref(false)
 const deploying    = ref(false)
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'rad-stack-builder-v3'
+const STORAGE_KEY      = 'rad-stack-builder-v3'
+const STORAGE_KEY_PREV = 'rad-stack-builder-v2'
 const defaults = {
   domain: '', timezone: 'America/Los_Angeles', puid: 1000, pgid: 1000,
   config_root: '/home/stack/mediacenter/config',
@@ -496,7 +505,16 @@ const defaults = {
   tinyauth_secret: '', tinyauth_users: '', tinyauth_app_url: '', tinyauth_totp: false,
   lan_subnet: '10.0.0.0/22',
 }
-const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+// Migrate settings from previous key if v3 is empty
+let _stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
+if (!_stored || Object.keys(_stored).length === 0) {
+  const _prev = JSON.parse(localStorage.getItem(STORAGE_KEY_PREV) || '{}')
+  if (Object.keys(_prev).length > 0) {
+    _stored = _prev
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_stored))
+  }
+}
+const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
 watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
 
@@ -605,6 +623,38 @@ function toggleAddCustom() {
 
 // camelCase throughout — was mixed snake_case/camelCase previously
 function toggleCfg(id) { expanded[id] = !expanded[id] }
+
+// ── Tinyauth credential generators ────────────────────────────────────────
+function generateSecret() {
+  const arr = new Uint8Array(32)
+  crypto.getRandomValues(arr)
+  req.tinyauth_secret = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+  showToast('Secret generated')
+}
+
+const generatedPassword = ref('')
+
+async function generateCredentials() {
+  // Random 16-char password: letters + digits, no ambiguous chars
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  const arr = new Uint8Array(16)
+  crypto.getRandomValues(arr)
+  const password = Array.from(arr).map(b => chars[b % chars.length]).join('')
+  try {
+    const r = await fetch('/api/utils/hash-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    if (!r.ok) throw new Error(await r.text())
+    const { hash } = await r.json()
+    req.tinyauth_users = `admin:${hash}`
+    generatedPassword.value = password
+    showToast('Credentials generated — save the password shown below', 'warn', 8000)
+  } catch (e) {
+    showToast(`Generate failed: ${e.message}`, 'err')
+  }
+}
 
 async function parseAndAdd() {
   const content = addInput.value.trim()
@@ -753,6 +803,16 @@ async function deploy() {
       body: JSON.stringify(buildRequest()),
     })
     const data = await r.json()
+    if (!r.ok) {
+      // Validation error (400) or other HTTP failure — data has {message, errors}
+      deployOk.value = false
+      const lines = (data.errors || []).map(e => `✗  ${e.message || e}`)
+      deployOutput.value = lines.length
+        ? lines.join('\n')
+        : (data.message || data.detail || `HTTP ${r.status}`)
+      showToast(data.message || 'Deploy blocked — fix errors below', 'err', 7000)
+      return
+    }
     deployOk.value = data.ok
     deployOutput.value = [data.stdout, data.stderr ? '--- stderr ---\n' + data.stderr : '']
       .filter(Boolean).join('\n').trim()
@@ -983,6 +1043,29 @@ onMounted(loadCatalog)
 .cfg-label        { font-size: 11px; font-weight: 600; color: var(--fg-1); display: flex; align-items: center; gap: 6px; }
 .cfg-link         { font-size: 11px; color: var(--accent); margin-left: auto; text-decoration: none; }
 .cfg-link:hover   { text-decoration: underline; }
+
+/* Generate buttons inside label rows */
+.gen-btn {
+  margin-left: auto;
+  font-size: 10px; font-weight: 600; font-family: var(--font-sans);
+  padding: 1px 8px; border-radius: 20px; cursor: pointer;
+  background: var(--accent-subtle); color: var(--accent);
+  border: 1px solid var(--accent-dim); transition: all 0.13s;
+}
+.gen-btn:hover { background: var(--accent); color: #fff; }
+
+/* Generated password reveal box */
+.generated-password-box {
+  grid-column: span 2;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 7px 10px; border-radius: 6px;
+  background: var(--warn-bg); border: 1.5px solid rgba(217,119,6,0.3);
+  font-size: 11.5px;
+}
+.gen-pw-label  { color: var(--warn); font-weight: 600; flex-shrink: 0; }
+.gen-pw-value  { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); background: var(--bg-1); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); flex: 1; word-break: break-all; }
+.gen-pw-dismiss { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; flex-shrink: 0; }
+.gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
 

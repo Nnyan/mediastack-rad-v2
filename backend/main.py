@@ -323,6 +323,21 @@ async def api_stack_port_check(req: StackRequest) -> dict:
     }
 
 
+@app.post("/api/utils/hash-password")
+async def hash_password(payload: dict) -> dict:
+    """Bcrypt-hash a password for use in Tinyauth USERS env var.
+
+    Returns { hash: "$2b$10$..." } which the frontend combines with
+    a username to produce the 'username:hash' format Tinyauth expects.
+    """
+    import bcrypt as _bcrypt
+    password = (payload.get("password") or "").encode()
+    if not password:
+        raise HTTPException(400, "password is required")
+    hashed = _bcrypt.hashpw(password, _bcrypt.gensalt(rounds=10))
+    return {"hash": hashed.decode()}
+
+
 @app.get("/api/traefik/routers")
 async def traefik_routers():
     """Proxy Traefik's router list from the container network.
