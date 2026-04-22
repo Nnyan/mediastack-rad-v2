@@ -283,9 +283,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   width: 7px; height: 7px;
   border-radius: 50%; flex-shrink: 0;
 }
-.dot-ok   { background: var(--ok);   box-shadow: 0 0 4px rgba(22,163,74,0.5); }
-.dot-warn { background: var(--warn); box-shadow: 0 0 4px rgba(217,119,6,0.5); }
-.dot-error { background: var(--err); box-shadow: 0 0 4px rgba(220,38,38,0.5); }
+.dot-ok,      .dot-ok      { background: var(--ok);   box-shadow: 0 0 4px rgba(22,163,74,0.5); }
+.dot-warn, .dot-warning { background: var(--warn); box-shadow: 0 0 4px rgba(217,119,6,0.5); }
+.dot-error              { background: var(--err);  box-shadow: 0 0 4px rgba(220,38,38,0.5); }
 
 /* Label — fixed width so result column aligns */
 .row-label {

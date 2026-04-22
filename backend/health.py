@@ -363,31 +363,30 @@ def check_tinyauth(ctx: _CheckContext) -> list[HealthIssue]:
             fix_hint="Set the missing vars in your .env file and recreate the tinyauth container.",
         ))
 
-    # Check that containers with Traefik labels have the -lan router variant.
-    # We look at all running containers' labels for traefik.http.routers.<name>.rule
-    # and verify a corresponding traefik.http.routers.<name>-lan.rule exists.
-    containers = ctx.all_containers  # _CheckContext has all_containers, not containers
+    # Check running containers only — stopped containers have stale labels
+    # from before Tinyauth was added and cause false positives.
+    # Infrastructure services that are never behind Tinyauth are also skipped.
+    SKIP_NAMES = {"tinyauth", "traefik", "cloudflared", "tailscale", "mediastack-rad"}
     plain_routers: set[str] = set()
     lan_routers:   set[str] = set()
 
-    for c in containers:
+    for c in ctx.running_containers:
+        if c.name in SKIP_NAMES:
+            continue
         labels = c.labels or {}
         for key in labels:
             if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
-                # e.g. traefik.http.routers.sonarr.rule
-                # or   traefik.http.routers.sonarr-lan.rule
                 parts = key.split(".")
                 if len(parts) >= 4:
                     router_name = parts[3]
                     if router_name.endswith("-lan"):
-                        lan_routers.add(router_name[:-4])  # strip -lan
+                        lan_routers.add(router_name[:-4])
                     else:
                         plain_routers.add(router_name)
 
-    # Services that have a plain router but no -lan counterpart
     missing_lan = plain_routers - lan_routers
-    # Exclude tinyauth itself (skip_traefik=True, won't have plain router either)
-    missing_lan.discard("tinyauth")
+    for skip in SKIP_NAMES:
+        missing_lan.discard(skip)
 
     for name in sorted(missing_lan):
         out.append(HealthIssue(
