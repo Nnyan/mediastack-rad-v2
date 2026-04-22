@@ -69,8 +69,71 @@ async def lifespan(app: FastAPI):
     logger.info("Stack dir: %s", config.stack_dir)
     logger.info("Traefik dir: %s", config.traefik_dir)
 
+    # Auto-connect to the managed stack network so container-to-container
+    # calls (Traefik API proxy, Tinyauth) work without manual intervention.
+    # This is necessary because Docker Compose silently skips external network
+    # attachment when the network doesn't exist at RAD startup time.
+    _auto_connect_network()
+
     # Kick off the health checker in the background.
     loop_task = asyncio.create_task(health_mod.cache.start_loop())
+
+    try:
+        yield
+    finally:
+        logger.info("MediaStack-RAD shutting down")
+        loop_task.cancel()
+        try:
+            await loop_task
+        except asyncio.CancelledError:
+            pass
+
+
+def _auto_connect_network(network_name: str = "mediastack") -> None:
+    """Ensure RAD is connected to the managed stack network.
+
+    When the media stack hasn't been deployed yet the network won't exist
+    and we log a warning. When the stack is up but RAD restarted first,
+    the network exists but RAD isn't on it — we connect automatically.
+    """
+    try:
+        d = docker_client.client()
+        # Find this container's own ID from /proc/self/cgroup or hostname
+        import socket
+        hostname = socket.gethostname()  # Docker sets hostname = container ID prefix
+
+        try:
+            network = d.networks.get(network_name)
+        except Exception:
+            logger.warning(
+                "Network '%s' does not exist yet — deploy the media stack first. "
+                "RAD will reconnect on next restart.",
+                network_name,
+            )
+            return
+
+        # Find the RAD container by hostname match
+        self_container = None
+        for c in d.containers.list():
+            if c.id.startswith(hostname) or c.attrs.get("Config", {}).get("Hostname") == hostname:
+                self_container = c
+                break
+
+        if self_container is None:
+            logger.debug("Could not locate own container for network auto-connect")
+            return
+
+        # Check if already connected
+        connected = network.attrs.get("Containers", {})
+        if self_container.id in connected:
+            logger.info("Already connected to network '%s'", network_name)
+            return
+
+        network.connect(self_container.id)
+        logger.info("Auto-connected to network '%s'", network_name)
+
+    except Exception as e:
+        logger.warning("Network auto-connect failed (non-fatal): %s", e)
 
     try:
         yield
