@@ -277,7 +277,8 @@
           <div class="cfg-section" :class="{ open: expanded.plex }">
           <div class="cfg-head" @click="toggleCfg('plex')">
             <span class="cfg-icon">🎬</span>
-            <span class="cfg-title">{{ `Plex (${plexMode === 'local' ? 'on this stack' : 'external server'})` }}</span>
+            <span class="cfg-title">Plex</span>
+            <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'local' : 'external' }}</span>
             <span class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
@@ -286,11 +287,15 @@
               <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">External server</button>
             </div>
             <template v-if="plexMode === 'local'">
-              <div class="cfg-note cfg-note-pink">
-                ℹ️ Plex is <strong>not routed through any reverse proxy tunnel</strong> — it uses its own relay and direct connections.
-                For remote access use Tailscale or Plex's built-in relay.
-              </div>
               <div class="cfg-grid">
+                <label class="cfg-field">
+                  <span class="cfg-label">Server name</span>
+                  <input v-model="req.plex_server_name" placeholder="My Plex Server" />
+                  <span class="cfg-hint">Friendly name shown in Plex clients</span>
+                </label>
+                <label class="cfg-field">
+                  <span class="cfg-label">&nbsp;</span>
+                </label>
                 <label class="cfg-field span2">
                   <span class="cfg-label">
                     Plex Claim Token
@@ -310,9 +315,6 @@
               </div>
             </template>
             <template v-else>
-              <div class="cfg-note cfg-note-neutral">
-                ℹ️ Your Plex server runs on another machine. The URL and token let *arr apps connect for library lookups and notifications.
-              </div>
               <div class="cfg-grid">
                 <label class="cfg-field span2">
                   <span class="cfg-label">Plex server URL</span>
@@ -488,6 +490,7 @@ const defaults = {
   cloudflare_tunnel_token: '',
   external_plex_url: '',
   plex_claim: '',
+  plex_server_name: '',
   plex_token: '',  // kept for UI only — goes to Settings/Secrets
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
   tinyauth_secret: '', tinyauth_users: '', tinyauth_app_url: '', tinyauth_totp: false,
@@ -694,6 +697,7 @@ function buildRequest() {
     cloudflare_token:          req.cloudflare_token,
     cloudflare_tunnel_token:   req.cloudflare_tunnel_token,
     plex_claim:                req.plex_claim,
+    plex_server_name:          req.plex_server_name,
     external_plex_url:         req.external_plex_url,
     tailscale_auth_key:     req.tailscale_auth_key,
     tailscale_routes:       req.tailscale_routes,
@@ -966,6 +970,7 @@ onMounted(loadCatalog)
 .cfg-icon         { font-size: 13px; }
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); }
 /* cfg-badge removed */
+.cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); }
 .cfg-chevron      { margin-left: auto; color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
 .cfg-chevron.open { transform: rotate(90deg); }
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
@@ -974,10 +979,11 @@ onMounted(loadCatalog)
 .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
 .cfg-field        { display: flex; flex-direction: column; gap: 1px; }
 .cfg-field.span2  { grid-column: span 2; }
+.cfg-field .cfg-label:empty, .cfg-label:only-child:empty { visibility: hidden; }
 .cfg-label        { font-size: 11px; font-weight: 600; color: var(--fg-1); display: flex; align-items: center; gap: 6px; }
 .cfg-link         { font-size: 11px; color: var(--accent); margin-left: auto; text-decoration: none; }
 .cfg-link:hover   { text-decoration: underline; }
-.cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; }
+.cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
@@ -986,8 +992,8 @@ onMounted(loadCatalog)
 .cfg-note-neutral  { background: var(--bg-0); color: var(--fg-1); border: 1px solid var(--border); }
 
 /* Plex mode toggle */
-.mode-toggle { display: flex; background: var(--bg-0); border-radius: 7px; padding: 3px; gap: 2px; margin-top: 10px; }
-.mode-btn    { flex: 1; padding: 5px 8px; border-radius: 5px; font-family: var(--font-sans); font-size: 12px; font-weight: 500; border: none; background: transparent; color: var(--fg-2); cursor: pointer; transition: all 0.13s; }
+.mode-toggle { display: flex; background: var(--bg-0); border-radius: 6px; padding: 2px; gap: 2px; margin-top: 5px; }
+.mode-btn    { flex: 1; padding: 3px 8px; border-radius: 4px; font-family: var(--font-sans); font-size: 11.5px; font-weight: 500; border: none; background: transparent; color: var(--fg-2); cursor: pointer; transition: all 0.13s; }
 .mode-btn.active { background: var(--bg-1); color: var(--fg-0); box-shadow: var(--shadow-1); }
 
 /* TOTP toggle */

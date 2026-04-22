@@ -387,6 +387,8 @@ def _render_service(
     # through here rather than hardcoded in the catalog.
     if svc.key == "plex" and request.plex_claim:
         svc_dict["environment"]["PLEX_CLAIM"] = request.plex_claim
+    if svc.key == "plex" and request.plex_server_name:
+        svc_dict["hostname"] = request.plex_server_name
 
     # Overseerr with external Plex: inject the URL as an env var
     # so the Overseerr setup wizard can find it.

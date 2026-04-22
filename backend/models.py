@@ -74,6 +74,7 @@ class StackRequest(BaseModel):
     cloudflare_token: str | None = None         # CF_DNS_API_TOKEN for DNS-01
     cloudflare_tunnel_token: str | None = None  # TUNNEL_TOKEN for cloudflared
     plex_claim: str | None = None               # PLEX_CLAIM — required for first boot
+    plex_server_name: str | None = None         # friendly server name shown in Plex clients
     services: list[ServiceChoice] = []
     external_plex_url: str | None = None  # if user has Plex elsewhere
     # Tailscale
