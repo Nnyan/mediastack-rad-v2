@@ -244,23 +244,16 @@
               <label class="cfg-field">
                 <span class="cfg-label">App URL</span>
                 <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" />
-                <span class="cfg-hint">⚠ This URL must also be added as a public hostname in your Cloudflare Tunnel</span>
+                <span class="cfg-hint">⚠ Must be added as a public hostname in your CF Tunnel → forward to http://tinyauth:3000</span>
               </label>
-              <label class="cfg-field span2">
-                <span class="cfg-label">
-                  Secret
-                  <button class="gen-btn" type="button" @click="generateSecret">Generate</button>
-                </span>
-                <input v-model="req.tinyauth_secret" type="password" placeholder="random 32-char hex" />
-                <span class="cfg-hint">Signs session cookies — click Generate to create a secure random value</span>
-              </label>
+
               <label class="cfg-field span2">
                 <span class="cfg-label">
                   Users
                   <button class="gen-btn" type="button" @click="generateCredentials">Generate admin</button>
                 </span>
                 <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." />
-                <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate to create admin credentials</span>
+                <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate admin or separate multiple users with commas</span>
               </label>
               <div v-if="generatedPassword" class="generated-password-box">
                 <span class="gen-pw-label">
@@ -269,14 +262,7 @@
                 </span>
                 <code class="gen-pw-value">{{ generatedPassword }}</code>
               </div>
-              <label class="cfg-field span2 toggle-field">
-                <span class="cfg-label">Require TOTP (2FA)</span>
-                <label class="toggle">
-                  <input type="checkbox" v-model="req.tinyauth_totp" />
-                  <span class="toggle-track"></span>
-                  <span class="toggle-label">{{ req.tinyauth_totp ? 'TOTP enabled — scan QR in Tinyauth UI after first login' : 'Password only' }}</span>
-                </label>
-              </label>
+
             </div>
           </div>
           </div>
@@ -504,7 +490,7 @@ const defaults = {
   plex_server_name: '',
   plex_token: '',  // kept for UI only — goes to Settings/Secrets
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
-  tinyauth_secret: '', tinyauth_users: '', tinyauth_app_url: '', tinyauth_totp: false,
+  tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
 }
 // Migrate settings from previous key if v3 is empty
@@ -627,13 +613,6 @@ function toggleAddCustom() {
 function toggleCfg(id) { expanded[id] = !expanded[id] }
 
 // ── Tinyauth credential generators ────────────────────────────────────────
-function generateSecret() {
-  const arr = new Uint8Array(32)
-  crypto.getRandomValues(arr)
-  req.tinyauth_secret = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
-  showToast('Secret generated')
-}
-
 const generatedPassword = ref('')
 
 async function generateCredentials() {
@@ -755,10 +734,8 @@ function buildRequest() {
     tailscale_routes:       req.tailscale_routes,
     tailscale_hostname:     req.tailscale_hostname,
     tinyauth_enabled:       !!pick['tinyauth'],
-    tinyauth_secret:        req.tinyauth_secret,
     tinyauth_users:         req.tinyauth_users,
     tinyauth_app_url:       req.tinyauth_app_url,
-    tinyauth_totp:          req.tinyauth_totp,
     lan_subnet:             req.lan_subnet,
     services:               selectedServices.value.map(k => ({
       key: k, enabled: true,

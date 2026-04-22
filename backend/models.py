@@ -83,11 +83,10 @@ class StackRequest(BaseModel):
     tailscale_hostname: str = "mediastack"  # how node appears in Tailscale admin
     # Tinyauth — Traefik ForwardAuth for Tailscale / non-LAN access
     tinyauth_enabled: bool = False
-    tinyauth_secret: str | None = None     # random string for session cookie signing
-    tinyauth_users: str | None = None      # "user:bcrypt_hash" comma-separated
-    tinyauth_app_url: str | None = None    # e.g. https://auth.nyrdalyrt.com
-    tinyauth_totp: bool = False            # require TOTP on top of password
-    lan_subnet: str = "10.0.0.0/22"       # this subnet bypasses Tinyauth entirely
+    # v5 env vars — SECRET removed (v5 uses SQLite sessions, no cookie secret)
+    tinyauth_users: str | None = None       # TINYAUTH_AUTH_USERS: "user:bcrypt_hash"
+    tinyauth_app_url: str | None = None     # TINYAUTH_APPURL: e.g. https://auth.nyrdalyrt.com
+    lan_subnet: str = "10.0.0.0/22"        # this subnet bypasses Tinyauth entirely
     custom_yaml: str | None = None         # raw compose YAML fragment to merge
 
 

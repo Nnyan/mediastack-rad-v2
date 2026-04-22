@@ -116,9 +116,8 @@ def validate_request(request: StackRequest) -> StackValidation:
     # Tinyauth required fields
     if "tinyauth" in enabled_keys or request.tinyauth_enabled:
         for field, label, val in [
-            ("tinyauth_secret",  "SECRET",  request.tinyauth_secret),
-            ("tinyauth_users",   "USERS",   request.tinyauth_users),
-            ("tinyauth_app_url", "APP_URL", request.tinyauth_app_url),
+            ("tinyauth_users",   "TINYAUTH_AUTH_USERS", request.tinyauth_users),
+            ("tinyauth_app_url", "TINYAUTH_APPURL",     request.tinyauth_app_url),
         ]:
             if not val or not val.strip():
                 errors.append(ValidationIssue(
@@ -617,20 +616,18 @@ def _render_tinyauth(request: StackRequest) -> dict[str, Any]:
     so Traefik picks it up from Docker's label API. The middleware name
     "tinyauth-auth" is referenced by all protected routers.
     """
+    # Tinyauth v5 env vars — all prefixed with TINYAUTH_, SECRET removed.
     env: dict[str, str] = {
-        "SECRET":  _esc(request.tinyauth_secret  or "${TINYAUTH_SECRET}"),
-        "APP_URL": request.tinyauth_app_url or "${TINYAUTH_APP_URL}",
-        "USERS":   _esc(request.tinyauth_users   or "${TINYAUTH_USERS}"),
+        "TINYAUTH_APPURL":      request.tinyauth_app_url or "${TINYAUTH_APPURL}",
+        "TINYAUTH_AUTH_USERS":  _esc(request.tinyauth_users or "${TINYAUTH_AUTH_USERS}"),
     }
-    if request.tinyauth_totp:
-        env["TOTP_ENABLED"] = "true"
 
     labels = [
         "traefik.enable=true",
         # ForwardAuth middleware — Traefik calls this before any protected route.
         # trustForwardHeader lets Tinyauth see the original client IP via
         # X-Forwarded-For (set by Traefik) rather than the Docker gateway IP.
-        "traefik.http.middlewares.tinyauth-auth.forwardauth.address=http://tinyauth:3000/api/auth",
+        "traefik.http.middlewares.tinyauth-auth.forwardauth.address=http://tinyauth:3000/api/auth/traefik",
         "traefik.http.middlewares.tinyauth-auth.forwardauth.trustForwardHeader=true",
         # Forward the authenticated username header to upstream services.
         "traefik.http.middlewares.tinyauth-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-User-Groups",

@@ -222,12 +222,14 @@ CATALOG: dict[str, ServiceDef] = {
         key="tinyauth",
         display_name="Tinyauth",
         description="Lightweight ForwardAuth — gates Tailscale access, passes LAN through",
-        image="ghcr.io/steveiliop56/tinyauth:latest",
+        # Pinned to v5 — v5 is a breaking change from v4 (renamed env vars,
+        # removed SECRET, ForwardAuth path changed). New releases after v5.0.7
+        # will move to ghcr.io/tinyauthapp/tinyauth — update when stable.
+        image="ghcr.io/steveiliop56/tinyauth:v5",
         category="infra",
-        # Tinyauth has a small settings UI but we don't expose it externally.
-        # It is purely a Traefik ForwardAuth endpoint.
         skip_traefik=True,
         web_port=3000,
+        config_volumes=["/data"],   # SQLite database — must persist across restarts
     ),
     "tailscale": ServiceDef(
         key="tailscale",

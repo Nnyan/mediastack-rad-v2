@@ -347,8 +347,9 @@ def check_tinyauth(ctx: _CheckContext) -> list[HealthIssue]:
 
     # Check env vars are set
     env = ctx.env_of("tinyauth")
+    # v5 env var names — SECRET removed, now uses SQLite sessions
     missing_vars = []
-    for var in ("SECRET", "APP_URL", "USERS"):
+    for var in ("TINYAUTH_APPURL", "TINYAUTH_AUTH_USERS"):
         val = env.get(var, "").strip()
         if not val or val.startswith("${"):
             missing_vars.append(var)
