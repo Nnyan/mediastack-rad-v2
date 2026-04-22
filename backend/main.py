@@ -33,7 +33,7 @@ from . import catalog as catalog_mod
 from . import checklist as checklist_mod
 from . import docker_client
 from . import generator as generator_mod
-from .models import StackValidation
+from .models import SecretEntry, StackValidation
 from . import health as health_mod
 from . import websocket as ws_mod
 from .config import config
@@ -520,6 +520,166 @@ async def parse_custom_app(payload: dict) -> dict:
         "yaml": raw_yaml,
         "services": services_summary,
     }
+
+
+
+# ---- Settings / Secrets ---------------------------------------------------
+
+
+# Which secrets each service needs, in display order.
+_SECRET_DEFS: list[dict] = [
+    {
+        "key": "CF_DNS_API_TOKEN",
+        "label": "Cloudflare DNS API Token",
+        "hint": "Zone:DNS:Edit + Zone:Zone:Read — used by Traefik for DNS-01 cert issuance",
+        "service": "cloudflared",
+        "link": "https://dash.cloudflare.com/profile/api-tokens",
+    },
+    {
+        "key": "CLOUDFLARED_TOKEN",
+        "label": "Cloudflare Tunnel Token",
+        "hint": "From Zero Trust → Networks → Tunnels — authenticates the cloudflared daemon",
+        "service": "cloudflared",
+        "link": "https://one.dash.cloudflare.com/",
+    },
+    {
+        "key": "TINYAUTH_AUTH_USERS",
+        "label": "Tinyauth Users",
+        "hint": "username:bcrypt_hash — use the Generate admin button in Stack Builder",
+        "service": "tinyauth",
+        "link": None,
+    },
+    {
+        "key": "TINYAUTH_APPURL",
+        "label": "Tinyauth App URL",
+        "hint": "e.g. https://auth.nyrdalyrt.com — must match your CF Tunnel hostname",
+        "service": "tinyauth",
+        "link": None,
+    },
+    {
+        "key": "TS_AUTHKEY",
+        "label": "Tailscale Auth Key",
+        "hint": "Reusable, non-ephemeral key from Tailscale admin",
+        "service": "tailscale",
+        "link": "https://login.tailscale.com/admin/settings/keys",
+    },
+    {
+        "key": "PLEX_CLAIM",
+        "label": "Plex Claim Token",
+        "hint": "From plex.tv/claim — links this server to your account on first start (4 min expiry)",
+        "service": "plex",
+        "link": "https://plex.tv/claim",
+    },
+]
+
+
+def _read_env_file() -> dict[str, str]:
+    """Read the stack .env file and return key→value pairs."""
+    env_path = config.stack_dir / ".env"
+    result: dict[str, str] = {}
+    if not env_path.exists():
+        return result
+    for line in env_path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        result[key.strip()] = value.strip()
+    return result
+
+
+def _write_env_file(updates: dict[str, str]) -> None:
+    """Write/update key=value pairs in the stack .env file."""
+    env_path = config.stack_dir / ".env"
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read existing lines to preserve comments and ordering
+    existing_lines: list[str] = []
+    if env_path.exists():
+        existing_lines = env_path.read_text().splitlines()
+
+    # Track which keys we've already updated
+    updated: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in existing_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            new_lines.append(line)
+            continue
+        key, _, _ = stripped.partition("=")
+        key = key.strip()
+        if key in updates:
+            new_lines.append(f"{key}={updates[key]}")
+            updated.add(key)
+        else:
+            new_lines.append(line)
+
+    # Append any new keys not already in the file
+    for key, value in updates.items():
+        if key not in updated:
+            new_lines.append(f"{key}={value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+
+def _services_in_compose() -> set[str]:
+    """Return the set of service names in the deployed docker-compose.yml."""
+    import yaml as _yaml
+    compose_path = config.stack_dir / "docker-compose.yml"
+    if not compose_path.exists():
+        return set()
+    try:
+        doc = _yaml.safe_load(compose_path.read_text()) or {}
+        return set((doc.get("services") or {}).keys())
+    except Exception:
+        return set()
+
+
+@app.get("/api/settings/secrets")
+async def api_secrets_list() -> list[SecretEntry]:
+    """Return secrets relevant to the deployed stack with is_set status.
+
+    Only shows secrets for services that are actually in the compose file.
+    Never returns secret values — only whether each key is set.
+    """
+    deployed = _services_in_compose()
+    env = _read_env_file()
+
+    entries = []
+    for defn in _SECRET_DEFS:
+        # Show if service is deployed or if key is already set (legacy)
+        if defn["service"] not in deployed and not env.get(defn["key"]):
+            continue
+        entries.append(SecretEntry(
+            key=defn["key"],
+            label=defn["label"],
+            hint=defn["hint"],
+            service=defn["service"],
+            is_set=bool(env.get(defn["key"], "").strip()),
+            link=defn.get("link"),
+        ))
+    return entries
+
+
+@app.post("/api/settings/secrets")
+async def api_secrets_save(payload: dict) -> dict:
+    """Save one or more secrets to the stack .env file.
+
+    Accepts { key: value, ... }. Values are written as-is.
+    Never logs or returns values. Returns { saved: [key, ...] }.
+    """
+    updates = {
+        k: str(v) for k, v in payload.items()
+        if k and isinstance(k, str) and v is not None and str(v).strip()
+    }
+    if not updates:
+        raise HTTPException(400, "No valid key=value pairs provided")
+    try:
+        _write_env_file(updates)
+    except OSError as e:
+        raise HTTPException(500, f"Could not write .env: {e}")
+    return {"saved": list(updates.keys())}
 
 
 @app.get("/api/checklist", response_model=list[ChecklistItem])

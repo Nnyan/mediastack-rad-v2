@@ -7,7 +7,7 @@ import Containers from './views/Containers.vue'
 import StackBuilder from './views/StackBuilder.vue'
 import Traefik from './views/Traefik.vue'
 import Health from './views/Health.vue'
-import Checklist from './views/Checklist.vue'
+import Settings from './views/Settings.vue'
 
 const routes = [
   { path: '/', redirect: '/containers' },
@@ -15,7 +15,7 @@ const routes = [
   { path: '/stack-builder',name: 'stack-builder', component: StackBuilder },
   { path: '/traefik',      name: 'traefik',        component: Traefik },
   { path: '/health',       name: 'health',         component: Health },
-  { path: '/checklist',    name: 'checklist',      component: Checklist },
+  { path: '/settings',     name: 'settings',       component: Settings },
 ]
 
 export default createRouter({

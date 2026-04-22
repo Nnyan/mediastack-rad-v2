@@ -100,7 +100,7 @@ const navItems = computed(() => [
   { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
   { to: '/health',        label: 'Health',        icon: '♥',
     badge: errorCount.value || null, badgeColor: 'var(--err)' },
-  { to: '/checklist',     label: 'Checklist',     icon: '✓',
+  { to: '/settings',      label: 'Settings',      icon: '⚙',
     badge: pendingCount.value || null, badgeColor: 'var(--orange)' },
 ])
 

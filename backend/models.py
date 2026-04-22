@@ -170,3 +170,18 @@ class ChecklistItem(BaseModel):
     done: bool
     category: str  # "essential", "recommended", "optional"
     action_url: str | None = None  # deep link into RAD or external doc
+
+
+# ---------------------------------------------------------------------------
+# Settings / Secrets models
+# ---------------------------------------------------------------------------
+
+
+class SecretEntry(BaseModel):
+    """A single secret shown in the Settings → Secrets panel."""
+    key: str            # env var name, e.g. CF_DNS_API_TOKEN
+    label: str          # human-readable label
+    hint: str           # one-line description
+    service: str        # which service needs this, e.g. "cloudflared"
+    is_set: bool        # True if the key has a non-empty value in .env
+    link: str | None = None   # optional doc/dashboard URL
