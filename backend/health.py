@@ -23,7 +23,7 @@ import yaml
 
 from . import docker_client
 from .config import config
-from .models import HealthIssue, HealthReport
+from .models import CheckResult, HealthIssue, HealthReport
 from .validators import validate_compose_file, validate_env_file, validate_traefik_yaml
 
 logger = logging.getLogger(__name__)
@@ -225,32 +225,6 @@ def check_traefik_network(ctx: _CheckContext) -> list[HealthIssue]:
     return out
 
 
-def check_cf_video_streaming(ctx: _CheckContext) -> list[HealthIssue]:
-    """Plex/Jellyfin must not route through Cloudflare (ToS section 2.8).
-    Only flags containers that are actually running in this stack.
-    External Plex servers won't appear in ctx.by_name.
-    """
-    cf = ctx.get("cloudflared")
-    if not cf or cf.status != "running":
-        return []
-    out = []
-    for name, port in {"plex": "32400", "jellyfin": "8096"}.items():
-        c = ctx.get(name)
-        if not c or c.status != "running":
-            continue
-        labels = c.attrs.get("Config", {}).get("Labels") or {}
-        if labels.get("traefik.enable") == "true":
-            out.append(HealthIssue(
-                id=f"cf.video.{name}", severity="error", category="security",
-                title=f"{name.title()} routed through Cloudflare — ToS violation risk",
-                detail=(
-                    f"{name.title()} has traefik.enable=true while Cloudflare Tunnel is running. "
-                    "Cloudflare ToS section 2.8 prohibits proxying video streams — "
-                    f"risks account suspension. Use Tailscale, Plex relay, or port-forward {port}."
-                ),
-                fix_hint=f"Remove traefik.enable=true from {name} labels and recreate.",
-            ))
-    return out
 
 
 def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
@@ -429,6 +403,26 @@ def check_tinyauth(ctx: _CheckContext) -> list[HealthIssue]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Check metadata: function name → (category, label, ok_summary)
+# Used by run_checks() to build per-check results for the Health tab.
+# ---------------------------------------------------------------------------
+
+CHECK_META: dict[str, tuple[str, str, str]] = {
+    "check_docker_socket":    ("Docker",  "Docker daemon",        "connected"),
+    "check_compose_file":     ("Config",  "Compose file",         "valid"),
+    "check_env_file":         ("Config",  "Environment file",     "no issues"),
+    "check_traefik_yaml":     ("Traefik", "traefik.yml",          "valid"),
+    "check_ghost_containers": ("Docker",  "Ghost containers",     "none found"),
+    "check_port_conflicts":   ("Docker",  "Port conflicts",       "no conflicts"),
+    "check_acme_storage":     ("Traefik", "ACME storage",         "mode 0600"),
+    "check_traefik_network":  ("Traefik", "Service networks",     "all services connected"),
+    "check_tailscale":        ("Auth",    "Tailscale",            "running"),
+    "check_tinyauth":         ("Auth",    "Tinyauth",             "running, all routers correct"),
+    "check_cloudflare_token": ("Traefik", "Cloudflare token",     "valid"),
+}
+
+
 SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
     check_docker_socket,
     check_compose_file,
@@ -438,7 +432,6 @@ SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
     check_port_conflicts,
     check_acme_storage,
     check_traefik_network,
-    check_cf_video_streaming,
     check_tailscale,
     check_tinyauth,
 ]
@@ -446,28 +439,71 @@ SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
 ASYNC_CHECKS = [check_cloudflare_token]
 
 
+def _issues_to_checks(
+    func_name: str,
+    issues: list[HealthIssue],
+) -> list[CheckResult]:
+    """Convert a check function's output to CheckResult rows.
+
+    No issues → one green row with the ok summary.
+    One or more issues → one row per issue (each can be expanded/fixed).
+    """
+    meta = CHECK_META.get(func_name)
+    category = meta[0] if meta else "System"
+    label    = meta[1] if meta else func_name
+    ok_msg   = meta[2] if meta else "passed"
+
+    if not issues:
+        return [CheckResult(
+            id=f"{func_name}.ok",
+            category=category, label=label,
+            status="ok", summary=ok_msg,
+        )]
+
+    results = []
+    for issue in issues:
+        results.append(CheckResult(
+            id=issue.id,
+            category=issue.category or category,
+            label=label,
+            status="error" if issue.severity == "error" else "warning",
+            summary=issue.title,
+            detail=issue.detail,
+            fix_hint=issue.fix_hint,
+            auto_fix_available=issue.auto_fix_available,
+        ))
+    return results
+
+
 async def run_checks() -> HealthReport:
     start = time.monotonic()
-    issues: list[HealthIssue] = []
+    all_checks: list[CheckResult] = []
+    all_issues: list[HealthIssue] = []
 
-    ctx = _CheckContext.fetch()  # one Docker call, shared by all checks
+    ctx = _CheckContext.fetch()
 
     for check in SYNC_CHECKS:
         try:
-            issues.extend(check(ctx))
+            issues = check(ctx)
+            all_issues.extend(issues)
+            all_checks.extend(_issues_to_checks(check.__name__, issues))
         except Exception as e:
             logger.exception("Check %s failed", check.__name__)
-            issues.append(HealthIssue(
-                id=f"check.crash.{check.__name__}", severity="warning", category="internal",
+            crash_issue = HealthIssue(
+                id=f"check.crash.{check.__name__}", severity="warning",
+                category="internal",
                 title=f"Check '{check.__name__}' crashed", detail=str(e),
-            ))
+            )
+            all_issues.append(crash_issue)
+            all_checks.extend(_issues_to_checks(check.__name__, [crash_issue]))
 
     async def _run_async(check):
         try:
             return await asyncio.wait_for(check(ctx), timeout=8.0)
         except asyncio.TimeoutError:
             return [HealthIssue(
-                id=f"check.timeout.{check.__name__}", severity="warning", category="network",
+                id=f"check.timeout.{check.__name__}", severity="warning",
+                category="network",
                 title=f"Check '{check.__name__}' timed out (>8s)",
                 detail="Network call did not complete. Check connectivity.",
             )]
@@ -475,18 +511,21 @@ async def run_checks() -> HealthReport:
             logger.exception("Async check %s failed", check.__name__)
             return []
 
-    for result in await asyncio.gather(*[_run_async(c) for c in ASYNC_CHECKS]):
-        issues.extend(result)
+    for issues in await asyncio.gather(*[_run_async(c) for c in ASYNC_CHECKS]):
+        all_issues.extend(issues)
+        func_name = ASYNC_CHECKS[0].__name__ if ASYNC_CHECKS else "async_check"
+        all_checks.extend(_issues_to_checks(func_name, issues))
 
     summary: dict[str, int] = {"error": 0, "warning": 0, "info": 0}
-    for i in issues:
+    for i in all_issues:
         summary[i.severity] = summary.get(i.severity, 0) + 1
 
     return HealthReport(
         ok=(summary["error"] == 0),
         checked_at=time.time(),
         duration_ms=int((time.monotonic() - start) * 1000),
-        issues=issues,
+        checks=all_checks,
+        issues=all_issues,
         summary=summary,
     )
 
@@ -513,6 +552,12 @@ def auto_fix(issue_id: str) -> tuple[bool, str]:
         try:
             docker_client.start("tailscale")
             return True, "Started tailscale"
+        except Exception as e:
+            return False, f"Could not start: {e}"
+    if issue_id == "tinyauth.not_running":
+        try:
+            docker_client.start("tinyauth")
+            return True, "Started tinyauth"
         except Exception as e:
             return False, f"Could not start: {e}"
     return False, "No auto-fix available for this issue"

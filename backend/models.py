@@ -125,6 +125,18 @@ class StackValidation(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class CheckResult(BaseModel):
+    """Result of a single named health check — shown in the Health tab."""
+    id: str                         # stable identifier
+    category: str                   # grouping label: Docker / Config / Traefik / Auth
+    label: str                      # human-readable check name
+    status: Literal["ok", "warning", "error"]
+    summary: str                    # one-line result for the row
+    detail: str | None = None       # expanded text shown on click
+    fix_hint: str | None = None
+    auto_fix_available: bool = False
+
+
 class HealthIssue(BaseModel):
     """A single problem the health checker found.
 
@@ -143,11 +155,12 @@ class HealthIssue(BaseModel):
 
 class HealthReport(BaseModel):
     """Complete output of a health checker pass."""
-    ok: bool  # True if no errors (warnings don't count)
-    checked_at: float  # unix timestamp
+    ok: bool
+    checked_at: float
     duration_ms: int
-    issues: list[HealthIssue]
-    summary: dict[str, int]  # counts by severity
+    checks: list[CheckResult] = []   # every check run — pass and fail
+    issues: list[HealthIssue] = []   # issues only (subset of checks, kept for compat)
+    summary: dict[str, int]
 
 
 class ChecklistItem(BaseModel):
