@@ -172,6 +172,13 @@ async def api_containers(all: bool = True) -> list[ContainerSummary]:
     return docker_client.list_containers(include_stopped=all)
 
 
+@app.get("/api/containers/running")
+async def api_running_containers() -> list[str]:
+    """Return list of currently running container names."""
+    all_c = docker_client.list_containers(include_stopped=False)
+    return [c.name for c in all_c]
+
+
 @app.post("/api/containers/{name}/start")
 async def api_start(name: str) -> dict:
     docker_client.start(name)
