@@ -989,12 +989,12 @@ onMounted(loadCatalog)
 .cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; user-select: none; }
 .cfg-head:hover   { background: var(--bg-2); }
 .cfg-icon         { font-size: 13px; }
-.cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); }
+.cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 /* cfg-badge removed */
-.cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); }
+.cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); white-space: nowrap; flex-shrink: 0; }
 .cfg-head-pinned  { cursor: default; }
 .cfg-head-pinned:hover { background: var(--bg-1); }
-.cfg-chevron      { margin-left: auto; color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
+.cfg-chevron      { color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
 .cfg-chevron.open { transform: rotate(90deg); }
 
 /* Pin button */
@@ -1110,7 +1110,8 @@ onMounted(loadCatalog)
 .parse-confirmed { padding: 5px 12px; font-size: 11px; font-weight: 600; color: var(--ok); border-top: 1px solid rgba(22,163,74,0.15); }
 
 /* Deploy area */
-.deploy-row    { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3); }
+.deploy-row    { display: flex; align-items: center; gap: 6px; margin-top: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.deploy-btn    { font-size: 11.5px; padding: 4px 10px; white-space: nowrap; }
 .output        { max-height: 380px; overflow: auto; background: var(--bg-0); padding: var(--space-3); border-radius: var(--radius); font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border); margin: 0; }
 .output-block  { border-radius: var(--radius); overflow: hidden; margin-top: var(--space-2); }
 .output-label  { padding: 6px 12px; font-size: 12px; font-weight: 600; }
