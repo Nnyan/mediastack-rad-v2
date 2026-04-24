@@ -391,8 +391,13 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 
 /* Main row */
 .row-main {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; cursor: pointer; user-select: none;
+  display: grid;
+  grid-template-columns: 20px 20px 1fr auto auto 60px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
 }
 .row-main:hover { background: var(--bg-0); }
 
@@ -427,7 +432,7 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .dot-ping.dot-err  { background: var(--err); }
 
 /* Identity */
-.row-identity { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.row-identity { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
 .row-name  { font-size: 13.5px; font-weight: 700; color: var(--fg-0); letter-spacing: -0.01em; white-space: nowrap; }
 .row-image { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 
@@ -442,10 +447,10 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .pill-off { background: var(--bg-2); color: var(--fg-2); border: 1px solid var(--border); }
 
 /* Uptime */
-.row-uptime { font-family: var(--font-mono); font-size: 11.5px; flex-shrink: 0; min-width: 28px; text-align: right; }
+.row-uptime { font-family: var(--font-mono); font-size: 11.5px; min-width: 60px; text-align: right; }
 
 /* Action buttons */
-.row-actions { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.row-actions { display: flex; align-items: center; gap: 3px; justify-self: end; }
 .act-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; padding: 0; border-radius: 5px;
@@ -467,7 +472,7 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .act-cancel  { width: auto; padding: 0 8px; font-size: 11px; font-family: var(--font-sans); }
 
 /* Chevron */
-.row-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; }
+.row-chevron { font-size: 14px; color: var(--fg-2); transition: transform 0.13s; display: inline-block; justify-self: center; }
 .row-chevron.open { transform: rotate(90deg); }
 
 /* ── Expanded stats ───────────────────────────────────────────────────────── */
