@@ -64,7 +64,7 @@
             <div class="card-body">
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
-                <span v-if="LIVE_SERVICES.value && LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
+                <span v-if="LIVE_SERVICES && LIVE_SERVICES.has && LIVE_SERVICES.has(svc.key)" class="card-badge running">Running</span>
                 <span v-else-if="pick && pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
