@@ -95,8 +95,6 @@
             </template>
           </div>
 
-          <!-- Expand chevron -->
-          <span class="row-chevron" :class="{ open: expanded === c.id }">›</span>
         </div>
 
         <!-- ── Expanded stats row ────────────────────────────────────── -->
@@ -392,7 +390,7 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 /* Main row */
 .row-main {
   display: grid;
-  grid-template-columns: 20px 20px 1fr auto auto 60px auto;
+  grid-template-columns: 20px 20px 1fr auto auto 60px;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -471,9 +469,6 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .act-confirm:hover { background: var(--err); color: #fff; }
 .act-cancel  { width: auto; padding: 0 8px; font-size: 11px; font-family: var(--font-sans); }
 
-/* Chevron */
-.row-chevron { font-size: 14px; color: var(--fg-2); transition: transform 0.13s; display: inline-block; justify-self: center; }
-.row-chevron.open { transform: rotate(90deg); }
 
 /* ── Expanded stats ───────────────────────────────────────────────────────── */
 .row-stats {
