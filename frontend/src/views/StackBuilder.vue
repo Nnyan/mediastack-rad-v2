@@ -38,8 +38,6 @@
           <div class="cfg-head cfg-head-pinned">
             <span class="cfg-icon">⚙️</span>
             <span class="cfg-title">Core settings</span>
-            
-            <span class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.core" class="cfg-body">
             <div class="cfg-grid">
@@ -81,8 +79,7 @@
             <span class="cfg-title">Cloudflare Tunnel</span>
             
             <button class="pin-btn" :class="{ pinned: pinned['cloudflare'] }" @click.stop="togglePin('cloudflare')" title="Pin section open">📌</button>
-            <span v-if="!pinned['cloudflare']" class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
             <div class="cfg-note cfg-note-neutral">
@@ -102,8 +99,7 @@
             <span class="cfg-title">Tailscale</span>
             
             <button class="pin-btn" :class="{ pinned: pinned['tailscale'] }" @click.stop="togglePin('tailscale')" title="Pin section open">📌</button>
-            <span v-if="!pinned['tailscale']" class="cfg-chevron" :class="{ open: expanded.tailscale }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-chevron" :class="{ open: expanded.tailscale }">›</span>
           </div>
           <div v-if="expanded.tailscale" class="cfg-body">
             <div class="cfg-grid">
@@ -138,8 +134,7 @@
             <span class="cfg-title">Tinyauth</span>
             
             <button class="pin-btn" :class="{ pinned: pinned['tinyauth'] }" @click.stop="togglePin('tinyauth')" title="Pin section open">📌</button>
-            <span v-if="!pinned['tinyauth']" class="cfg-chevron" :class="{ open: expanded.tinyauth }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-chevron" :class="{ open: expanded.tinyauth }">›</span>
           </div>
           <div v-if="expanded.tinyauth" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
@@ -188,8 +183,7 @@
             <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'local' : 'external' }}</span>
             
             <button class="pin-btn" :class="{ pinned: pinned['plex'] }" @click.stop="togglePin('plex')" title="Pin section open">📌</button>
-            <span v-if="!pinned['plex']" class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
             <div class="mode-toggle">
@@ -252,8 +246,7 @@
             <span class="cfg-title">Add custom app</span>
             
             <button class="pin-btn" :class="{ pinned: pinned['custom'] }" @click.stop="togglePin('custom')" title="Pin section open">📌</button>
-            <span v-if="!pinned['custom']" class="cfg-chevron" :class="{ open: expanded.custom }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-chevron" :class="{ open: expanded.custom }">›</span>
           </div>
           <div v-if="expanded.custom" class="cfg-body">
             <div class="tab-row">
@@ -314,10 +307,8 @@
           <div v-if="selectedServices.length" class="cfg-section" :class="{ open: expanded.extraenv }">
           <div class="cfg-head" @click="toggleCfg('extraenv')">
             <span class="cfg-icon">🔧</span>
-            <span class="cfg-title">Additional env vars</span>
-            <span class="cfg-badge-mode">optional, per service</span>
-            <span v-if="!pinned['extraenv']" class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
-            <span v-else class="pinned-pill">pinned</span>
+            <span class="cfg-title">Variables</span>
+            <span class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
             <button class="pin-btn" :class="{ pinned: pinned['extraenv'] }"
               @click.stop="togglePin('extraenv')" title="Pin section open">📌</button>
           </div>
@@ -352,18 +343,16 @@
           <div class="cfg-head cfg-head-pinned">
             <span class="cfg-icon">🚀</span>
             <span class="cfg-title">Review &amp; deploy</span>
-            
-            <span class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.deploy" class="cfg-body">
             <div class="deploy-row">
-              <button @click="preview" :disabled="previewLoading">
-                {{ previewLoading ? 'Generating…' : 'Preview compose.yml' }}
+              <button class="deploy-btn" @click="preview" :disabled="previewLoading">
+                {{ previewLoading ? 'Generating…' : 'Preview' }}
               </button>
-              <button class="primary" :disabled="deploying" @click="deploy">
-                {{ deploying ? 'Deploying…' : 'Deploy stack' }}
+              <button class="deploy-btn primary" :disabled="deploying" @click="deploy">
+                {{ deploying ? 'Deploying…' : 'Deploy' }}
               </button>
-              <span class="muted small ml-auto">{{ selectedServices.length }} services · {{ req.domain || 'no domain' }}</span>
+              <span class="muted small ml-auto">{{ selectedServices.length }} · {{ req.domain || 'no domain' }}</span>
             </div>
             <pre v-if="previewText" class="output mono">{{ previewText }}</pre>
             <div v-if="deployOutput" class="output-block" :class="deployOk ? 'ok' : 'err'">
@@ -409,8 +398,8 @@
           <button
             v-for="svc in filteredServices"
             :key="svc.key"
-            :class="['tile', { on: pick[svc.key] }]"
-            :style="pick[svc.key] ? tileStyle(svc.category) : {}"
+            :class="['tile', tileClass(svc.key)]"
+            :style="(pick[svc.key]) ? tileStyle(svc.category) : {}"
             @click="toggle(svc.key)"
           >
             <span class="tile-icon">{{ svc.icon }}</span>
@@ -590,7 +579,7 @@ const svcByKey = computed(() => {
 
 const filteredServices = computed(() => {
   const q = search.value.toLowerCase()
-  return flatServices.value.filter(svc => {
+  const filtered = flatServices.value.filter(svc => {
     if (activeFilter.value && svc.category !== activeFilter.value) return false
     if (!q) return true
     return (
@@ -598,6 +587,13 @@ const filteredServices = computed(() => {
       (svc.short_desc || '').toLowerCase().includes(q) ||
       TAG_LABELS[svc.category]?.toLowerCase().includes(q)
     )
+  })
+  // Order: live (installed+running) first, then selected, then rest — each group alpha
+  const rank = svc => LIVE_SERVICES.has(svc.key) ? 0 : pick[svc.key] ? 1 : 2
+  return [...filtered].sort((a, b) => {
+    const rd = rank(a) - rank(b)
+    if (rd !== 0) return rd
+    return a.display_name.localeCompare(b.display_name)
   })
 })
 
@@ -609,6 +605,11 @@ const selectedServices = computed(() =>
 function catColors(cat)    { return CAT_COLORS[cat] || { bg: 'var(--accent-subtle)', border: 'var(--accent-dim)', text: 'var(--accent)' } }
 function tagStyle(cat)     { const c = catColors(cat); return { background: c.bg, color: c.text, borderColor: c.border } }
 function tileStyle(cat)    { const c = catColors(cat); return { '--tc': c.text, '--tc-bg': c.bg } }
+function tileClass(key)   {
+  if (LIVE_SERVICES.has(key) && pick[key]) return 'tile-live-on'
+  if (pick[key]) return 'tile-selected'
+  return ''
+}
 function svcPillStyle(key) { const c = catColors(svcByKey.value[key]?.category); return { background: c.bg, color: c.text, borderColor: c.border } }
 function svcName(key)      { return svcByKey.value[key]?.display_name || key }
 
@@ -1008,14 +1009,6 @@ onMounted(loadCatalog)
 .pin-btn:hover       { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 .pin-btn.pinned      { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 
-/* Pinned pill */
-.pinned-pill {
-  font-size: 9.5px; font-weight: 700;
-  color: var(--accent); background: var(--accent-subtle);
-  border: 1px solid var(--accent-dim);
-  padding: 1px 7px; border-radius: 20px;
-  margin-left: auto; flex-shrink: 0;
-}
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 3px 7px; font-size: 11.5px; }
 
