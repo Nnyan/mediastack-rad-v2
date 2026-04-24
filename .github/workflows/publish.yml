@@ -127,11 +127,6 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64,amd64
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -160,7 +155,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
