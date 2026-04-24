@@ -462,8 +462,14 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .act-restart:hover { border-color: var(--blue);  color: var(--blue);   background: rgba(37,99,235,0.07); }
 .act-logs:hover   { border-color: var(--purple); color: var(--purple); background: var(--accent-dim); }
 .act-open:hover   { border-color: var(--teal);   color: var(--teal);   background: rgba(8,145,178,0.07); }
-.act-remove { color: var(--fg-2); border: 1.5px solid var(--border); background: var(--bg-1); font-size: 10px; }
-.act-remove:hover { border-color: var(--err-dim); color: var(--err); background: var(--err-bg); }
+.act-remove { 
+  color: var(--err); 
+  border: 1.5px solid var(--err-dim); 
+  background: var(--err-bg); 
+  font-size: 10px; 
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.3);
+}
+.act-remove:hover { border-color: var(--err); color: #fff; background: var(--err); }
 .confirm-label { font-size: 11px; color: var(--err); font-weight: 600; white-space: nowrap; }
 .act-confirm { width: auto; padding: 0 8px; font-size: 11px; font-family: var(--font-sans); font-weight: 600; background: var(--err-bg); border-color: var(--err); color: var(--err); }
 .act-confirm:hover { background: var(--err); color: #fff; }
