@@ -24,3 +24,4 @@ Thumbs.db
 .env.*
 !.env.example
 docker-compose.override.yml
+.aider*
