@@ -238,8 +238,7 @@
           </div>
           </template>
 
-          <!-- Add custom app — shown when custom tile is toggled on -->
-                    <template v-if="addCustom">
+          <!-- Add custom app — always visible below Core settings -->
           <div class="cfg-section" :class="{ open: expanded.custom }">
           <div class="cfg-head" @click="toggleCfg('custom')">
             <span class="cfg-icon">＋</span>
@@ -301,16 +300,15 @@
             </div>
           </div>
           </div>
-          </template>
 
           <!-- Per-service extra env vars — shown when any service is selected -->
           <div v-if="selectedServices.length" class="cfg-section" :class="{ open: expanded.extraenv }">
           <div class="cfg-head" @click="toggleCfg('extraenv')">
             <span class="cfg-icon">🔧</span>
             <span class="cfg-title">Variables</span>
-            <span class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
             <button class="pin-btn" :class="{ pinned: pinned['extraenv'] }"
               @click.stop="togglePin('extraenv')" title="Pin section open">📌</button>
+            <span class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
           </div>
           <div v-if="expanded.extraenv" class="cfg-body">
             <p class="cfg-hint" style="margin: 6px 0 10px; font-style: normal; font-size: 11px;">
@@ -408,14 +406,6 @@
             <span v-if="portOverrides[svc.key]" class="tile-port-override">:{{ portOverrides[svc.key] }}</span>
           </button>
 
-          <!-- Add custom app tile -->
-          <button
-            :class="['tile', 'tile-add', { on: addCustom }]"
-            @click="toggleAddCustom"
-          >
-            <span class="tile-icon tile-icon-add">＋</span>
-            <span class="tile-name">Custom app</span>
-          </button>
         </div>
 
       </div><!-- /grid-panel -->
@@ -457,7 +447,7 @@ const activeFilter = ref('')
 const ALWAYS_PINNED = new Set(['core', 'deploy'])
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
+  tinyauth: false, plex: false, custom: true, extraenv: false, deploy: true,
 })
 // Load pinned from localStorage; seed with always-pinned defaults
 const _storedPinned = JSON.parse(localStorage.getItem('rad-stack-builder-pinned') || 'null')
@@ -467,7 +457,6 @@ const pinned = reactive({
   ...(_storedPinned || {}),
 })
 const plexMode     = ref('local')
-const addCustom    = ref(false)
 const addTab       = ref('compose')
 const addInput     = ref('')
 const portOverrides  = reactive({})   // { service_key: override_port }
@@ -627,11 +616,6 @@ function toggle(key) {
     // Don't override a user-set pin when deselecting
     if (pick[key] && !pinned[section]) expanded[section] = true
   }
-}
-
-function toggleAddCustom() {
-  addCustom.value = !addCustom.value
-  if (addCustom.value) expanded.custom = true; else expanded.custom = false
 }
 
 // camelCase throughout — was mixed snake_case/camelCase previously
@@ -960,20 +944,13 @@ onMounted(loadCatalog)
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tile.on .tile-name { color: var(--tc); }
-.tile-live  { font-size: 7px; color: var(--ok); flex-shrink: 0; }
+.tile-live  { font-size: 11px; color: #16a34a; flex-shrink: 0; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); line-height: 1; }
 .tile-port-override {
   font-family: var(--font-mono); font-size: 9px;
   color: var(--warn); flex-shrink: 0;
 }
 
-/* Custom app tile */
-.tile-add             { border-style: dashed; border-color: var(--border); }
-.tile-add:hover       { border-color: var(--accent); background: var(--bg-1); }
-.tile-add.on          { border-style: solid; border-color: var(--accent); background: var(--accent-subtle); }
-.tile-icon-add        { font-size: 12px; color: var(--fg-2); }
-.tile-add.on .tile-icon-add { color: var(--accent); }
-.tile-add .tile-name  { color: var(--fg-2); }
-.tile-add.on .tile-name { color: var(--accent); }
+
 
 /* ── Config area ────────────────────────────────────────────────────────── */
 .config-area    { display: flex; flex-direction: column; gap: 6px; }
