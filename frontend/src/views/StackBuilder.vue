@@ -313,9 +313,10 @@ const filteredServices = computed(() => {
   return filtered
 })
 
-const selectedServices = computed(() =>
-  Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
-)
+const selectedServices = computed(() => {
+  if (!pick) return []
+  return Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
+})
 
 // Actions
 function toggle(key) {
