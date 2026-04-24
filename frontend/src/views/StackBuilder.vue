@@ -283,13 +283,14 @@ const filteredServices = computed(() => {
     if (!q) return true
     return svc.display_name.toLowerCase().includes(q) || svc.description.toLowerCase().includes(q)
   })
-  // Sort: running first, then not running
+  // Sort: running first (alphabetically), then inactive (alphabetically)
   services.sort((a, b) => {
     const aRunning = LIVE_SERVICES.has(a.key)
     const bRunning = LIVE_SERVICES.has(b.key)
-    if (aRunning && !bRunning) return -1
-    if (!aRunning && bRunning) return 1
-    return 0
+    if (aRunning !== bRunning) {
+      return aRunning ? -1 : 1
+    }
+    return a.display_name.localeCompare(b.display_name)
   })
   return services
 })
