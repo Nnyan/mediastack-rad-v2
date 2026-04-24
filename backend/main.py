@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -315,14 +316,17 @@ async def api_stack_deploy(req: StackRequest) -> dict:
     # We extract names so the frontend can offer a one-click purge+retry.
     conflicts: list[str] = []
     if returncode != 0:
-        for match in re.finditer(
-            r'container name ["\/]+(\w[\w.-]*)["\/]+ is already in use',
-            stderr + stdout,
-            re.IGNORECASE,
-        ):
-            name = match.group(1).lstrip("/")
-            if name not in conflicts:
-                conflicts.append(name)
+        # More robust regex to handle various Docker error message formats
+        conflict_patterns = [
+            r'container name ["\'\/]*(\w[\w.-]*)["\'\/]* is already in use',
+            r'Conflict\. The container name ["\'\/]*(\w[\w.-]*)["\'\/]* is already in use',
+        ]
+        combined_output = stderr + stdout
+        for pattern in conflict_patterns:
+            for match in re.finditer(pattern, combined_output, re.IGNORECASE):
+                name = match.group(1).lstrip("/")
+                if name and name not in conflicts:
+                    conflicts.append(name)
 
     return {
         "ok": returncode == 0,

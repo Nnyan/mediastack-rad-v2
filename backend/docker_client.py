@@ -121,7 +121,7 @@ def get_container_safe(name_or_id: str) -> Container | None:
 
 def _summarize(c: Container) -> ContainerSummary:
     """Convert a docker-py Container to our API schema."""
-    attrs = c.attrs
+    attrs = c.attrs or {}
     state = attrs.get("State") or {}
     net = attrs.get("NetworkSettings") or {}
     cfg = attrs.get("Config") or {}

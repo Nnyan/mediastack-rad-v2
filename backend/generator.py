@@ -191,9 +191,14 @@ def _suggest_port(
     }
     forbidden = set(running_ports.keys()) | claimed | catalog_ports
     candidate = base + 1
-    while candidate in forbidden or candidate > 65535:
+    while candidate in forbidden and candidate <= 65535:
         candidate += 1
-    return candidate
+    if candidate > 65535:
+        # Fallback to a high port range if we can't find anything
+        candidate = 49152
+        while candidate in forbidden and candidate <= 65535:
+            candidate += 1
+    return min(candidate, 65535)
 
 
 

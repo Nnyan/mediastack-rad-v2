@@ -511,9 +511,10 @@ async def run_checks() -> HealthReport:
             logger.exception("Async check %s failed", check.__name__)
             return []
 
-    for issues in await asyncio.gather(*[_run_async(c) for c in ASYNC_CHECKS]):
+    async_results = await asyncio.gather(*[_run_async(c) for c in ASYNC_CHECKS])
+    for i, issues in enumerate(async_results):
         all_issues.extend(issues)
-        func_name = ASYNC_CHECKS[0].__name__ if ASYNC_CHECKS else "async_check"
+        func_name = ASYNC_CHECKS[i].__name__ if i < len(ASYNC_CHECKS) else "async_check"
         all_checks.extend(_issues_to_checks(func_name, issues))
 
     summary: dict[str, int] = {"error": 0, "warning": 0, "info": 0}
