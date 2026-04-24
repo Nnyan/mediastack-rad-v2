@@ -268,10 +268,15 @@ async function loadRunningServices() {
 
 // Computed
 const flatServices = computed(() => {
+  if (!rawCatalog.value || typeof rawCatalog.value !== 'object') {
+    return []
+  }
   const out = []
   for (const [cat, svcs] of Object.entries(rawCatalog.value)) {
-    for (const svc of svcs) {
-      out.push({ ...svc, category: cat, icon: ICONS[svc.key] || '📦' })
+    if (Array.isArray(svcs)) {
+      for (const svc of svcs) {
+        out.push({ ...svc, category: cat, icon: ICONS[svc.key] || '📦' })
+      }
     }
   }
   return out
@@ -286,23 +291,26 @@ const categories = computed(() => {
 })
 
 const filteredServices = computed(() => {
-  const q = search.value.toLowerCase()
-  let services = flatServices.value.filter(svc => {
+  const services = flatServices.value || []
+  const q = search.value?.toLowerCase() || ''
+  const filtered = services.filter(svc => {
     if (activeCategory.value && svc.category !== activeCategory.value) return false
     if (!q) return true
-    return svc.display_name.toLowerCase().includes(q) || svc.description.toLowerCase().includes(q)
+    const name = svc.display_name || ''
+    const desc = svc.description || ''
+    return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
-  services.sort((a, b) => {
-    const liveSet = LIVE_SERVICES.value || new Set()
+  const liveSet = LIVE_SERVICES.value || new Set()
+  filtered.sort((a, b) => {
     const aRunning = liveSet.has(a.key)
     const bRunning = liveSet.has(b.key)
     if (aRunning !== bRunning) {
       return aRunning ? -1 : 1
     }
-    return a.display_name.localeCompare(b.display_name)
+    return (a.display_name || '').localeCompare(b.display_name || '')
   })
-  return services
+  return filtered
 })
 
 const selectedServices = computed(() =>
