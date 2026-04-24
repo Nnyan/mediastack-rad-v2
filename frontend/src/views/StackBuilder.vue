@@ -2,251 +2,205 @@
   <div class="stack-builder">
 
     <!-- Header -->
-    <div class="page-header">
-      <h1 class="page-title">Stack Builder</h1>
-      <div class="header-actions">
+    <div class="sb-header">
+      <h1 class="sb-title">Stack Builder</h1>
+      <div class="sb-actions">
         <button class="btn btn-secondary" @click="preview" :disabled="previewLoading">
-          {{ previewLoading ? 'Generating…' : 'Preview' }}
+          {{ previewLoading ? 'Generating…' : 'Generate' }}
         </button>
         <button class="btn btn-primary" :disabled="deploying || !selectedServices.length" @click="deploy">
-          {{ deploying ? 'Deploying…' : 'Deploy Stack' }}
+          {{ deploying ? 'Deploying…' : 'Deploy' }}
         </button>
       </div>
     </div>
 
-    <!-- Main Layout: Sidebar + Table -->
-    <div class="builder-layout">
+    <!-- Main Area -->
+    <div class="sb-layout">
 
-      <!-- Left Sidebar: Categories -->
-      <div class="sidebar">
-        <div class="sidebar-section">
-          <div class="sidebar-title">Services</div>
-          <div class="category-list">
+      <!-- Sidebar Filters -->
+      <div class="sb-sidebar">
+        <div class="sb-filters">
+          <div class="filter-label">Services</div>
+          <div class="filter-pills">
             <button
               v-for="cat in categories"
               :key="cat.key"
-              :class="['category-item', { active: activeCategory === cat.key }]"
+              :class="['filter-pill', { active: activeCategory === cat.key }]"
               @click="activeCategory = activeCategory === cat.key ? '' : cat.key"
             >
-              <span class="cat-icon">{{ cat.icon }}</span>
-              <span class="cat-name">{{ cat.name }}</span>
-              <span class="cat-count">{{ cat.count }}</span>
+              <span class="pill-icon">{{ cat.icon }}</span>
+              <span class="pill-name">{{ cat.name }}</span>
+              <span class="pill-count">{{ cat.count }}</span>
             </button>
           </div>
         </div>
 
-        <div class="sidebar-section">
-          <div class="sidebar-title">Quick Filters</div>
-          <button :class="['filter-btn', { active: search }]" @click="search = ''">
-            <span>Clear filter</span>
-          </button>
+        <div class="sb-search">
+          <input
+            v-model="search"
+            placeholder="Search services..."
+            class="sb-input"
+          />
+        </div>
+
+        <div class="sb-stats">
+          <span class="stat">{{ selectedServices.length }} selected</span>
+          <span class="stat-divider">·</span>
+          <span class="stat">{{ filteredServices.length }} shown</span>
         </div>
       </div>
 
-      <!-- Right: Service Table -->
-      <div class="main-content">
-
-        <!-- Search Bar -->
-        <div class="toolbar-row">
-          <div class="search-input-wrap">
-            <span class="search-icon">🔍</span>
-            <input
-              v-model="search"
-              placeholder="Search services..."
-              class="search-input"
-            />
+      <!-- Service Grid -->
+      <div class="sb-grid">
+        <div
+          v-for="svc in filteredServices"
+          :key="svc.key"
+          :class="['sb-card', { selected: pick[svc.key], running: LIVE_SERVICES.has(svc.key) }]"
+          @click="toggle(svc.key)"
+        >
+          <div class="card-check">
+            <div class="check-circle" :class="{ checked: pick[svc.key] }">
+              <svg v-if="pick[svc.key]" viewBox="0 0 10 10" fill="none">
+                <polyline points="2,5 4,7 8,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
           </div>
-          <div class="toolbar-info">
-            {{ selectedServices.length }} selected · {{ filteredServices.length }} shown
+
+          <div class="card-icon">{{ svc.icon }}</div>
+
+          <div class="card-body">
+            <div class="card-header">
+              <span class="card-name">{{ svc.display_name }}</span>
+              <span v-if="LIVE_SERVICES.has(svc.key)" class="card-badge running">Running</span>
+            </div>
+            <div class="card-desc">{{ svc.description }}</div>
+          </div>
+
+          <div class="card-meta">
+            <span v-if="svc.web_port" class="card-port">{{ svc.web_port }}</span>
+            <span v-else class="card-port empty">—</span>
           </div>
         </div>
 
-        <!-- Service Table -->
-        <div class="service-table">
-          <!-- Table Header -->
-          <div class="table-header">
-            <div class="th th-check">
-              <div
-                class="check-box"
-                :class="{ checked: allSelected, indeterminate: someSelected }"
-                @click="toggleSelectAll"
-              >
-                <svg v-if="someSelected && !allSelected" viewBox="0 0 10 10" fill="none">
-                  <rect x="1" y="3" width="8" height="4" rx="1" fill="currentColor"/>
-                </svg>
-                <svg v-else-if="allSelected" viewBox="0 0 10 10" fill="none">
-                  <polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-            <div class="th th-service">Service</div>
-            <div class="th th-desc">Description</div>
-            <div class="th th-status">Status</div>
-            <div class="th th-port">Port</div>
-          </div>
-
-          <!-- Table Rows -->
-          <div
-            v-for="svc in filteredServices"
-            :key="svc.key"
-            :class="['table-row', { selected: pick[svc.key], 'row-running': LIVE_SERVICES.has(svc.key) && pick[svc.key] }]"
-            @click="toggle(svc.key)"
-          >
-            <div class="td td-check" @click.stop>
-              <div
-                class="check-box"
-                :class="{ checked: pick[svc.key] }"
-                @click="toggle(svc.key)"
-              >
-                <svg v-if="pick[svc.key]" viewBox="0 0 10 10" fill="none">
-                  <polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-
-            <div class="td td-service">
-              <span class="service-icon">{{ svc.icon }}</span>
-              <span class="service-name">{{ svc.display_name }}</span>
-              <span v-if="portOverrides[svc.key]" class="port-override">:{{ portOverrides[svc.key] }}</span>
-              <span v-if="LIVE_SERVICES.has(svc.key)" class="live-badge">● Running</span>
-            </div>
-
-            <div class="td td-desc">
-              <span class="service-desc">{{ svc.description }}</span>
-            </div>
-
-            <div class="td td-status">
-              <span v-if="pick[svc.key]" class="status-badge enabled">Enabled</span>
-              <span v-else class="status-badge">Disabled</span>
-            </div>
-
-            <div class="td td-port">
-              <span v-if="svc.web_port" class="port-number">{{ svc.web_port }}</span>
-              <span v-else class="port-empty">—</span>
-            </div>
-          </div>
-
-          <div v-if="!filteredServices.length" class="empty-state">
-            No services match your filter.
-          </div>
+        <div v-if="!filteredServices.length" class="sb-empty">
+          No services match your filter.
         </div>
       </div>
     </div>
 
-    <!-- Config Drawer (slides in from right) -->
-    <div class="config-drawer" :class="{ open: configOpen }">
+    <!-- Config Drawer -->
+    <div class="sb-drawer" :class="{ open: configOpen }">
       <div class="drawer-header">
         <h2>Configuration</h2>
         <button class="drawer-close" @click="configOpen = false">✕</button>
       </div>
 
-      <div class="drawer-content">
-        <!-- Domain -->
-        <div class="config-group">
-          <label class="config-label">Domain</label>
-          <input v-model="req.domain" placeholder="example.com" class="config-input" />
-          <span class="config-hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
-        </div>
-
-        <!-- Config Root -->
-        <div class="config-group">
-          <label class="config-label">Config Root</label>
-          <input v-model="req.config_root" placeholder="/home/stack/mediacenter/config" class="config-input" />
-        </div>
-
-        <!-- Media Root -->
-        <div class="config-group">
-          <label class="config-label">Media Root</label>
-          <input v-model="req.media_root" placeholder="/mnt/media" class="config-input" />
-          <span class="config-hint">Mounted as /data inside containers</span>
-        </div>
-
-        <!-- Timezone -->
-        <div class="config-group">
-          <label class="config-label">Timezone</label>
-          <input v-model="req.timezone" placeholder="America/Los_Angeles" class="config-input" />
-        </div>
-
-        <!-- PUID/PGID -->
-        <div class="config-row">
+      <div class="drawer-scroll">
+        <div class="drawer-section">
           <div class="config-group">
-            <label class="config-label">PUID</label>
-            <input v-model.number="req.puid" type="number" class="config-input" />
+            <label class="config-label">Domain</label>
+            <input v-model="req.domain" placeholder="example.com" class="config-input" />
+            <span class="config-hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
           </div>
+
           <div class="config-group">
-            <label class="config-label">PGID</label>
-            <input v-model.number="req.pgid" type="number" class="config-input" />
+            <label class="config-label">Config Root</label>
+            <input v-model="req.config_root" placeholder="/home/stack/mediacenter/config" class="config-input" />
+          </div>
+
+          <div class="config-group">
+            <label class="config-label">Media Root</label>
+            <input v-model="req.media_root" placeholder="/mnt/media" class="config-input" />
+            <span class="config-hint">Mounted as /data inside containers</span>
+          </div>
+
+          <div class="config-group">
+            <label class="config-label">Timezone</label>
+            <input v-model="req.timezone" placeholder="America/Los_Angeles" class="config-input" />
+          </div>
+
+          <div class="config-row">
+            <div class="config-group">
+              <label class="config-label">PUID</label>
+              <input v-model.number="req.puid" type="number" class="config-input" />
+            </div>
+            <div class="config-group">
+              <label class="config-label">PGID</label>
+              <input v-model.number="req.pgid" type="number" class="config-input" />
+            </div>
           </div>
         </div>
 
-        <!-- Tailscale Config (if selected) -->
         <template v-if="pick['tailscale']">
-          <div class="config-divider"></div>
-          <div class="config-section-title">Tailscale</div>
+          <div class="drawer-divider"></div>
+          <div class="drawer-section-title">Tailscale</div>
 
-          <div class="config-group">
-            <label class="config-label">Auth Key</label>
-            <input v-model="req.tailscale_auth_key" type="password" class="config-input" />
-            <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" class="config-link">Generate in Tailscale ↗</a>
-          </div>
+          <div class="drawer-section">
+            <div class="config-group">
+              <label class="config-label">Auth Key</label>
+              <input v-model="req.tailscale_auth_key" type="password" class="config-input" />
+              <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" class="config-link">Generate in Tailscale ↗</a>
+            </div>
 
-          <div class="config-group">
-            <label class="config-label">Node Hostname</label>
-            <input v-model="req.tailscale_hostname" class="config-input" />
-          </div>
+            <div class="config-group">
+              <label class="config-label">Node Hostname</label>
+              <input v-model="req.tailscale_hostname" class="config-input" />
+            </div>
 
-          <div class="config-group">
-            <label class="config-label">Subnet Routes</label>
-            <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" class="config-input" />
-          </div>
-        </template>
-
-        <!-- Tinyauth Config (if selected) -->
-        <template v-if="pick['tinyauth']">
-          <div class="config-divider"></div>
-          <div class="config-section-title">Tinyauth</div>
-
-          <div class="config-group">
-            <label class="config-label">LAN Subnet</label>
-            <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" class="config-input" />
-            <span class="config-hint">Devices in this CIDR bypass auth</span>
-          </div>
-
-          <div class="config-group">
-            <label class="config-label">App URL</label>
-            <input v-model="req.tinyauth_app_url" placeholder="https://auth.example.com" class="config-input" />
-          </div>
-
-          <div class="config-group">
-            <label class="config-label">Users</label>
-            <div class="user-row">
-              <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." class="config-input" />
-              <button class="btn btn-small" @click="generateCredentials">Generate</button>
+            <div class="config-group">
+              <label class="config-label">Subnet Routes</label>
+              <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" class="config-input" />
             </div>
           </div>
         </template>
 
-        <!-- Config Output -->
-        <div class="config-divider"></div>
-        <pre v-if="previewText" class="config-output">{{ previewText }}</pre>
+        <template v-if="pick['tinyauth']">
+          <div class="drawer-divider"></div>
+          <div class="drawer-section-title">Tinyauth</div>
 
-        <!-- Deploy Output -->
-        <div v-if="deployOutput" :class="['deploy-output', deployOk ? 'ok' : 'err']">
-          <div class="deploy-status">{{ deployOk ? '✓ Deploy complete' : '✕ Deploy failed' }}</div>
-          <pre class="deploy-text">{{ deployOutput }}</pre>
+          <div class="drawer-section">
+            <div class="config-group">
+              <label class="config-label">LAN Subnet</label>
+              <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" class="config-input" />
+              <span class="config-hint">Devices in this CIDR bypass auth</span>
+            </div>
+
+            <div class="config-group">
+              <label class="config-label">App URL</label>
+              <input v-model="req.tinyauth_app_url" placeholder="https://auth.example.com" class="config-input" />
+            </div>
+
+            <div class="config-group">
+              <label class="config-label">Users</label>
+              <div class="user-row">
+                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." class="config-input" />
+                <button class="btn btn-small" @click="generateCredentials">Generate</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div class="drawer-divider"></div>
+        <pre v-if="previewText" class="drawer-output">{{ previewText }}</pre>
+
+        <div v-if="deployOutput" :class="['drawer-result', deployOk ? 'ok' : 'err']">
+          <div class="result-status">{{ deployOk ? '✓ Deploy complete' : '✕ Deploy failed' }}</div>
+          <pre class="result-text">{{ deployOutput }}</pre>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Bar for Mobile -->
-    <div v-if="selectedServices.length && !configOpen" class="bottom-bar">
-      <div class="bottom-info">
-        {{ selectedServices.length }} services selected
+    <!-- Mobile Bottom Bar -->
+    <div v-if="selectedServices.length && !configOpen" class="sb-mobile-bar">
+      <span class="mobile-count">{{ selectedServices.length }} services</span>
+      <div class="mobile-actions">
+        <button class="btn btn-secondary" @click="configOpen = true">Configure</button>
+        <button class="btn btn-primary" :disabled="deploying" @click="deploy">Deploy</button>
       </div>
-      <button class="btn btn-secondary" @click="configOpen = true">Configure</button>
-      <button class="btn btn-primary" :disabled="deploying" @click="deploy">Deploy</button>
     </div>
 
+    <!-- Backdrop -->
+    <div v-if="configOpen" class="sb-backdrop" @click="configOpen = false"></div>
   </div>
 </template>
 
@@ -255,7 +209,7 @@ import { ref, reactive, computed, onMounted, watch, inject } from 'vue'
 
 const showToast = inject('showToast')
 
-// ── State ──────────────────────────────────────────────────────────────────
+// State
 const rawCatalog = ref({})
 const pick = reactive(JSON.parse(localStorage.getItem('rad-stack-builder-pick') || '{}'))
 const search = ref('')
@@ -269,7 +223,7 @@ const deployOutput = ref('')
 const deployOk = ref(false)
 const deploying = ref(false)
 
-// ── Storage ───────────────────────────────────────────────────────────────
+// Storage
 const STORAGE_KEY = 'rad-stack-builder-v3'
 const defaults = {
   domain: '', timezone: 'America/Los_Angeles', puid: 1000, pgid: 1000,
@@ -289,7 +243,7 @@ const req = reactive({ ...defaults, ...(_stored || {}) })
 watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
 watch(pick, v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
 
-// ── Constants ──────────────────────────────────────────────────────────────
+// Constants
 const ICONS = {
   media: '🎬', indexers: '📺', downloaders: '⬇️', requests: '🙋', infra: '⚙️',
   plex: '🎬', jellyfin: '🎞️', sonarr: '📺', radarr: '🎥', lidarr: '🎵',
@@ -303,14 +257,14 @@ const CATEGORIES = {
   indexers: { key: 'indexers', name: 'Management', icon: '📺' },
   downloaders: { key: 'downloaders', name: 'Download', icon: '⬇️' },
   requests: { key: 'requests', name: 'Requests', icon: '🙋' },
-  infra: { key: 'infra', name: 'Infrastructure', icon: '⚙️' },
+  infra: { key: 'infra', name: 'Infra', icon: '⚙️' },
 }
 
 const LIVE_SERVICES = new Set([
   'traefik', 'plex', 'sonarr', 'radarr', 'prowlarr', 'qbittorrent', 'cloudflared',
 ])
 
-// ── Computed ───────────────────────────────────────────────────────────────
+// Computed
 const flatServices = computed(() => {
   const out = []
   for (const [cat, svcs] of Object.entries(rawCatalog.value)) {
@@ -342,38 +296,10 @@ const selectedServices = computed(() =>
   Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
 )
 
-const allSelected = computed(() =>
-  filteredServices.value.length && filteredServices.value.every(s => pick[s.key])
-)
-
-const someSelected = computed(() =>
-  filteredServices.value.some(s => pick[s.key]) && !allSelected.value
-)
-
-// ── Actions ───────────────────────────────────────────────────────────────
+// Actions
 function toggle(key) {
   pick[key] = !pick[key]
   localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...pick}))
-}
-
-function toggleSelectAll() {
-  const newVal = !allSelected.value
-  for (const svc of filteredServices.value) {
-    pick[svc.key] = newVal
-  }
-}
-
-// ── API ───────────────────────────────────────────────────────────────────
-async function loadCatalog() {
-  try {
-    rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
-    if (Object.keys(pick).length === 0) {
-      ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
-       'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
-    }
-  } catch (e) {
-    showToast('Failed to load catalog', 'err')
-  }
 }
 
 function buildRequest() {
@@ -396,6 +322,19 @@ function buildRequest() {
       enabled: true,
       port_override: portOverrides[k] || undefined,
     })),
+  }
+}
+
+// API
+async function loadCatalog() {
+  try {
+    rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
+    if (Object.keys(pick).length === 0) {
+      ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
+       'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
+    }
+  } catch (e) {
+    showToast('Failed to load catalog', 'err')
   }
 }
 
@@ -474,352 +413,282 @@ onMounted(loadCatalog)
 </script>
 
 <style scoped>
-/* ── Layout ─────────────────────────────────────────────────────────────── */
+/* Layout */
 .stack-builder {
-  padding-bottom: 80px;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  padding-bottom: 60px;
 }
 
-.page-header {
+.sb-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
-  flex-wrap: wrap;
-  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
 }
 
-.page-title {
-  font-size: 24px;
+.sb-title {
+  font-size: 18px;
   font-weight: 700;
-  color: var(--fg-0);
   margin: 0;
 }
 
-.header-actions {
+.sb-actions {
   display: flex;
   gap: var(--space-2);
 }
 
-.builder-layout {
+.sb-layout {
   display: flex;
   gap: var(--space-4);
+  padding: var(--space-4);
 }
 
-/* ── Sidebar ────────────────────────────────────────────────────────── */
-.sidebar {
-  width: 200px;
+/* Sidebar */
+.sb-sidebar {
+  width: 180px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.sidebar-section {
-  margin-bottom: var(--space-4);
-}
-
-.sidebar-title {
+.filter-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--fg-2);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   margin-bottom: var(--space-2);
 }
 
-.category-list {
+.filter-pills {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.category-item {
+.filter-pill {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   background: transparent;
   border: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.12s;
+  transition: all 0.12s;
 }
 
-.category-item:hover {
+.filter-pill:hover {
   background: var(--bg-2);
 }
 
-.category-item.active {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.cat-icon {
-  font-size: 14px;
-}
-
-.cat-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg-0);
-  flex: 1;
-}
-
-.category-item.active .cat-name {
-  color: var(--accent);
-}
-
-.cat-count {
-  font-size: 11px;
-  color: var(--fg-2);
-  background: var(--bg-2);
-  padding: 1px 6px;
-  border-radius: 10px;
-}
-
-.category-item.active .cat-count {
+.filter-pill.active {
   background: var(--accent);
   color: #fff;
 }
 
-/* ── Main Content ─────────────────────────────────────────────────── */
-.main-content {
+.pill-icon {
+  font-size: 12px;
+}
+
+.pill-name {
+  font-size: 12px;
+  font-weight: 500;
   flex: 1;
-  min-width: 0;
 }
 
-.toolbar-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
+.pill-count {
+  font-size: 10px;
+  opacity: 0.7;
 }
 
-.search-input-wrap {
-  position: relative;
-  flex: 1;
-  max-width: 300px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 13px;
-}
-
-.search-input {
+.sb-input {
   width: 100%;
-  padding: 6px 10px 6px 30px;
-  font-size: 13px;
-  background: var(--bg-0);
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--fg-0);
 }
 
-.search-input:focus {
+.sb-input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-.toolbar-info {
-  font-size: 12px;
+.sb-stats {
+  font-size: 11px;
   color: var(--fg-2);
 }
 
-/* ── Service Table ───────────────────────────────────────────────── */
-.service-table {
+.stat-divider {
+  margin: 0 4px;
+}
+
+/* Service Grid */
+.sb-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.sb-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.table-header {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--fg-2);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.table-row {
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: all 0.15s;
 }
 
-.table-row:hover {
-  background: var(--bg-2);
+.sb-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-1);
 }
 
-.table-row.selected {
+.sb-card.selected {
+  border-color: var(--accent);
   background: var(--accent-subtle);
 }
 
-.table-row.row-running {
-  background: rgba(22, 163, 74, 0.05);
+.sb-card.running {
+  border-left: 3px solid var(--ok);
 }
 
-.table-row.selected.row-running {
-  background: rgba(22, 163, 74, 0.1);
+.sb-card.selected.running {
+  border-left: 3px solid var(--ok);
 }
 
-.th-check, .td-check {
-  width: 36px;
+.card-check {
   flex-shrink: 0;
 }
 
-.th-service {
-  flex: 1;
-  min-width: 140px;
-}
-
-.td-service {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1;
-  min-width: 140px;
-}
-
-.service-icon {
-  font-size: 16px;
-}
-
-.service-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fg-0);
-}
-
-.port-override {
-  font-size: 10px;
-  color: var(--warn);
-  font-family: var(--font-mono);
-}
-
-.live-badge {
-  font-size: 9px;
-  color: var(--ok);
-  margin-left: 4px;
-}
-
-.th-desc, .td-desc {
-  flex: 2;
-  min-width: 150px;
-}
-
-.service-desc {
-  font-size: 12px;
-  color: var(--fg-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.th-status, .td-status {
-  width: 80px;
-  flex-shrink: 0;
-}
-
-.status-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--bg-2);
-  color: var(--fg-2);
-}
-
-.status-badge.enabled {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.th-port, .td-port {
-  width: 60px;
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.port-number {
-  font-size: 12px;
-  font-family: var(--font-mono);
-  color: var(--fg-1);
-}
-
-.port-empty {
-  font-size: 12px;
-  color: var(--fg-2);
-}
-
-/* Checkbox */
-.check-box {
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--border);
-  border-radius: 3px;
+.check-circle {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.1s;
+  transition: all 0.15s;
 }
 
-.check-box:hover {
-  border-color: var(--accent);
-}
-
-.check-box.checked {
+.check-circle.checked {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 
-.check-box.indeterminate {
-  background: var(--accent-subtle);
-  border-color: var(--accent);
-}
-
-.check-box svg {
+.check-circle svg {
   width: 10px;
   height: 10px;
 }
 
-/* ── Empty State ───────────────────────────────────────────── */
-.empty-state {
-  padding: var(--space-4);
-  text-align: center;
+.card-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.card-name {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+
+.card-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-2);
   color: var(--fg-2);
 }
 
-/* ── Config Drawer ���─���────────────────────────────────────────────── */
-.config-drawer {
+.card-badge.running {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.card-desc {
+  font-size: 11px;
+  color: var(--fg-2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-meta {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.card-port {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--fg-1);
+}
+
+.card-port.empty {
+  color: var(--fg-2);
+}
+
+.sb-empty {
+  grid-column: 1 / -1;
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--fg-2);
+  font-size: 13px;
+}
+
+/* Drawer */
+.sb-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 50;
+}
+
+.sb-drawer {
   position: fixed;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 400px;
+  width: 380px;
   background: var(--bg-1);
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   transition: transform 0.2s;
-  z-index: 100;
-  overflow-y: auto;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
 }
 
-.config-drawer.open {
+.sb-drawer.open {
   transform: translateX(0);
 }
 
@@ -829,13 +698,11 @@ onMounted(loadCatalog)
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  background: var(--bg-1);
+  flex-shrink: 0;
 }
 
 .drawer-header h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   margin: 0;
 }
@@ -843,30 +710,54 @@ onMounted(loadCatalog)
 .drawer-close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   color: var(--fg-2);
+  padding: 4px;
 }
 
-.drawer-content {
+.drawer-scroll {
+  flex: 1;
+  overflow-y: auto;
   padding: var(--space-4);
 }
 
+.drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.drawer-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-0);
+  padding: 0 var(--space-4);
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.drawer-divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-3) 0;
+}
+
 .config-group {
-  margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .config-label {
-  display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--fg-1);
-  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .config-input {
-  width: 100%;
-  padding: 6px 10px;
+  padding: 8px 10px;
   font-size: 13px;
   background: var(--bg-0);
   border: 1px solid var(--border);
@@ -880,17 +771,13 @@ onMounted(loadCatalog)
 }
 
 .config-hint {
-  display: block;
   font-size: 11px;
   color: var(--fg-2);
-  margin-top: 4px;
 }
 
 .config-link {
   font-size: 11px;
   color: var(--accent);
-  margin-top: 4px;
-  display: inline-block;
 }
 
 .config-row {
@@ -902,19 +789,6 @@ onMounted(loadCatalog)
   flex: 1;
 }
 
-.config-divider {
-  height: 1px;
-  background: var(--border);
-  margin: var(--space-4) 0;
-}
-
-.config-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fg-0);
-  margin-bottom: var(--space-3);
-}
-
 .user-row {
   display: flex;
   gap: var(--space-2);
@@ -924,53 +798,52 @@ onMounted(loadCatalog)
   flex: 1;
 }
 
-.config-output {
+.drawer-output {
   background: var(--bg-0);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-mono);
   overflow-x: auto;
-  max-height: 300px;
+  max-height: 250px;
   white-space: pre;
 }
 
-.deploy-output {
-  margin-top: var(--space-3);
+.drawer-result {
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
-.deploy-status {
+.result-status {
   padding: var(--space-2) var(--space-3);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
-.deploy-output.ok .deploy-status {
+.drawer-result.ok .result-status {
   background: var(--ok-bg);
   color: var(--ok);
 }
 
-.deploy-output.err .deploy-status {
+.drawer-result.err .result-status {
   background: var(--err-bg);
   color: var(--err);
 }
 
-.deploy-text {
+.result-text {
   padding: var(--space-3);
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-mono);
   background: var(--bg-0);
-  max-height: 200px;
+  max-height: 180px;
   overflow-y: auto;
   white-space: pre;
 }
 
-/* ── Buttons ─────────────────────────────────────────────────── */
+/* Buttons */
 .btn {
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 6px 12px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: none;
@@ -984,7 +857,7 @@ onMounted(loadCatalog)
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-dark);
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
@@ -998,7 +871,7 @@ onMounted(loadCatalog)
 }
 
 .btn-small {
-  padding: 4px 10px;
+  padding: 6px 10px;
   font-size: 11px;
 }
 
@@ -1007,27 +880,8 @@ onMounted(loadCatalog)
   cursor: not-allowed;
 }
 
-/* ── Filter Button ──────────────────────────────────────────────��─�� */
-.filter-btn {
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 12px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--fg-1);
-  text-align: left;
-}
-
-.filter-btn.active {
-  background: var(--accent-subtle);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* ── Bottom Bar ───────────────────────────────────────────────── */
-.bottom-bar {
+/* Mobile */
+.sb-mobile-bar {
   display: none;
   position: fixed;
   bottom: 0;
@@ -1041,48 +895,52 @@ onMounted(loadCatalog)
   gap: var(--space-3);
 }
 
-.bottom-info {
-  font-size: 13px;
+.mobile-count {
+  font-size: 12px;
   color: var(--fg-1);
 }
 
+.mobile-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .builder-layout {
+  .sb-layout {
     flex-direction: column;
+  padding: var(--space-3);
   }
 
-  .sidebar {
+  .sb-sidebar {
     width: 100%;
-    display: flex;
-    gap: var(--space-3);
-    overflow-x: auto;
-  }
-
-  .sidebar-section {
-    display: flex;
-    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    margin-bottom: 0;
   }
 
-  .sidebar-title {
+  .filter-label {
     display: none;
   }
 
-  .category-list {
+  .filter-pills {
     flex-direction: row;
+    flex-wrap: wrap;
   }
 
-  .category-item {
-    padding: 4px 10px;
-    white-space: nowrap;
+  .sb-filters {
+    flex: 1;
   }
 
-  .config-drawer {
+  .sb-stats {
     width: 100%;
   }
 
-  .bottom-bar {
+  .sb-drawer {
+    width: 100%;
+  }
+
+  .sb-mobile-bar {
     display: flex;
   }
 }
