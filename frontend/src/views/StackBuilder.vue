@@ -3,103 +3,13 @@
 
     <!-- ── Header ──────────────────────────────────────────────────────── -->
     <div class="builder-header">
-      <div class="builder-header-left">
-        <h1 class="page-title">Stack Builder</h1>
-        <div class="builder-subtitle">
-          <span class="sel-count">
-            {{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected
-          </span>
-          <div v-if="selectedServices.length" class="sel-pills">
-            <span
-              v-for="key in selectedServices" :key="key"
-              class="sel-pill"
-              :style="svcPillStyle(key)"
-            >{{ svcName(key) }}</span>
-          </div>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="primary" :disabled="deploying" @click="deploy">
-          {{ deploying ? 'Deploying…' : 'Deploy stack →' }}
-        </button>
-      </div>
+      <h1 class="page-title">Stack Builder</h1>
     </div>
 
-    <!-- ── Two-column layout ────────────────────────────────────────────── -->
+    <!-- ── Two-column layout: config left, grid right ───────────────────── -->
     <div class="builder-layout">
 
-      <!-- Left: service grid -->
-      <div class="grid-panel">
-
-        <!-- Search + filter pills -->
-        <div class="filter-row">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input v-model="search" placeholder="Search services…" class="search-input" />
-          </div>
-          <div class="filter-pills">
-            <button
-              v-for="[tag, label] in Object.entries(TAG_LABELS)"
-              :key="tag"
-              :class="['pill', { active: activeFilter === tag }]"
-              :style="activeFilter === tag ? tagStyle(tag) : {}"
-              @click="activeFilter = activeFilter === tag ? '' : tag"
-            >{{ label }}</button>
-          </div>
-        </div>
-
-        <!-- Service grid -->
-        <div class="service-grid">
-          <button
-            v-for="svc in filteredServices"
-            :key="svc.key"
-            :class="['tile', { on: pick[svc.key] }]"
-            :style="pick[svc.key] ? tileStyle(svc.category) : {}"
-            @click="toggle(svc.key)"
-          >
-            <div class="tile-top">
-              <span class="tile-icon">{{ svc.icon }}</span>
-              <div class="tile-check" :class="{ checked: pick[svc.key] }">
-                <svg v-if="pick[svc.key]" viewBox="0 0 12 12" fill="none">
-                  <polyline points="2,6 5,9 10,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-            <div class="tile-name">{{ svc.display_name }}</div>
-            <div class="tile-desc">{{ svc.short_desc }}</div>
-            <div class="tile-foot">
-              <span class="tile-tag" :style="tagStyle(svc.category)">{{ TAG_LABELS[svc.category] || svc.category }}</span>
-              <span v-if="svc.web_port" class="tile-port" :class="{ 'tile-port-override': portOverrides[svc.key] }">
-              {{ portOverrides[svc.key] || svc.web_port }}
-            </span>
-              <span v-if="LIVE_SERVICES.has(svc.key)" class="tile-live">live</span>
-            </div>
-          </button>
-
-          <!-- Add custom app tile -->
-          <button
-            :class="['tile', 'tile-add', { on: addCustom }]"
-            @click="toggleAddCustom"
-          >
-            <div class="tile-top">
-              <span class="tile-icon tile-icon-add">＋</span>
-              <div class="tile-check" :class="{ checked: addCustom }">
-                <svg v-if="addCustom" viewBox="0 0 12 12" fill="none">
-                  <polyline points="2,6 5,9 10,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-            <div class="tile-name">Custom app</div>
-            <div class="tile-desc">Add via compose or image URL</div>
-            <div class="tile-foot">
-              <span class="tile-tag tile-tag-custom">Custom</span>
-            </div>
-          </button>
-        </div>
-
-      </div><!-- /grid-panel -->
-
-      <!-- Right: config accordion (sticky on wide screens) -->
+      <!-- Left: config accordion -->
       <div class="config-panel">
         <div class="config-area">
           <!-- Port conflict banner -->
@@ -484,6 +394,42 @@
 
         </div>
       </div><!-- /config-panel -->
+
+      <!-- Right: service grid -->
+      <div class="grid-panel">
+
+        <!-- Search under title -->
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input v-model="search" placeholder="Search services…" class="search-input" />
+        </div>
+
+        <!-- Service grid — compact single-line tiles, fixed 4 columns -->
+        <div class="service-grid">
+          <button
+            v-for="svc in filteredServices"
+            :key="svc.key"
+            :class="['tile', { on: pick[svc.key] }]"
+            :style="pick[svc.key] ? tileStyle(svc.category) : {}"
+            @click="toggle(svc.key)"
+          >
+            <span class="tile-icon">{{ svc.icon }}</span>
+            <span class="tile-name">{{ svc.display_name }}</span>
+            <span v-if="LIVE_SERVICES.has(svc.key)" class="tile-live">●</span>
+            <span v-if="portOverrides[svc.key]" class="tile-port-override">:{{ portOverrides[svc.key] }}</span>
+          </button>
+
+          <!-- Add custom app tile -->
+          <button
+            :class="['tile', 'tile-add', { on: addCustom }]"
+            @click="toggleAddCustom"
+          >
+            <span class="tile-icon tile-icon-add">＋</span>
+            <span class="tile-name">Custom app</span>
+          </button>
+        </div>
+
+      </div><!-- /grid-panel -->
 
     </div><!-- /builder-layout -->
 
@@ -941,175 +887,92 @@ onMounted(loadCatalog)
 
 <style scoped>
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.builder { max-width: 1040px; padding-bottom: 80px; }
+.builder { padding-bottom: 80px; }
 
 .builder-layout {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 24px;
+  align-items: flex-start;
 }
-.grid-panel   { min-width: 0; }
-.config-panel { min-width: 0; }
+.config-panel {
+  flex: 0 0 280px;
+  min-width: 0;
+}
+.grid-panel {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
-.builder-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-.builder-header-left { flex: 1; min-width: 0; }
-.builder-subtitle    { margin-top: 6px; }
-.sel-count {
-  font-size: 12px;
-  color: var(--fg-2);
-  display: block;
-  margin-bottom: 6px;
-}
-.sel-pills  { display: flex; flex-wrap: wrap; gap: 5px; }
-.sel-pill {
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  padding: 2px 9px;
-  border-radius: 20px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-.header-actions {
-  display: flex;
-  gap: var(--space-2);
-  align-items: flex-start;
-  flex-shrink: 0;
-  padding-top: 2px;
-}
+.builder-header { margin-bottom: var(--space-3); }
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
-.filter-row {
-  display: flex;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  align-items: center;
-  flex-wrap: wrap;
-}
-.search-wrap { position: relative; flex: 1; max-width: 300px; }
+.search-wrap { position: relative; margin-bottom: var(--space-3); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
 .search-input {
   width: 100%;
   padding: 7px 10px 7px 30px;
   font-family: var(--font-sans);
   font-size: 13px;
-  background: var(--bg-1);
+  background: var(--bg-0);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--fg-0);
+  box-sizing: border-box;
 }
 .search-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-.filter-pills { display: flex; gap: 5px; flex-wrap: wrap; }
-.pill {
-  padding: 4px 11px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  border: 1.5px solid var(--border);
-  background: var(--bg-1);
-  color: var(--fg-2);
-  transition: all 0.13s;
-}
-.pill:hover  { border-color: var(--border-strong); color: var(--fg-0); }
-.pill.active { font-weight: 600; border-color: currentColor; }
 
 /* ── Service grid ───────────────────────────────────────────────────────── */
+/* ── Service grid — compact fixed-column layout ──────────────────────────── */
 .service-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
-  margin-bottom: var(--space-5);
-  align-items: start;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: var(--space-4);
 }
+
+/* Single-line tile: icon · name · live dot */
 .tile {
   --tc:    var(--accent);
   --tc-bg: var(--accent-subtle);
   display: flex;
-  flex-direction: column;
-  padding: 7px 9px;
-  background: var(--bg-1);
-  border: 1.5px solid var(--border);
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  background: var(--bg-0);
+  border: 1.5px solid transparent;
   border-radius: var(--radius-sm);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.13s, background 0.13s, box-shadow 0.13s;
+  transition: background 0.12s, border-color 0.12s;
   font-family: var(--font-sans);
+  min-width: 0;
 }
-.tile:hover { border-color: var(--border-strong); box-shadow: var(--shadow-1); }
-.tile.on    { border-color: var(--tc); background: var(--tc-bg); box-shadow: var(--shadow-1); }
+.tile:hover { background: var(--bg-2); border-color: var(--border); }
+.tile.on    { background: var(--tc-bg); border-color: var(--tc); }
 
-.tile-top   { display: flex; align-items: center; margin-bottom: 5px; }
-.tile-icon  { font-size: 13px; line-height: 1; }
-.tile-check {
-  margin-left: auto;
-  width: 14px; height: 14px;
-  border-radius: 3px;
-  border: 1.5px solid var(--border-strong);
-  background: var(--bg-1);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff;
-  transition: all 0.13s;
-  flex-shrink: 0;
+.tile-icon  { font-size: 13px; line-height: 1; flex-shrink: 0; }
+.tile-name  {
+  font-size: 12.5px; font-weight: 600; color: var(--fg-0);
+  letter-spacing: -0.01em; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tile-check.checked { background: var(--tc); border-color: var(--tc); }
-.tile-check svg     { width: 9px; height: 9px; }
-
-.tile-name {
-  font-family: var(--font-sans);
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--fg-0);
-  margin-bottom: 2px;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tile-desc {
-  font-size: 10px;
-  color: var(--fg-2);
-  line-height: 1.3;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tile-foot { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
-.tile-tag  {
-  font-size: 9px; font-weight: 600;
-  padding: 1px 5px; border-radius: 20px;
-  border: 1px solid; white-space: nowrap;
-}
-.tile-port {
+.tile.on .tile-name { color: var(--tc); }
+.tile-live  { font-size: 7px; color: var(--ok); flex-shrink: 0; }
+.tile-port-override {
   font-family: var(--font-mono); font-size: 9px;
-  color: var(--fg-2); background: var(--bg-2);
-  padding: 1px 4px; border-radius: 3px;
-  border: 1px solid var(--border);
-}
-.tile-live {
-  margin-left: auto; flex-shrink: 0;
-  font-size: 8px; font-weight: 700;
-  padding: 1px 4px; border-radius: 20px;
-  background: var(--ok-bg); color: var(--ok);
-  border: 1px solid rgba(22,163,74,0.2);
-  text-transform: uppercase;
+  color: var(--warn); flex-shrink: 0;
 }
 
 /* Custom app tile */
-.tile-add              { border-style: dashed; background: var(--bg-0); }
-.tile-add:hover        { border-color: var(--accent); }
-.tile-add.on           { border-color: var(--accent); border-style: solid; background: var(--accent-subtle); }
-.tile-icon-add         { font-size: 16px; color: var(--fg-2); }
+.tile-add             { border-style: dashed; border-color: var(--border); }
+.tile-add:hover       { border-color: var(--accent); background: var(--bg-1); }
+.tile-add.on          { border-style: solid; border-color: var(--accent); background: var(--accent-subtle); }
+.tile-icon-add        { font-size: 12px; color: var(--fg-2); }
 .tile-add.on .tile-icon-add { color: var(--accent); }
-.tile-tag-custom       { background: var(--bg-2); color: var(--fg-2); border-color: var(--border); }
+.tile-add .tile-name  { color: var(--fg-2); }
+.tile-add.on .tile-name { color: var(--accent); }
 
 /* ── Config area ────────────────────────────────────────────────────────── */
 .config-area    { display: flex; flex-direction: column; gap: 6px; }
@@ -1332,47 +1195,33 @@ onMounted(loadCatalog)
 .extraenv-add  { font-size: 11.5px; font-weight: 600; font-family: var(--font-sans); color: var(--accent); background: none; border: 1.5px dashed var(--accent-dim); border-radius: 5px; padding: 3px 10px; cursor: pointer; margin-top: 2px; transition: all 0.13s; }
 .extraenv-add:hover { background: var(--accent-subtle); }
 
-/* ── Wide screen (≥1280px): two-column ──────────────────────────────────── */
-@media (min-width: 1080px) {
-  .builder {
-    max-width: none;
-    padding-bottom: 24px;
-  }
+/* ── Narrow screens: stack vertically ───────────────────────────────────── */
+@media (max-width: 767px) {
   .builder-layout {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 32px;
-  }
-  .grid-panel {
-    flex: 0 0 54%;
+    flex-direction: column;
   }
   .config-panel {
     flex: 1;
-    position: sticky;
-    top: 0;
-    max-height: calc(100vh - 54px); /* 54px = App.vue topbar height */
-    overflow-y: auto;
-    border-left: 1.5px solid var(--border);
-    padding-left: 28px;
-    padding-bottom: 24px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
-    /* Reserve scrollbar gutter so appearing scrollbar doesn't reflow the grid */
-    scrollbar-gutter: stable;
-  }
-  .bottom-bar {
-    display: none; /* config panel always visible on wide */
+    width: 100%;
   }
   .service-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bottom-bar {
+    display: flex;
   }
 }
 
-/* ── Ultra-wide (≥1800px) ────────────────────────────────────────────────── */
-@media (min-width: 1600px) {
-  .grid-panel { flex: 0 0 60%; }
+/* ── Medium screens: 3-column grid ─────────────────────────────────────── */
+@media (min-width: 768px) and (max-width: 1079px) {
   .service-grid {
-    grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
   }
+  .bottom-bar { display: none; }
+}
+
+/* ── Wide screens: always side-by-side, hide bottom bar ────────────────── */
+@media (min-width: 1080px) {
+  .bottom-bar { display: none; }
 }
 </style>
