@@ -62,7 +62,7 @@
             <div class="card-body">
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
-                <span v-if="LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
+                <span v-if="LIVE_SERVICES.value && LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
                 <span v-else-if="pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
@@ -294,8 +294,9 @@ const filteredServices = computed(() => {
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
   services.sort((a, b) => {
-    const aRunning = LIVE_SERVICES.value.has(a.key)
-    const bRunning = LIVE_SERVICES.value.has(b.key)
+    const liveSet = LIVE_SERVICES.value || new Set()
+    const aRunning = liveSet.has(a.key)
+    const bRunning = liveSet.has(b.key)
     if (aRunning !== bRunning) {
       return aRunning ? -1 : 1
     }
