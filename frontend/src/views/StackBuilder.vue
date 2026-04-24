@@ -72,19 +72,19 @@
           </div>
 
           <!-- Cloudflare — only when cloudflared is selected -->
-                    <template v-if="pick['cloudflared']">
+          <template v-if="pick['cloudflared']">
           <div class="cfg-section" :class="{ open: expanded.cloudflare }">
-          <div class="cfg-head" @click="toggleCfg('cloudflare')">
-            <span class="cfg-icon">☁️</span>
-            <span class="cfg-title">Cloudflare Tunnel</span>
-          </div>
-          <div v-if="expanded.cloudflare" class="cfg-body">
-            <div class="cfg-note cfg-note-neutral">
-              ☁️ Cloudflare credentials (DNS API token and Tunnel token) are managed in
-              <strong>Settings → Secrets</strong>. They are stored in <code>.env</code>
-              on your server and never embedded in the compose file.
+            <div class="cfg-head" @click="toggleCfg('cloudflare')">
+              <span class="cfg-icon">☁️</span>
+              <span class="cfg-title">Cloudflare Tunnel</span>
             </div>
-          </div>
+            <div v-if="expanded.cloudflare" class="cfg-body">
+              <div class="cfg-note cfg-note-neutral">
+                ☁️ Cloudflare credentials (DNS API token and Tunnel token) are managed in
+                <strong>Settings → Secrets</strong>. They are stored in <code>.env</code>
+                on your server and never embedded in the compose file.
+              </div>
+            </div>
           </div>
           </template>
 
