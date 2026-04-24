@@ -259,9 +259,10 @@ const LIVE_SERVICES = ref(new Set())
 async function loadRunningServices() {
   try {
     const running = await fetch('/api/containers/running').then(r => r.json())
-    LIVE_SERVICES.value = new Set(running)
+    LIVE_SERVICES.value = new Set(running || [])
   } catch (e) {
     console.warn('Failed to load running services:', e)
+    LIVE_SERVICES.value = new Set()
   }
 }
 
@@ -339,13 +340,14 @@ function buildRequest() {
 // API
 async function loadCatalog() {
   try {
-    rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
+    rawCatalog.value = await fetch('/api/catalog').then(r => r.json()) || {}
     if (Object.keys(pick).length === 0) {
       ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
        'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
     }
   } catch (e) {
-    showToast('Failed to load catalog', 'err')
+    console.error('Failed to load catalog:', e)
+    rawCatalog.value = {}
   }
 }
 
