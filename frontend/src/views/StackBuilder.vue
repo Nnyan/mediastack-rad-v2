@@ -416,6 +416,25 @@
               <div class="output-label">{{ deployOk ? '✓ Deploy complete' : '✗ Deploy failed' }}</div>
               <pre class="output mono">{{ deployOutput }}</pre>
             </div>
+
+            <!-- Conflict resolution banner -->
+            <div v-if="deployConflicts.length" class="conflict-banner">
+              <div class="conflict-banner-head">
+                <span class="conflict-icon">⚠</span>
+                <span class="conflict-title">
+                  {{ deployConflicts.length }} container{{ deployConflicts.length !== 1 ? 's' : '' }} already exist and must be removed first
+                </span>
+              </div>
+              <div class="conflict-names">
+                <code v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</code>
+              </div>
+              <div class="conflict-actions">
+                <span class="conflict-warn">These containers will be stopped and removed.</span>
+                <button class="conflict-btn" :disabled="deploying" @click="purgeAndRetry">
+                  {{ deploying ? 'Removing…' : 'Remove conflicts & retry deploy' }}
+                </button>
+              </div>
+            </div>
           </div>
           </div>
 
@@ -472,9 +491,10 @@ const addResult    = ref(null)   // { yaml, services } from backend
 const customYaml   = ref('')     // confirmed YAML to include in deploy
 const previewText  = ref('')
 const previewLoading = ref(false)
-const deployOutput = ref('')
-const deployOk     = ref(false)
-const deploying    = ref(false)
+const deployOutput    = ref('')
+const deployOk        = ref(false)
+const deploying       = ref(false)
+const deployConflicts = ref([])   // container names blocking the deploy
 
 // ── Persistence ────────────────────────────────────────────────────────────
 const STORAGE_KEY      = 'rad-stack-builder-v3'
@@ -771,6 +791,33 @@ async function preview() {
   }
 }
 
+async function purgeAndRetry() {
+  const names = deployConflicts.value
+  if (!names.length) return
+  deploying.value = true
+  deployOutput.value = ''
+  try {
+    const r = await fetch('/api/stack/purge-conflicts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names }),
+    })
+    const data = await r.json()
+    if (data.errors?.length) {
+      showToast(`Purge errors: ${data.errors.join('; ')}`, 'err', 7000)
+      deploying.value = false
+      return
+    }
+    showToast(`Removed: ${data.removed.join(', ')} — redeploying…`, 'ok', 4000)
+    deployConflicts.value = []
+    deploying.value = false
+    await deploy()
+  } catch (e) {
+    showToast(`Purge failed: ${e.message}`, 'err')
+    deploying.value = false
+  }
+}
+
 async function deploy() {
   if (!confirm('Deploy this stack? Running containers may be recreated.')) return
   deploying.value = true
@@ -784,7 +831,6 @@ async function deploy() {
     })
     const data = await r.json()
     if (!r.ok) {
-      // Validation error (400) or other HTTP failure — data has {message, errors}
       deployOk.value = false
       const lines = (data.errors || []).map(e => `✗  ${e.message || e}`)
       deployOutput.value = lines.length
@@ -794,10 +840,16 @@ async function deploy() {
       return
     }
     deployOk.value = data.ok
+    deployConflicts.value = data.conflicts || []
     deployOutput.value = [data.stdout, data.stderr ? '--- stderr ---\n' + data.stderr : '']
       .filter(Boolean).join('\n').trim()
-    showToast(data.ok ? 'Deploy complete' : 'Deploy failed — see output below',
-              data.ok ? 'ok' : 'err', 5000)
+    if (data.ok) {
+      showToast('Deploy complete', 'ok', 5000)
+    } else if (deployConflicts.value.length) {
+      showToast(`${deployConflicts.value.length} container conflict(s) — click "Remove conflicts & retry"`, 'warn', 8000)
+    } else {
+      showToast('Deploy failed — see output below', 'err', 5000)
+    }
   } catch (e) {
     deployOk.value = false
     deployOutput.value = String(e)
@@ -1121,6 +1173,45 @@ onMounted(loadCatalog)
 .output-block.ok  .output-label { background: var(--ok-bg);  color: var(--ok);  }
 .output-block.err .output-label { background: var(--err-bg); color: var(--err); }
 .output-block .output { border-top: none; border-radius: 0; }
+
+/* Container name conflict banner (deploy-time) */
+.conflict-banner {
+  margin-top: var(--space-3);
+  border: 1.5px solid rgba(217,119,6,0.4);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--warn-bg);
+}
+.conflict-banner-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(217,119,6,0.15);
+}
+.conflict-icon  { font-size: 14px; color: var(--warn); }
+.conflict-title { font-size: 12px; font-weight: 600; color: var(--warn); }
+.conflict-names {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 8px 12px;
+}
+.conflict-name {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: var(--bg-1); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 7px; color: var(--fg-0);
+}
+.conflict-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(217,119,6,0.15);
+}
+.conflict-warn { font-size: 11.5px; color: var(--warn); font-weight: 500; }
+.conflict-btn {
+  font-size: 12px; font-weight: 700; font-family: var(--font-sans);
+  padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
+  background: var(--warn); color: #fff; transition: opacity 0.13s;
+  white-space: nowrap;
+}
+.conflict-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Sticky bottom bar ──────────────────────────────────────────────────── */
 .bottom-bar    { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-1); border-top: 1.5px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 10px; z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,0.06); }

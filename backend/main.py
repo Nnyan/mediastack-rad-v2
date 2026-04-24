@@ -310,12 +310,60 @@ async def api_stack_deploy(req: StackRequest) -> dict:
     # Force a health check re-run after deploy so the UI reflects changes.
     await health_mod.cache.refresh()
 
+    # Parse container name conflicts from Docker's output.
+    # Docker reports: "The container name "/sonarr" is already in use..."
+    # We extract names so the frontend can offer a one-click purge+retry.
+    conflicts: list[str] = []
+    if returncode != 0:
+        for match in re.finditer(
+            r'container name ["\/]+(\w[\w.-]*)["\/]+ is already in use',
+            stderr + stdout,
+            re.IGNORECASE,
+        ):
+            name = match.group(1).lstrip("/")
+            if name not in conflicts:
+                conflicts.append(name)
+
     return {
         "ok": returncode == 0,
         "stdout": stdout,
         "stderr": stderr,
         "path": str(path),
+        "conflicts": conflicts,
     }
+
+
+
+@app.post("/api/stack/purge-conflicts")
+async def api_purge_conflicts(payload: dict) -> dict:
+    """Stop and remove containers that are blocking a deploy.
+
+    Accepts { "names": ["sonarr", "radarr", ...] }.
+    Returns { "removed": [...], "errors": [...] }.
+
+    Only removes containers whose names are explicitly provided —
+    never performs a broad cleanup.
+    """
+    names: list[str] = payload.get("names") or []
+    if not names:
+        raise HTTPException(400, "No container names provided")
+
+    removed: list[str] = []
+    errors: list[str] = []
+
+    for name in names:
+        try:
+            c = docker_client.client().containers.get(name)
+            if c.status == "running":
+                c.stop(timeout=5)
+            c.remove(force=True)
+            removed.append(name)
+            logger.info("Purged conflict container: %s", name)
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+            logger.warning("Could not purge %s: %s", name, e)
+
+    return {"removed": removed, "errors": errors}
 
 
 # ---- Health & checklist ---------------------------------------------------
