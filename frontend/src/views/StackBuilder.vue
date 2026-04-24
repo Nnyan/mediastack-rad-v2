@@ -77,9 +77,6 @@
           <div class="cfg-head" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
             <span class="cfg-title">Cloudflare Tunnel</span>
-            
-            <button class="pin-btn" :class="{ pinned: pinned['cloudflare'] }" @click.stop="togglePin('cloudflare')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
             <div class="cfg-note cfg-note-neutral">
@@ -97,9 +94,6 @@
           <div class="cfg-head" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
             <span class="cfg-title">Tailscale</span>
-            
-            <button class="pin-btn" :class="{ pinned: pinned['tailscale'] }" @click.stop="togglePin('tailscale')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.tailscale }">›</span>
           </div>
           <div v-if="expanded.tailscale" class="cfg-body">
             <div class="cfg-grid">
@@ -132,9 +126,6 @@
           <div class="cfg-head" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
             <span class="cfg-title">Tinyauth</span>
-            
-            <button class="pin-btn" :class="{ pinned: pinned['tinyauth'] }" @click.stop="togglePin('tinyauth')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.tinyauth }">›</span>
           </div>
           <div v-if="expanded.tinyauth" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
@@ -181,9 +172,6 @@
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">Plex</span>
             <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'local' : 'external' }}</span>
-            
-            <button class="pin-btn" :class="{ pinned: pinned['plex'] }" @click.stop="togglePin('plex')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
             <div class="mode-toggle">
@@ -243,9 +231,6 @@
           <div class="cfg-head" @click="toggleCfg('custom')">
             <span class="cfg-icon">＋</span>
             <span class="cfg-title">Add custom app</span>
-            
-            <button class="pin-btn" :class="{ pinned: pinned['custom'] }" @click.stop="togglePin('custom')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.custom }">›</span>
           </div>
           <div v-if="expanded.custom" class="cfg-body">
             <div class="tab-row">
@@ -306,9 +291,6 @@
           <div class="cfg-head" @click="toggleCfg('extraenv')">
             <span class="cfg-icon">🔧</span>
             <span class="cfg-title">Variables</span>
-            <button class="pin-btn" :class="{ pinned: pinned['extraenv'] }"
-              @click.stop="togglePin('extraenv')" title="Pin section open">📌</button>
-            <span class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
           </div>
           <div v-if="expanded.extraenv" class="cfg-body">
             <p class="cfg-hint" style="margin: 6px 0 10px; font-style: normal; font-size: 11px;">
