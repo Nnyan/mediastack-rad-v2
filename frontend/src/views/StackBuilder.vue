@@ -125,10 +125,11 @@
 
           <!-- Core settings — always visible -->
           <div class="cfg-section" :class="{ open: expanded.core }">
-          <div class="cfg-head" @click="toggleCfg('core')">
+          <div class="cfg-head cfg-head-pinned">
             <span class="cfg-icon">⚙️</span>
             <span class="cfg-title">Core settings</span>
-            <span class="cfg-chevron" :class="{ open: expanded.core }">›</span>
+            
+            <span class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.core" class="cfg-body">
             <div class="cfg-grid">
@@ -168,7 +169,10 @@
           <div class="cfg-head" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
             <span class="cfg-title">Cloudflare Tunnel</span>
-            <span class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
+            
+            <button class="pin-btn" :class="{ pinned: pinned['cloudflare'] }" @click.stop="togglePin('cloudflare')" title="Pin section open">📌</button>
+            <span v-if="!pinned['cloudflare']" class="cfg-chevron" :class="{ open: expanded.cloudflare }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
             <div class="cfg-grid">
@@ -195,7 +199,10 @@
           <div class="cfg-head" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
             <span class="cfg-title">Tailscale</span>
-            <span class="cfg-chevron" :class="{ open: expanded.tailscale }">›</span>
+            
+            <button class="pin-btn" :class="{ pinned: pinned['tailscale'] }" @click.stop="togglePin('tailscale')" title="Pin section open">📌</button>
+            <span v-if="!pinned['tailscale']" class="cfg-chevron" :class="{ open: expanded.tailscale }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.tailscale" class="cfg-body">
             <div class="cfg-grid">
@@ -228,7 +235,10 @@
           <div class="cfg-head" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
             <span class="cfg-title">Tinyauth</span>
-            <span class="cfg-chevron" :class="{ open: expanded.tinyauth }">›</span>
+            
+            <button class="pin-btn" :class="{ pinned: pinned['tinyauth'] }" @click.stop="togglePin('tinyauth')" title="Pin section open">📌</button>
+            <span v-if="!pinned['tinyauth']" class="cfg-chevron" :class="{ open: expanded.tinyauth }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.tinyauth" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
@@ -275,7 +285,10 @@
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">Plex</span>
             <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'local' : 'external' }}</span>
-            <span class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
+            
+            <button class="pin-btn" :class="{ pinned: pinned['plex'] }" @click.stop="togglePin('plex')" title="Pin section open">📌</button>
+            <span v-if="!pinned['plex']" class="cfg-chevron" :class="{ open: expanded.plex }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
             <div class="mode-toggle">
@@ -337,7 +350,10 @@
           <div class="cfg-head" @click="toggleCfg('custom')">
             <span class="cfg-icon">＋</span>
             <span class="cfg-title">Add custom app</span>
-            <span class="cfg-chevron" :class="{ open: expanded.custom }">›</span>
+            
+            <button class="pin-btn" :class="{ pinned: pinned['custom'] }" @click.stop="togglePin('custom')" title="Pin section open">📌</button>
+            <span v-if="!pinned['custom']" class="cfg-chevron" :class="{ open: expanded.custom }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.custom" class="cfg-body">
             <div class="tab-row">
@@ -396,10 +412,11 @@
 
           <!-- Review & deploy — always visible -->
           <div class="cfg-section" :class="{ open: expanded.deploy }">
-          <div class="cfg-head" @click="toggleCfg('deploy')">
+          <div class="cfg-head cfg-head-pinned">
             <span class="cfg-icon">🚀</span>
             <span class="cfg-title">Review &amp; deploy</span>
-            <span class="cfg-chevron" :class="{ open: expanded.deploy }">›</span>
+            
+            <span class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.deploy" class="cfg-body">
             <div class="deploy-row">
@@ -475,9 +492,17 @@ const search       = ref('')
 const activeFilter = ref('')
 // Plain reactive object — boolean per section. More reliable than reactive(Set)
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
+const ALWAYS_PINNED = new Set(['core', 'deploy'])
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
   tinyauth: false, plex: false, custom: false, deploy: true,
+})
+// Load pinned from localStorage; seed with always-pinned defaults
+const _storedPinned = JSON.parse(localStorage.getItem('rad-stack-builder-pinned') || 'null')
+const pinned = reactive({
+  core: true, cloudflare: false, tailscale: false,
+  tinyauth: false, plex: false, custom: false, deploy: true,
+  ...(_storedPinned || {}),
 })
 const plexMode     = ref('local')
 const addCustom    = ref(false)
@@ -525,7 +550,8 @@ if (!_stored || Object.keys(_stored).length === 0) {
 const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
 watch(req,  v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
-watch(pick, v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
+watch(pick,   v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({{...v}})), {{ deep: true }})
+watch(pinned, v => localStorage.setItem('rad-stack-builder-pinned', JSON.stringify({...v})), { deep: true })
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TAG_LABELS = {
@@ -622,7 +648,11 @@ function toggle(key) {
   // Auto-open the config section when a service is selected,
   // auto-close it when deselected (unless it was already open)
   const section = SERVICE_SECTION[key]
-  if (section) expanded[section] = pick[key]
+  if (section) {
+    expanded[section] = pick[key]
+    // Don't override a user-set pin when deselecting
+    if (pick[key] && !pinned[section]) expanded[section] = true
+  }
 }
 
 function toggleAddCustom() {
@@ -631,7 +661,16 @@ function toggleAddCustom() {
 }
 
 // camelCase throughout — was mixed snake_case/camelCase previously
-function toggleCfg(id) { expanded[id] = !expanded[id] }
+function toggleCfg(id) {
+  if (pinned[id]) return  // pinned sections stay open
+  expanded[id] = !expanded[id]
+}
+
+function togglePin(id) {
+  if (ALWAYS_PINNED.has(id)) return  // core and deploy are always pinned
+  pinned[id] = !pinned[id]
+  if (pinned[id]) expanded[id] = true  // opening on pin
+}
 
 // ── Tinyauth credential generators ────────────────────────────────────────
 const generatedPassword = ref('')
@@ -1063,8 +1102,31 @@ onMounted(loadCatalog)
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); }
 /* cfg-badge removed */
 .cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); }
+.cfg-head-pinned  { cursor: default; }
+.cfg-head-pinned:hover { background: var(--bg-1); }
 .cfg-chevron      { margin-left: auto; color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
 .cfg-chevron.open { transform: rotate(90deg); }
+
+/* Pin button */
+.pin-btn {
+  width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--fg-2);
+  transition: all 0.13s; margin-left: auto;
+}
+.pin-btn:hover       { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+.pin-btn.pinned      { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+
+/* Pinned pill */
+.pinned-pill {
+  font-size: 9.5px; font-weight: 700;
+  color: var(--accent); background: var(--accent-subtle);
+  border: 1px solid var(--accent-dim);
+  padding: 1px 7px; border-radius: 20px;
+  margin-left: auto; flex-shrink: 0;
+}
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 3px 7px; font-size: 11.5px; }
 
