@@ -54,7 +54,7 @@
       <div class="sb-grid">
         <template v-for="svc in filteredServices" :key="svc.key">
           <div
-            :class="['sb-card', { selected: pick[svc.key] }]"
+            :class="['sb-card', { selected: pick && pick[svc.key] }]"
             @click="toggle(svc.key)"
           >
             <div class="card-icon">{{ svc.icon }}</div>
@@ -63,7 +63,7 @@
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
                 <span v-if="LIVE_SERVICES.value && LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
-                <span v-else-if="pick[svc.key]" class="card-badge active">Active</span>
+                <span v-else-if="pick && pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
               <div class="card-desc">{{ svc.description }}</div>
@@ -76,7 +76,7 @@
           </div>
         </template>
 
-        <div v-if="!filteredServices.length" class="sb-empty">
+        <div v-if="!filteredServices || !filteredServices.length" class="sb-empty">
           No services match your filter.
         </div>
       </div>
@@ -302,9 +302,10 @@ const filteredServices = computed(() => {
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
   const liveSet = LIVE_SERVICES.value || new Set()
+  const liveHas = (key) => liveSet.has ? liveSet.has(key) : false
   filtered.sort((a, b) => {
-    const aRunning = liveSet.has(a.key)
-    const bRunning = liveSet.has(b.key)
+    const aRunning = liveHas(a.key)
+    const bRunning = liveHas(b.key)
     if (aRunning !== bRunning) {
       return aRunning ? -1 : 1
     }
