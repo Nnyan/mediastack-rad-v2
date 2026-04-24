@@ -175,19 +175,10 @@
             <span v-else class="pinned-pill">pinned</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
-            <div class="cfg-grid">
-              <label class="cfg-field span2">
-                <span class="cfg-label">
-                  DNS API token
-                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="cfg-link">Create token ↗</a>
-                </span>
-                <input v-model="req.cloudflare_token" type="password" placeholder="Zone:DNS:Edit + Zone:Zone:Read" />
-                <span class="cfg-hint">Required for DNS-01 certificate issuance via Let's Encrypt.</span>
-              </label>
-              <label class="cfg-field span2">
-                <span class="cfg-label">Tunnel token</span>
-                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="Cloudflare Zero Trust → Networks → Tunnels" />
-              </label>
+            <div class="cfg-note cfg-note-neutral">
+              ☁️ Cloudflare credentials (DNS API token and Tunnel token) are managed in
+              <strong>Settings → Secrets</strong>. They are stored in <code>.env</code>
+              on your server and never embedded in the compose file.
             </div>
           </div>
           </div>
@@ -306,12 +297,11 @@
                   <span class="cfg-label">&nbsp;</span>
                 </label>
                 <label class="cfg-field span2">
-                  <span class="cfg-label">
-                    Plex Claim Token
-                    <a href="https://plex.tv/claim" target="_blank" class="cfg-link">Get at plex.tv/claim ↗</a>
-                  </span>
-                  <input v-model="req.plex_claim" placeholder="claim-xxxxxxxxxxxxxxxxxxxx" />
-                  <span class="cfg-hint">Links this server to your Plex account on first start. Expires in 4 minutes — grab it right before deploying.</span>
+                  <span class="cfg-label">Plex Claim Token</span>
+                  <div class="cfg-note cfg-note-neutral" style="margin-top:0">
+                    Managed in <strong>Settings → Secrets</strong> (PLEX_CLAIM).
+                    <a href="https://plex.tv/claim" target="_blank" class="cfg-link" style="margin-left:4px">Get token ↗</a>
+                  </div>
                 </label>
                 <label class="cfg-field span2">
                   <span class="cfg-label">
@@ -410,6 +400,43 @@
           </div>
           </template>
 
+          <!-- Per-service extra env vars — shown when any service is selected -->
+          <div v-if="selectedServices.length" class="cfg-section" :class="{ open: expanded.extraenv }">
+          <div class="cfg-head" @click="toggleCfg('extraenv')">
+            <span class="cfg-icon">🔧</span>
+            <span class="cfg-title">Additional env vars</span>
+            <span class="cfg-badge-mode">optional, per service</span>
+            <span v-if="!pinned['extraenv']" class="cfg-chevron" :class="{ open: expanded.extraenv }">›</span>
+            <span v-else class="pinned-pill">pinned</span>
+            <button class="pin-btn" :class="{ pinned: pinned['extraenv'] }"
+              @click.stop="togglePin('extraenv')" title="Pin section open">📌</button>
+          </div>
+          <div v-if="expanded.extraenv" class="cfg-body">
+            <p class="cfg-hint" style="margin: 6px 0 10px; font-style: normal; font-size: 11px;">
+              Add arbitrary environment variables to any selected service.
+              These are merged last and override catalog defaults.
+            </p>
+            <div v-for="key in selectedServices" :key="key" class="extraenv-service">
+              <div class="extraenv-service-head" @click="toggleExtraEnv(key)">
+                <span class="extraenv-icon">{{ svcByKey[key]?.icon || '📦' }}</span>
+                <span class="extraenv-name">{{ svcName(key) }}</span>
+                <span v-if="(extraEnvRows[key]||[]).filter(r=>r.k).length"
+                  class="extraenv-count">{{ (extraEnvRows[key]||[]).filter(r=>r.k).length }} var{{ (extraEnvRows[key]||[]).filter(r=>r.k).length !== 1 ? 's' : '' }}</span>
+                <span class="extraenv-chevron" :class="{ open: extraEnvOpen[key] }">›</span>
+              </div>
+              <div v-if="extraEnvOpen[key]" class="extraenv-rows">
+                <div v-for="(row, idx) in (extraEnvRows[key] ||= [])" :key="idx" class="extraenv-row">
+                  <input v-model="row.k" placeholder="VAR_NAME" class="extraenv-key" @keydown.tab.prevent="addEnvRow(key)" />
+                  <span class="extraenv-eq">=</span>
+                  <input v-model="row.v" placeholder="value" class="extraenv-val" />
+                  <button class="extraenv-rm" @click="removeEnvRow(key, idx)">✕</button>
+                </div>
+                <button class="extraenv-add" @click="addEnvRow(key)">+ Add variable</button>
+              </div>
+            </div>
+          </div>
+          </div>
+
           <!-- Review & deploy — always visible -->
           <div class="cfg-section" :class="{ open: expanded.deploy }">
           <div class="cfg-head cfg-head-pinned">
@@ -495,13 +522,13 @@ const activeFilter = ref('')
 const ALWAYS_PINNED = new Set(['core', 'deploy'])
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, deploy: true,
+  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
 })
 // Load pinned from localStorage; seed with always-pinned defaults
 const _storedPinned = JSON.parse(localStorage.getItem('rad-stack-builder-pinned') || 'null')
 const pinned = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, deploy: true,
+  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
   ...(_storedPinned || {}),
 })
 const plexMode     = ref('local')
@@ -509,6 +536,8 @@ const addCustom    = ref(false)
 const addTab       = ref('compose')
 const addInput     = ref('')
 const portOverrides  = reactive({})   // { service_key: override_port }
+const extraEnvOpen   = reactive({})   // { service_key: bool } — expand env panel
+const extraEnvRows   = reactive({})   // { service_key: [{k:'',v:''},...] }
 const portConflicts  = ref([])        // [{service, port, conflict_with, suggested_port}]
 const portsChecking  = ref(false)
 const addParsing   = ref(false)
@@ -528,12 +557,10 @@ const defaults = {
   domain: '', timezone: 'America/Los_Angeles', puid: 1000, pgid: 1000,
   config_root: '/home/stack/mediacenter/config',
   media_root: '/mnt/media',
-  cloudflare_token: '',
-  cloudflare_tunnel_token: '',
   external_plex_url: '',
-  plex_claim: '',
   plex_server_name: '',
-  plex_token: '',  // kept for UI only — goes to Settings/Secrets
+  // Credentials (CF token, tunnel token, Plex claim, Tinyauth secrets)
+  // are managed in Settings → Secrets, not stored here
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
@@ -575,7 +602,7 @@ const SHORT_DESCS = {
   sonarr: 'TV manager', radarr: 'Movie manager', lidarr: 'Music manager',
   readarr: 'Books & audiobooks', bazarr: 'Subtitle manager', prowlarr: 'Index manager',
   qbittorrent: 'BitTorrent client', sabnzbd: 'Usenet downloader', nzbget: 'Usenet (lite)',
-  overseerr: 'Request manager', jellyseerr: 'Request manager',
+  seerr: 'Request manager (Plex/Jellyfin/Emby)',  // replaces Overseerr + Jellyseerr
   traefik: 'Reverse proxy & HTTPS', tinyauth: 'Auth gateway',
   tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel',
 }
@@ -583,7 +610,7 @@ const SHORT_DESCS = {
 const ICONS = {
   plex: '🎬', jellyfin: '🎞️', sonarr: '📺', radarr: '🎥', lidarr: '🎵',
   readarr: '📚', bazarr: '💬', prowlarr: '🔍', qbittorrent: '⬇️',
-  sabnzbd: '📰', nzbget: '📥', overseerr: '🙋', jellyseerr: '🙋',
+  sabnzbd: '📰', nzbget: '📥', seerr: '🙋',
   traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️',
 }
 
@@ -769,7 +796,7 @@ async function loadCatalog() {
   try {
     rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
     if (Object.keys(pick).length === 0) {
-      ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'overseerr',
+      ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
        'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
     }
   } catch (e) {
@@ -785,9 +812,7 @@ function buildRequest() {
     pgid:                   req.pgid,
     config_root:            req.config_root,
     media_root:             req.media_root,
-    cloudflare_token:          req.cloudflare_token,
-    cloudflare_tunnel_token:   req.cloudflare_tunnel_token,
-    plex_claim:                req.plex_claim,
+    // Credentials come from .env on the server (managed in Settings → Secrets)
     plex_server_name:          req.plex_server_name,
     external_plex_url:         req.external_plex_url,
     tailscale_auth_key:     req.tailscale_auth_key,
@@ -800,6 +825,7 @@ function buildRequest() {
     services:               selectedServices.value.map(k => ({
       key: k, enabled: true,
       port_override: portOverrides[k] || undefined,
+      extra_env:    buildExtraEnv(k),
     })),
     custom_yaml:            customYaml.value || undefined,
   }
@@ -1283,6 +1309,28 @@ onMounted(loadCatalog)
 .pill-remove:hover { opacity: 1; }
 .bottom-deploy { flex-shrink: 0; }
 .ml-auto       { margin-left: auto; }
+
+/* ── Extra env vars ──────────────────────────────────────────────────────── */
+.extraenv-service { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 6px; }
+.extraenv-service:first-child { border-top: none; margin-top: 0; }
+.extraenv-service-head { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 3px 2px; border-radius: 5px; user-select: none; }
+.extraenv-service-head:hover { background: var(--bg-0); }
+.extraenv-icon  { font-size: 12px; }
+.extraenv-name  { font-size: 12px; font-weight: 600; color: var(--fg-0); flex: 1; }
+.extraenv-count { font-size: 9.5px; font-weight: 700; color: var(--accent); background: var(--accent-subtle); border: 1px solid var(--accent-dim); padding: 1px 6px; border-radius: 20px; }
+.extraenv-chevron { font-size: 13px; color: var(--fg-2); transition: transform 0.13s; display: inline-block; }
+.extraenv-chevron.open { transform: rotate(90deg); }
+.extraenv-rows { margin-top: 6px; display: flex; flex-direction: column; gap: 5px; }
+.extraenv-row  { display: flex; align-items: center; gap: 5px; }
+.extraenv-key  { font-family: var(--font-mono); font-size: 11.5px; flex: 0 0 160px; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; }
+.extraenv-key:focus { border-color: var(--accent); }
+.extraenv-eq   { font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); flex-shrink: 0; }
+.extraenv-val  { font-family: var(--font-mono); font-size: 11.5px; flex: 1; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; min-width: 0; }
+.extraenv-val:focus { border-color: var(--accent); }
+.extraenv-rm   { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; padding: 0 3px; flex-shrink: 0; }
+.extraenv-rm:hover { color: var(--err); }
+.extraenv-add  { font-size: 11.5px; font-weight: 600; font-family: var(--font-sans); color: var(--accent); background: none; border: 1.5px dashed var(--accent-dim); border-radius: 5px; padding: 3px 10px; cursor: pointer; margin-top: 2px; transition: all 0.13s; }
+.extraenv-add:hover { background: var(--accent-subtle); }
 
 /* ── Wide screen (≥1280px): two-column ──────────────────────────────────── */
 @media (min-width: 1080px) {

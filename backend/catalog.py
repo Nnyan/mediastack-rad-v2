@@ -40,6 +40,9 @@ class ServiceDef:
     extra_labels: list[str] = field(default_factory=list)
     # If True, skip Traefik labels entirely (used for infra services).
     skip_traefik: bool = False
+    # If True, skip PUID/PGID/TZ environment vars (non-linuxserver images
+    # that run as a fixed user, e.g. node-based apps like Seerr).
+    skip_lsio: bool = False
     # Callback for producing the final service dict — set when a service
     # needs logic too complex for the declarative fields above.
     custom_render: Callable | None = None
@@ -187,23 +190,18 @@ CATALOG: dict[str, ServiceDef] = {
         media_volumes=["/data"],
     ),
     # ----------------------------- Requests ------------------------------
-    "overseerr": ServiceDef(
-        key="overseerr",
-        display_name="Overseerr",
-        description="Media request and discovery for Plex",
-        image="lscr.io/linuxserver/overseerr:latest",
+    "seerr": ServiceDef(
+        key="seerr",
+        display_name="Seerr",
+        description="Unified media request manager for Plex, Jellyfin & Emby",
+        # Seerr is the community-maintained successor to both Overseerr and
+        # Jellyseerr. Supports Plex, Jellyfin, and Emby in one image.
+        image="ghcr.io/seerr-team/seerr:latest",
         category="requests",
         web_port=5055,
-        config_volumes=["/config"],
-    ),
-    "jellyseerr": ServiceDef(
-        key="jellyseerr",
-        display_name="Jellyseerr",
-        description="Overseerr fork for Jellyfin",
-        image="fallenbagel/jellyseerr:latest",
-        category="requests",
-        web_port=5055,
+        # Runs as node user (uid 1000) — PUID/PGID not used
         config_volumes=["/app/config"],
+        skip_lsio=True,
     ),
     # ---------------------------- Infrastructure -------------------------
     "traefik": ServiceDef(

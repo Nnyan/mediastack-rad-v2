@@ -409,7 +409,8 @@ def _render_service(
 
     # Overseerr with external Plex: inject the URL as an env var
     # so the Overseerr setup wizard can find it.
-    if svc.key == "overseerr" and request.external_plex_url:
+    # Seerr (and legacy Overseerr) with external Plex: inject URL
+    if svc.key in ("seerr", "overseerr") and request.external_plex_url:
         svc_dict["environment"]["PLEX_URL"] = request.external_plex_url
 
     # Merge any per-service extra_env the user specified in the builder.
@@ -562,7 +563,7 @@ def _render_tailscale(request: StackRequest) -> dict[str, Any]:
 
     Tailscale and Cloudflare Tunnel serve different purposes and can
     run simultaneously:
-      - Cloudflare Tunnel: public internet access (Overseerr, Plex)
+      - Cloudflare Tunnel: public internet access (Seerr, Plex)
       - Tailscale: private access from enrolled devices (Sonarr, Radarr, RAD)
     """
     ts_config = f"{request.config_root}/tailscale"

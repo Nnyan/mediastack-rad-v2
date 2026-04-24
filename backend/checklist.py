@@ -390,10 +390,10 @@ def _build() -> list[ChecklistItem]:
             action_url="/containers",
         ))
 
-    if "overseerr" in services or "jellyseerr" in services:
+    if "seerr" in services or "overseerr" in services or "jellyseerr" in services:
         items.append(ChecklistItem(
-            id="overseerr.setup",
-            title="Run the Overseerr setup wizard",
+            id="seerr.setup",
+            title="Run the Seerr setup wizard",
             detail="Link Plex/Jellyfin, Sonarr, and Radarr using internal container URLs.",
             done=False,
             category="recommended",
