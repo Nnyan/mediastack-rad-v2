@@ -50,13 +50,15 @@
         </div>
       </div>
 
-      <!-- Service Grid -->
-      <div class="sb-grid">
-        <template v-for="svc in filteredServices" :key="svc.key">
-          <div
-            :class="['sb-card', { selected: pick && pick[svc.key] }]"
-            @click="toggle(svc.key)"
-          >
+<!-- Service Grid -->
+      <div v-if="!dataLoaded" class="sb-loading">Loading services...</div>
+      <div v-else class="sb-grid">
+        <div
+          v-for="svc in filteredServices"
+          :key="svc.key"
+          :class="['sb-card', { selected: pick && pick[svc.key] }]"
+          @click="toggle(svc.key)"
+        >
             <div class="card-icon">{{ svc.icon }}</div>
 
             <div class="card-body">
@@ -212,6 +214,7 @@ const configOpen = ref(false)
 const portOverrides = reactive({})
 
 const previewLoading = ref(false)
+const dataLoaded = ref(false)
 const previewText = ref('')
 const deployOutput = ref('')
 const deployOk = ref(false)
@@ -352,6 +355,7 @@ function buildRequest() {
 async function loadCatalog() {
   try {
     rawCatalog.value = await fetch('/api/catalog').then(r => r.json()) || {}
+    dataLoaded.value = true
     if (Object.keys(pick).length === 0) {
       ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
        'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
@@ -661,6 +665,13 @@ onMounted(() => {
   text-align: center;
   color: var(--fg-2);
   font-size: 13px;
+}
+
+.sb-loading {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--fg-2);
+  font-size: 14px;
 }
 
 /* Drawer */
