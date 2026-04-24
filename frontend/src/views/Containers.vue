@@ -25,53 +25,69 @@
       </transition>
     </div>
 
-    <!-- ── Container list ─────────────────────────────────────────────── -->
-    <div class="container-list">
+    <!-- ── Container table ────────────────────────────────────────────── -->
+    <div class="container-table">
+      <!-- Table header -->
+      <div class="table-header">
+        <div class="th th-check">
+          <div class="check-box" :class="{ checked: selected.size > 0 && selected.size === filtered.length }"
+               @click="toggleSelectAll">
+            <svg v-if="selected.size > 0 && selected.size === filtered.length" viewBox="0 0 10 10" fill="none">
+              <polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="th th-name">Name</div>
+        <div class="th th-state">State</div>
+        <div class="th th-actions">Quick Actions</div>
+        <div class="th th-image">Image</div>
+        <div class="th th-created">Created</div>
+        <div class="th th-ports">Ports</div>
+      </div>
+
+      <!-- Table rows -->
       <div
         v-for="c in filtered"
         :key="c.id"
-        class="container-row"
+        class="table-row"
         :class="{
           'row-running':   c.state === 'running' && c.health !== 'unhealthy',
           'row-unhealthy': c.health === 'unhealthy',
           'row-stopped':   c.state !== 'running',
           'row-selected':  selected.has(c.name),
-          'row-expanded':  expanded === c.id,
         }"
+        @click="toggleExpand(c.id)"
       >
-        <!-- ── Main row ──────────────────────────────────────────────── -->
-        <div class="row-main" @click="toggleExpand(c.id)">
+        <!-- Checkbox -->
+        <div class="td td-check" @click.stop="toggleSelect(c.name)">
+          <div class="check-box" :class="{ checked: selected.has(c.name) }">
+            <svg v-if="selected.has(c.name)" viewBox="0 0 10 10" fill="none">
+              <polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
 
-          <!-- Checkbox (appears on hover / when any selected) -->
-          <div class="row-check" @click.stop="toggleSelect(c.name)">
-            <div class="check-box" :class="{ checked: selected.has(c.name) }">
-              <svg v-if="selected.has(c.name)" viewBox="0 0 10 10" fill="none">
-                <polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+        <!-- Name with status indicator -->
+        <div class="td td-name">
+          <div class="name-cell">
+            <div class="dot-wrap" :title="statusLabel(c)">
+              <span class="dot" :class="dotClass(c)"></span>
+              <span v-if="statusIsAnimated(c)" class="dot-ping" :class="dotClass(c)"></span>
             </div>
+            <span class="container-name">{{ formatName(c.name) }}</span>
           </div>
+        </div>
 
-          <!-- Status dot -->
-          <div class="dot-wrap" :title="statusLabel(c)">
-            <span class="dot" :class="dotClass(c)"></span>
-            <span v-if="statusIsAnimated(c)" class="dot-ping" :class="dotClass(c)"></span>
-          </div>
-
-          <!-- Name + image -->
-          <div class="row-identity">
-            <span class="row-name">{{ formatName(c.name) }}</span>
-            <span class="row-image">{{ shortImage(c.image) }}</span>
-          </div>
-
-          <!-- Status pill -->
+        <!-- State -->
+        <div class="td td-state">
           <span class="status-pill" :class="pillClass(c)">{{ pillLabel(c) }}</span>
+        </div>
 
-          <!-- Uptime -->
-          <span class="row-uptime muted">{{ uptime(c) }}</span>
-
-          <!-- Actions -->
-          <div class="row-actions" @click.stop>
+        <!-- Quick Actions -->
+        <div class="td td-actions" @click.stop>
+          <div class="action-buttons">
             <a v-if="webUiUrls[c.id]" :href="webUiUrls[c.id]" target="_blank"
                class="act-btn act-open" title="Open app">↗</a>
             <button v-if="c.state !== 'running'" class="act-btn act-start"
@@ -94,54 +110,69 @@
               <button class="act-btn act-cancel"  @click="confirmRemove = null">No</button>
             </template>
           </div>
-
         </div>
 
-        <!-- ── Expanded stats row ────────────────────────────────────── -->
-        <div v-if="expanded === c.id" class="row-stats">
-          <template v-if="stats[c.id]">
-            <div class="stat-item">
-              <span class="stat-label">CPU</span>
-              <span class="stat-val" :class="{ hot: stats[c.id].cpu_percent > 80 }">
-                {{ stats[c.id].cpu_percent.toFixed(1) }}%
-              </span>
-              <div class="stat-bar">
-                <div class="stat-fill" :style="{
-                  width: Math.min(stats[c.id].cpu_percent, 100) + '%',
-                  background: stats[c.id].cpu_percent > 80 ? 'var(--err)' : 'var(--accent)'
-                }"></div>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">MEM</span>
-              <span class="stat-val">
-                {{ mb(stats[c.id].mem_usage_bytes) }}<span class="stat-unit">M</span>
-                <span class="muted"> / {{ mb(stats[c.id].mem_limit_bytes) }}M</span>
-              </span>
-              <div class="stat-bar">
-                <div class="stat-fill" :style="{
-                  width: Math.min(stats[c.id].mem_percent, 100) + '%',
-                  background: stats[c.id].mem_percent > 85 ? 'var(--err)' : 'var(--blue)'
-                }"></div>
-              </div>
-            </div>
-            <div class="stat-item stat-net">
-              <span class="stat-label">NET</span>
-              <span class="stat-val">
-                <span class="muted">↓</span>{{ humanBytes(stats[c.id].net_rx_bytes) }}
-                <span class="muted"> ↑</span>{{ humanBytes(stats[c.id].net_tx_bytes) }}
-              </span>
-            </div>
-            <div v-if="c.ports?.length" class="stat-item stat-ports">
-              <span class="stat-label">PORTS</span>
-              <span class="stat-val">
-                <span v-for="(p, i) in c.ports.filter(p => p.host_port)" :key="i" class="port-badge">
-                  {{ p.host_port }}:{{ p.container_port }}
+        <!-- Image -->
+        <div class="td td-image">
+          <span class="image-name">{{ shortImage(c.image) }}</span>
+        </div>
+
+        <!-- Created -->
+        <div class="td td-created">
+          <span class="created-time">{{ uptime(c) }}</span>
+        </div>
+
+        <!-- Ports -->
+        <div class="td td-ports">
+          <div class="port-list">
+            <span v-for="(p, i) in c.ports.filter(p => p.host_port).slice(0, 3)" :key="i" class="port-badge">
+              {{ p.host_port }}:{{ p.container_port }}
+            </span>
+            <span v-if="c.ports.filter(p => p.host_port).length > 3" class="port-more">
+              +{{ c.ports.filter(p => p.host_port).length - 3 }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Expanded stats row -->
+        <div v-if="expanded === c.id" class="stats-row">
+          <div class="stats-content">
+            <template v-if="stats[c.id]">
+              <div class="stat-item">
+                <span class="stat-label">CPU</span>
+                <span class="stat-val" :class="{ hot: stats[c.id].cpu_percent > 80 }">
+                  {{ stats[c.id].cpu_percent.toFixed(1) }}%
                 </span>
-              </span>
-            </div>
-          </template>
-          <span v-else class="stats-pending">collecting stats…</span>
+                <div class="stat-bar">
+                  <div class="stat-fill" :style="{
+                    width: Math.min(stats[c.id].cpu_percent, 100) + '%',
+                    background: stats[c.id].cpu_percent > 80 ? 'var(--err)' : 'var(--accent)'
+                  }"></div>
+                </div>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">MEM</span>
+                <span class="stat-val">
+                  {{ mb(stats[c.id].mem_usage_bytes) }}<span class="stat-unit">M</span>
+                  <span class="muted"> / {{ mb(stats[c.id].mem_limit_bytes) }}M</span>
+                </span>
+                <div class="stat-bar">
+                  <div class="stat-fill" :style="{
+                    width: Math.min(stats[c.id].mem_percent, 100) + '%',
+                    background: stats[c.id].mem_percent > 85 ? 'var(--err)' : 'var(--blue)'
+                  }"></div>
+                </div>
+              </div>
+              <div class="stat-item stat-net">
+                <span class="stat-label">NET</span>
+                <span class="stat-val">
+                  <span class="muted">↓</span>{{ humanBytes(stats[c.id].net_rx_bytes) }}
+                  <span class="muted"> ↑</span>{{ humanBytes(stats[c.id].net_tx_bytes) }}
+                </span>
+              </div>
+            </template>
+            <span v-else class="stats-pending">collecting stats…</span>
+          </div>
         </div>
       </div>
 
@@ -282,6 +313,14 @@ function toggleSelect(name) {
   selected.value = s
 }
 
+function toggleSelectAll() {
+  if (selected.value.size === filtered.value.length && filtered.value.length > 0) {
+    selected.value = new Set()
+  } else {
+    selected.value = new Set(filtered.value.map(c => c.name))
+  }
+}
+
 async function action(name, kind) {
   try {
     const r = await fetch(`/api/containers/${name}/${kind}`,
@@ -369,46 +408,83 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .bulk-count { font-size: 12px; font-weight: 600; color: var(--accent); }
 .bulk-clear { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--fg-2); padding: 0 2px; }
 
-/* ── Container list ──────────────────────────────────────────────────────── */
-.container-list { display: flex; flex-direction: column; gap: 3px; }
-
-.container-row {
+/* ── Container table ─────────────────────────────────────────────────────── */
+.container-table {
   background: var(--bg-1);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  border-left: 3px solid transparent;
-  transition: border-color 0.13s;
 }
-.container-row:hover { border-color: var(--border-strong); }
-.row-running   { border-left-color: var(--ok); }
-.row-unhealthy { border-left-color: var(--err); }
-.row-stopped   { border-left-color: var(--fg-2); opacity: 0.7; }
-.row-selected  { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
-.row-expanded  { border-color: var(--accent-dim); }
 
-/* Main row */
-.row-main {
+/* Table header */
+.table-header {
   display: grid;
-  grid-template-columns: 20px 20px 1fr auto auto 60px;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  cursor: pointer;
-  user-select: none;
+  grid-template-columns: 40px 1fr 120px 200px 1fr 100px 120px;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg-1);
 }
-.row-main:hover { background: var(--bg-0); }
 
-/* Checkbox — visible on hover or when selected */
-.row-check { flex-shrink: 0; }
+.th {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border);
+}
+.th:last-child { border-right: none; }
+.th-check { justify-content: center; }
+
+/* Table rows */
+.table-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 120px 200px 1fr 100px 120px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background-color 0.13s;
+  position: relative;
+}
+.table-row:last-child { border-bottom: none; }
+.table-row:hover { background: var(--bg-0); }
+
+.row-running { border-left: 3px solid var(--ok); }
+.row-unhealthy { border-left: 3px solid var(--err); }
+.row-stopped { border-left: 3px solid var(--fg-2); opacity: 0.7; }
+.row-selected { background: var(--accent-subtle); border-left: 3px solid var(--accent); }
+
+.td {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  min-height: 48px;
+}
+.td:last-child { border-right: none; }
+
+/* Checkbox */
+.td-check { justify-content: center; }
 .check-box {
-  width: 14px; height: 14px; border-radius: 3px;
+  width: 16px; height: 16px; border-radius: 3px;
   border: 1.5px solid var(--border-strong); background: var(--bg-1);
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.12s; color: #fff;
+  transition: all 0.12s; color: #fff; cursor: pointer;
 }
 .check-box.checked { background: var(--accent); border-color: var(--accent); }
-.check-box svg { width: 9px; height: 9px; }
+.check-box svg { width: 10px; height: 10px; }
+
+/* Name cell */
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.container-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
 
 /* Status dot */
 .dot-wrap { position: relative; width: 12px; height: 12px; flex-shrink: 0; }
@@ -429,29 +505,21 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
 .dot-ping.dot-warn { background: var(--warn); }
 .dot-ping.dot-err  { background: var(--err); }
 
-/* Identity */
-.row-identity { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
-.row-name  { font-size: 13.5px; font-weight: 700; color: var(--fg-0); letter-spacing: -0.01em; white-space: nowrap; }
-.row-image { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-
 /* Status pill */
 .status-pill {
-  font-size: 10px; font-weight: 700; padding: 1px 8px; border-radius: 20px;
-  text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; white-space: nowrap;
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 12px;
+  text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
 }
 .pill-ok  { background: var(--ok-bg);   color: var(--ok);   border: 1px solid rgba(22,163,74,0.2); }
 .pill-err { background: var(--err-bg);  color: var(--err);  border: 1px solid rgba(220,38,38,0.2); }
 .pill-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,0.2); }
 .pill-off { background: var(--bg-2); color: var(--fg-2); border: 1px solid var(--border); }
 
-/* Uptime */
-.row-uptime { font-family: var(--font-mono); font-size: 11.5px; min-width: 60px; text-align: right; }
-
 /* Action buttons */
-.row-actions { display: flex; align-items: center; gap: 3px; justify-self: end; }
+.action-buttons { display: flex; align-items: center; gap: 4px; }
 .act-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; padding: 0; border-radius: 5px;
+  width: 28px; height: 28px; padding: 0; border-radius: 4px;
   font-size: 12px; font-family: var(--font-mono);
   border: 1.5px solid var(--border); background: var(--bg-1); color: var(--fg-1);
   cursor: pointer; transition: all 0.13s; text-decoration: none; flex-shrink: 0;
@@ -470,29 +538,72 @@ onUnmounted(() => { wsActive = false; if (pollTimer) clearInterval(pollTimer); i
   box-shadow: 0 0 8px rgba(220, 38, 38, 0.3);
 }
 .act-remove:hover { border-color: var(--err); color: #fff; background: var(--err); }
-.confirm-label { font-size: 11px; color: var(--err); font-weight: 600; white-space: nowrap; }
+.confirm-label { font-size: 11px; color: var(--err); font-weight: 600; white-space: nowrap; margin-right: 8px; }
 .act-confirm { width: auto; padding: 0 8px; font-size: 11px; font-family: var(--font-sans); font-weight: 600; background: var(--err-bg); border-color: var(--err); color: var(--err); }
 .act-confirm:hover { background: var(--err); color: #fff; }
 .act-cancel  { width: auto; padding: 0 8px; font-size: 11px; font-family: var(--font-sans); }
 
+/* Image */
+.image-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-2);
+}
 
-/* ── Expanded stats ───────────────────────────────────────────────────────── */
-.row-stats {
-  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-  padding: 8px 16px 10px 48px;
+/* Created time */
+.created-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-1);
+}
+
+/* Ports */
+.port-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.port-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.port-more {
+  font-size: 10px;
+  color: var(--fg-2);
+  font-style: italic;
+}
+
+/* Expanded stats row */
+.stats-row {
+  grid-column: 1 / -1;
   border-top: 1px solid var(--border);
   background: var(--bg-0);
 }
-.stat-item { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.stat-label { font-family: var(--font-mono); font-size: 9.5px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.07em; flex-shrink: 0; }
+
+.stats-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+}
+
+.stat-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.07em; flex-shrink: 0; }
 .stat-val { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); white-space: nowrap; }
 .stat-val.hot { color: var(--err); }
-.stat-unit { font-size: 9.5px; color: var(--fg-2); }
-.stat-bar { width: 60px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.stat-unit { font-size: 10px; color: var(--fg-2); }
+.stat-bar { width: 60px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
 .stat-fill { height: 100%; border-radius: 2px; transition: width 1s ease-out; }
-.stat-net .stat-bar, .stat-ports .stat-bar { display: none; }
-.port-badge { font-family: var(--font-mono); font-size: 10px; color: var(--fg-2); background: var(--bg-2); border: 1px solid var(--border); padding: 0 5px; border-radius: 4px; margin-right: 4px; }
-.stats-pending { font-size: 11px; color: var(--fg-2); font-style: italic; }
+.stat-net .stat-bar { display: none; }
+.stats-pending { font-size: 12px; color: var(--fg-2); font-style: italic; }
 
 /* ── Log modal ───────────────────────────────────────────────────────────── */
 .log-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 500; }
