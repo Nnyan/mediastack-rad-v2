@@ -416,49 +416,35 @@ def _build() -> list[ChecklistItem]:
             action_url="/containers",
         ))
 
-        # 2. SECRET set
-        secret = ta_env.get("SECRET", "").strip()
-        secret_set = bool(secret) and not secret.startswith("${")
+        # 2. APPURL set (v5 renamed SECRET -> TINYAUTH_APPURL, uses SQLite sessions)
+        appurl = ta_env.get("TINYAUTH_APPURL", "").strip()
+        appurl_set = bool(appurl) and not appurl.startswith("${")
         items.append(ChecklistItem(
-            id="tinyauth.secret",
-            title="Generate and set TINYAUTH_SECRET",
+            id="tinyauth.appurl",
+            title="Set TINYAUTH_APPURL to your domain",
             detail=(
-                "A random secret signs session cookies. Generate one with: "
-                "python3 -c \"import secrets; print(secrets.token_hex(32))\""
+                "TINYAUTH_APPURL sets the base URL for cookies and post-login redirect. "
+                "Example: https://auth.yourdomain.com"
             ),
-            done=secret_set,
+            done=appurl_set,
             category="essential",
         ))
 
-        # 3. USERS set
-        users = ta_env.get("USERS", "").strip()
+        # 3. AUTH_USERS set (v5 renamed USERS -> TINYAUTH_AUTH_USERS)
+        users = ta_env.get("TINYAUTH_AUTH_USERS", "").strip()
         users_set = bool(users) and not users.startswith("${") and ":" in users
         items.append(ChecklistItem(
             id="tinyauth.users",
-            title="Set TINYAUTH_USERS with a bcrypt password hash",
+            title="Set TINYAUTH_AUTH_USERS with a bcrypt password hash",
             detail=(
-                "USERS format: username:$2y$... (bcrypt hash). Generate a hash: "
+                "Format: username:$2b$10$... (bcrypt hash). Generate a hash: "
                 "docker run --rm ghcr.io/steveiliop56/tinyauth:latest generate-hash --password yourpassword"
             ),
             done=users_set,
             category="essential",
         ))
 
-        # 4. APP_URL set
-        app_url = ta_env.get("APP_URL", "").strip()
-        app_url_set = bool(app_url) and not app_url.startswith("${") and app_url.startswith("https://")
-        items.append(ChecklistItem(
-            id="tinyauth.app_url",
-            title="Set TINYAUTH_APP_URL to your domain",
-            detail=(
-                "APP_URL must be the HTTPS base URL for cookie scoping and post-login redirect, "
-                "e.g. https://auth.nyrdalyrt.com or https://sonarr.nyrdalyrt.com"
-            ),
-            done=app_url_set,
-            category="essential",
-        ))
-
-        # 5. TOTP (optional, only show if enabled)
+        # 4. TOTP (optional, only show if enabled)
         totp = ta_env.get("TOTP_ENABLED", "").strip().lower()
         if totp == "true":
             items.append(ChecklistItem(
@@ -473,7 +459,7 @@ def _build() -> list[ChecklistItem]:
                 action_url="/containers",
             ))
 
-        # 6. Test from Tailscale
+        # 5. Test from Tailscale
         items.append(ChecklistItem(
             id="tinyauth.test_tailscale",
             title="Verify Tinyauth gates Tailscale access",
@@ -485,7 +471,7 @@ def _build() -> list[ChecklistItem]:
             category="recommended",
         ))
 
-        # 7. Test LAN bypass
+        # 6. Test LAN bypass
         items.append(ChecklistItem(
             id="tinyauth.test_lan",
             title="Verify LAN access bypasses Tinyauth",

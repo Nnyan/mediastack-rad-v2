@@ -43,7 +43,7 @@ def _esc(value: str) -> str:
     as an environment variable reference and silently replaces it with an empty
     string. Doubling to '$$' makes Compose output a literal '$' at runtime.
 
-    Values that ARE intentional placeholders (e.g. '${TINYAUTH_SECRET}') are
+    Values that ARE intentional placeholders (e.g. '${TINYAUTH_APPURL}') are
     left unchanged — they're meant to be resolved from .env.
     """
     if not value:
@@ -605,18 +605,15 @@ def _render_tinyauth(request: StackRequest) -> dict[str, Any]:
     The LAN bypass is handled entirely at the Traefik router level (two-router
     pattern in _traefik_labels) — Tinyauth never even sees LAN requests.
 
-    Environment variables:
-      SECRET      — random string used to sign session cookies. Generate:
-                    python3 -c "import secrets; print(secrets.token_hex(32))"
-      APP_URL     — base URL for the Tinyauth login page (your domain).
-                    Used to set the cookie domain and redirect after login.
-                    e.g. https://auth.nyrdalyrt.com
-      USERS       — comma-separated user:bcrypt_hash pairs.
-                    Generate a hash: htpasswd -nBC 10 "" | tr -d ':\\n'
-                    Or: docker run --rm ghcr.io/steveiliop56/tinyauth:latest
-                         generate-hash --password yourpassword
-      TOTP_ENABLED — "true" to require TOTP (Google Authenticator) in
-                     addition to password. Off by default.
+Environment variables:
+      TINYAUTH_APPURL  — base URL for the Tinyauth login page (your domain).
+                      Used to set the cookie domain and redirect after login.
+                      e.g. https://auth.nyrdalyrt.com
+      TINYAUTH_AUTH_USERS — comma-separated user:bcrypt_hash pairs.
+                      Generate a hash: docker run --rm ghcr.io/steveiliop56/tinyauth:latest
+                           generate-hash --password yourpassword
+      TOTP_ENABLED   — "true" to require TOTP (Google Authenticator) in
+                       addition to password. Off by default.
 
     The ForwardAuth middleware definition lives as labels on this container
     so Traefik picks it up from Docker's label API. The middleware name
