@@ -426,17 +426,9 @@ const search       = ref('')
 const activeFilter = ref('')
 // Plain reactive object — boolean per section. More reliable than reactive(Set)
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
-const ALWAYS_PINNED = new Set(['core', 'deploy'])
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
   tinyauth: false, plex: false, custom: true, extraenv: false, deploy: true,
-})
-// Load pinned from localStorage; seed with always-pinned defaults
-const _storedPinned = JSON.parse(localStorage.getItem('rad-stack-builder-pinned') || 'null')
-const pinned = reactive({
-  core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
-  ...(_storedPinned || {}),
 })
 const plexMode     = ref('local')
 const addTab       = ref('compose')
@@ -484,7 +476,6 @@ const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
 watch(req,  v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
 watch(pick,   v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
-watch(pinned, v => localStorage.setItem('rad-stack-builder-pinned', JSON.stringify({...v})), { deep: true })
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TAG_LABELS = {
@@ -595,21 +586,12 @@ function toggle(key) {
   const section = SERVICE_SECTION[key]
   if (section) {
     expanded[section] = pick[key]
-    // Don't override a user-set pin when deselecting
-    if (pick[key] && !pinned[section]) expanded[section] = true
   }
 }
 
 // camelCase throughout — was mixed snake_case/camelCase previously
 function toggleCfg(id) {
-  if (pinned[id]) return  // pinned sections stay open
   expanded[id] = !expanded[id]
-}
-
-function togglePin(id) {
-  if (ALWAYS_PINNED.has(id)) return  // core and deploy are always pinned
-  pinned[id] = !pinned[id]
-  if (pinned[id]) expanded[id] = true  // opening on pin
 }
 
 // ── Tinyauth credential generators ────────────────────────────────────────
@@ -956,17 +938,6 @@ onMounted(loadCatalog)
 .cfg-chevron      { color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
 .cfg-chevron.open { transform: rotate(90deg); }
 
-/* Pin button */
-.pin-btn {
-  width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
-  border: 1.5px solid var(--border);
-  background: transparent; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; color: var(--fg-2);
-  transition: all 0.13s; margin-left: auto;
-}
-.pin-btn:hover       { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
-.pin-btn.pinned      { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 3px 7px; font-size: 11.5px; }
