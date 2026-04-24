@@ -52,35 +52,28 @@
 
       <!-- Service Grid -->
       <div class="sb-grid">
-        <div
-          v-for="svc in filteredServices"
-          :key="svc.key"
-          :class="['sb-card', { selected: pick[svc.key], running: LIVE_SERVICES.has(svc.key) }]"
-          @click="toggle(svc.key)"
-        >
-          <div class="card-check">
-            <div class="check-circle" :class="{ checked: pick[svc.key] }">
-              <svg v-if="pick[svc.key]" viewBox="0 0 10 10" fill="none">
-                <polyline points="2,5 4,7 8,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+        <template v-for="svc in filteredServices" :key="svc.key">
+          <div
+            :class="['sb-card', { selected: pick[svc.key] }]"
+            @click="toggle(svc.key)"
+          >
+            <div class="card-icon">{{ svc.icon }}</div>
+
+            <div class="card-body">
+              <div class="card-header">
+                <span class="card-name">{{ svc.display_name }}</span>
+                <span v-if="pick[svc.key]" class="card-badge active">Active</span>
+                <span v-else class="card-badge">Inactive</span>
+              </div>
+              <div class="card-desc">{{ svc.description }}</div>
+            </div>
+
+            <div class="card-meta">
+              <span v-if="svc.web_port" class="card-port">{{ svc.web_port }}</span>
+              <span v-else class="card-port empty">—</span>
             </div>
           </div>
-
-          <div class="card-icon">{{ svc.icon }}</div>
-
-          <div class="card-body">
-            <div class="card-header">
-              <span class="card-name">{{ svc.display_name }}</span>
-              <span v-if="LIVE_SERVICES.has(svc.key)" class="card-badge running">Running</span>
-            </div>
-            <div class="card-desc">{{ svc.description }}</div>
-          </div>
-
-          <div class="card-meta">
-            <span v-if="svc.web_port" class="card-port">{{ svc.web_port }}</span>
-            <span v-else class="card-port empty">—</span>
-          </div>
-        </div>
+        </template>
 
         <div v-if="!filteredServices.length" class="sb-empty">
           No services match your filter.
@@ -285,11 +278,20 @@ const categories = computed(() => {
 
 const filteredServices = computed(() => {
   const q = search.value.toLowerCase()
-  return flatServices.value.filter(svc => {
+  let services = flatServices.value.filter(svc => {
     if (activeCategory.value && svc.category !== activeCategory.value) return false
     if (!q) return true
     return svc.display_name.toLowerCase().includes(q) || svc.description.toLowerCase().includes(q)
   })
+  // Sort: running first, then not running
+  services.sort((a, b) => {
+    const aRunning = LIVE_SERVICES.has(a.key)
+    const bRunning = LIVE_SERVICES.has(b.key)
+    if (aRunning && !bRunning) return -1
+    if (!aRunning && bRunning) return 1
+    return 0
+  })
+  return services
 })
 
 const selectedServices = computed(() =>
@@ -536,7 +538,7 @@ onMounted(loadCatalog)
 .sb-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-2);
   align-content: start;
 }
@@ -544,11 +546,11 @@ onMounted(loadCatalog)
 .sb-card {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   background: var(--bg-1);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -563,42 +565,8 @@ onMounted(loadCatalog)
   background: var(--accent-subtle);
 }
 
-.sb-card.running {
-  border-left: 3px solid var(--ok);
-}
-
-.sb-card.selected.running {
-  border-left: 3px solid var(--ok);
-}
-
-.card-check {
-  flex-shrink: 0;
-}
-
-.check-circle {
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--border-strong);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.check-circle.checked {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.check-circle svg {
-  width: 10px;
-  height: 10px;
-}
-
 .card-icon {
-  font-size: 20px;
+  font-size: 16px;
   flex-shrink: 0;
 }
 
@@ -614,7 +582,7 @@ onMounted(loadCatalog)
 }
 
 .card-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--fg-0);
 }
@@ -622,21 +590,21 @@ onMounted(loadCatalog)
 .card-badge {
   font-size: 9px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 8px;
+  padding: 1px 5px;
+  border-radius: 6px;
   background: var(--bg-2);
   color: var(--fg-2);
 }
 
-.card-badge.running {
-  background: var(--ok-bg);
-  color: var(--ok);
+.card-badge.active {
+  background: var(--accent);
+  color: #fff;
 }
 
 .card-desc {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--fg-2);
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -648,7 +616,7 @@ onMounted(loadCatalog)
 }
 
 .card-port {
-  font-size: 12px;
+  font-size: 11px;
   font-family: var(--font-mono);
   color: var(--fg-1);
 }
@@ -909,7 +877,7 @@ onMounted(loadCatalog)
 @media (max-width: 768px) {
   .sb-layout {
     flex-direction: column;
-  padding: var(--space-3);
+    padding: var(--space-3);
   }
 
   .sb-sidebar {
