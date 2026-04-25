@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.1.0] - 2026-04-25
+
+See commit history for changes.
+
 All notable changes to MediaStack-RAD are documented here.
 
 ## [2.0.0] - 2026-04-21
