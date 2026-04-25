@@ -224,16 +224,28 @@ _SPECIAL_PATHS = {
 def _web_url(labels: dict, ports: list[ContainerPort], name: str) -> str | None:
     """Return the best URL for a container's web UI.
 
-    For Traefik, always use the direct port URL (dashboard needs insecure API).
-    For other services, prefer Traefik Host() rule (HTTPS via domain) when available,
-    falling back to direct host-port URL (HTTP).
+    Prefer the direct LAN URL (host:port). Traefik labels are only used when the
+    service exposes no host port.
     """
     import re
     if name == "traefik":
         port = next((p for p in ports if p.host_port and p.container_port == 8081), None)
         if port:
             return f"http://0.0.0.0:{port.host_port}/dashboard/"
+        # If 8081 isn't mapped, fall back to router host (rare)
+        for key, val in labels.items():
+            if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
+                m = re.search(r"Host\(`([^`]+)`\)", val)
+                if m:
+                    return f"https://{m.group(1)}/dashboard/"
         return None
+
+    port = next((p for p in ports if p.host_port and p.container_port in _KNOWN_WEB_PORTS), None)
+    if port:
+        scheme = "https" if port.container_port == 443 else "http"
+        path = _SPECIAL_PATHS.get(name, "")
+        return f"{scheme}://0.0.0.0:{port.host_port}{path}"
+
     for key, val in labels.items():
         if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
             m = re.search(r"Host\(`([^`]+)`\)", val)
@@ -241,12 +253,7 @@ def _web_url(labels: dict, ports: list[ContainerPort], name: str) -> str | None:
                 host = m.group(1)
                 if not host.startswith("auth."):
                     return f"https://{host}/"
-    port = next((p for p in ports if p.host_port and p.container_port in _KNOWN_WEB_PORTS), None)
-    if not port:
-        return None
-    scheme = "https" if port.container_port == 443 else "http"
-    path = _SPECIAL_PATHS.get(name, "")
-    return f"{scheme}://0.0.0.0:{port.host_port}{path}"
+    return None
 
 
 def _iso_to_unix(iso: str) -> int:
