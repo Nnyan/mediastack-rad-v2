@@ -95,7 +95,6 @@ const pendingCount = computed(() =>
 )
 
 const navItems = computed(() => [
-  { to: '/containers',    label: 'Containers',   icon: '▦' },
   { to: '/stack-builder', label: 'Stack Builder', icon: '⊞' },
   { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
   { to: '/health',        label: 'Health',        icon: '♥',

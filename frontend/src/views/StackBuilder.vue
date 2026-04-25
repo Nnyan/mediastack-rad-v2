@@ -412,22 +412,20 @@
             <div
               v-for="c in filteredContainers"
               :key="c.id"
-              :class="['instance-row', instanceRowClass(c), { selected: selectedContainerId === c.id }]"
+              :class="['instance-card', { selected: selectedContainerId === c.id }]"
               @click="selectContainer(c.id)"
             >
-              <div class="instance-main">
+              <div class="instance-top">
                 <span class="instance-dot" :class="containerDotClass(c)"></span>
-                <span class="instance-name">{{ formatContainerName(c.name) }}</span>
-                <span class="instance-meta">{{ containerMeta(c) }}</span>
-              </div>
-              <div class="instance-actions" @click.stop>
-                <a
+                <button
                   v-if="containerUrls[c.id]"
-                  :href="containerUrls[c.id]"
-                  target="_blank"
-                  class="icon-btn"
-                  title="Open app"
-                >↗</a>
+                  class="instance-name has-link"
+                  @click.stop="openContainer(containerUrls[c.id])"
+                >{{ formatContainerName(c.name) }}</button>
+                <span v-else class="instance-name">{{ formatContainerName(c.name) }}</span>
+              </div>
+              <div class="instance-meta">{{ containerMeta(c) }}</div>
+              <div class="instance-actions" @click.stop>
                 <button
                   class="icon-btn"
                   :title="c.state === 'running' ? 'Stop' : 'Start'"
@@ -468,11 +466,13 @@
               </div>
             </div>
             <div class="detail-actions">
-              <button class="detail-btn" @click.stop="containerAction(selectedContainer.name, 'restart')">Restart</button>
-              <button class="detail-btn" @click.stop="containerAction(selectedContainer.name, selectedContainer.state === 'running' ? 'stop' : 'start')">
-                {{ selectedContainer.state === 'running' ? 'Stop' : 'Start' }}
-              </button>
-              <button class="detail-btn" @click.stop="loadLogs(selectedContainer.name)">Refresh logs</button>
+              <button class="icon-btn" title="Restart" @click.stop="containerAction(selectedContainer.name, 'restart')">↺</button>
+              <button
+                class="icon-btn"
+                :title="selectedContainer.state === 'running' ? 'Stop' : 'Start'"
+                @click.stop="containerAction(selectedContainer.name, selectedContainer.state === 'running' ? 'stop' : 'start')"
+              >{{ selectedContainer.state === 'running' ? '⏸' : '▶' }}</button>
+              <button class="icon-btn" title="Refresh logs" @click.stop="loadLogs(selectedContainer.name)">≡</button>
             </div>
             <pre v-if="containerLogs && containerLogsName === selectedContainer.name" class="detail-logs mono">{{ containerLogs }}</pre>
             <div v-else-if="containerLogsLoading" class="detail-logs muted">Loading logs…</div>
@@ -860,22 +860,23 @@ function containerDotClass(c) {
   if (c.state === 'running') return 'dot-ok'
   return 'dot-off'
 }
-function instanceRowClass(c) {
-  if (c.health === 'unhealthy' || c.state === 'dead') return 'instance-row-err'
-  if (c.state === 'restarting' || c.health === 'starting' || c.state === 'paused') return 'instance-row-warn'
-  if (c.state === 'running') return 'instance-row-ok'
-  return 'instance-row-off'
-}
 function containerMeta(c, verbose = false) {
   const parts = [containerStatusLabel(c)]
   const up = containerUptime(c)
   if (up !== '—') parts.push(`up ${up}`)
   const stat = stats.value[c.id]
   if (stat) {
-    parts.push(`${stat.cpu_percent.toFixed(1)}% CPU`)
-    parts.push(`${(stat.mem_usage_bytes / 1048576).toFixed(0)}MB RAM`)
+    if (typeof stat.cpu_percent === 'number') {
+      parts.push(`${stat.cpu_percent.toFixed(1)}% CPU`)
+    }
+    if (typeof stat.mem_usage_bytes === 'number') {
+      const memMb = (stat.mem_usage_bytes / 1048576).toFixed(0)
+      parts.push(`${memMb}MB RAM`)
+    }
     if (verbose) {
-      parts.push(`↓${humanBytes(stat.net_rx_bytes)} ↑${humanBytes(stat.net_tx_bytes)}`)
+      const rx = typeof stat.net_rx_bytes === 'number' ? humanBytes(stat.net_rx_bytes) : '0B'
+      const tx = typeof stat.net_tx_bytes === 'number' ? humanBytes(stat.net_tx_bytes) : '0B'
+      parts.push(`↓${rx} ↑${tx}`)
     }
   }
   return parts.join(' · ')
@@ -890,6 +891,10 @@ function containerPorts(c) {
 function createdTime(c) {
   if (!c.created) return 'Unknown'
   return new Date(c.created * 1000).toLocaleString()
+}
+
+function openContainer(url) {
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function selectContainer(id) {
@@ -999,7 +1004,9 @@ async function loadLogs(name) {
 }
 
 function confirmRemove(name) {
-  removeContainer(name)
+  if (window.confirm(`Remove ${name}? This stops and deletes the container.`)) {
+    removeContainer(name)
+  }
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -1439,35 +1446,30 @@ onUnmounted(() => {
 .toggle-stopped input { cursor: pointer; }
 
 .instances-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+.instance-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-.instance-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
-  padding: 10px 12px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-0);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
-.instance-row:hover { background: var(--bg-1); }
-.instance-row.selected {
+.instance-card:hover { background: var(--bg-1); border-color: var(--border-strong); }
+.instance-card.selected {
   border-color: var(--accent);
   background: var(--accent-subtle);
 }
-.instance-row-ok { border-left: 3px solid var(--ok); }
-.instance-row-warn { border-left: 3px solid var(--warn); }
-.instance-row-err { border-left: 3px solid var(--err); }
-.instance-row-off { border-left: 3px solid var(--border); }
-.instance-main {
+.instance-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 .instance-dot {
@@ -1483,20 +1485,37 @@ onUnmounted(() => {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--fg-0);
-  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: default;
+  font-family: inherit;
+  line-height: 1.2;
+  appearance: none;
 }
+.instance-name.has-link {
+  cursor: pointer;
+  color: var(--purple);
+  border: none;
+  background: none;
+}
+.instance-name.has-link:hover { text-decoration: underline; }
+.instance-name.has-link:focus { outline: none; text-decoration: underline; }
 .instance-meta {
   font-size: 11px;
   color: var(--fg-2);
-  white-space: nowrap;
+  margin: 2px 0 6px;
 }
 .instance-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  margin-top: auto;
 }
 .icon-btn {
   display: inline-flex;
@@ -1521,6 +1540,7 @@ onUnmounted(() => {
   color: var(--fg-2);
   padding: 12px;
   text-align: center;
+  grid-column: 1 / -1;
 }
 
 .instance-detail {
@@ -1563,19 +1583,10 @@ onUnmounted(() => {
 }
 .detail-actions {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
-.detail-btn {
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1.5px solid var(--border);
-  background: var(--bg-0);
-  cursor: pointer;
-}
-.detail-btn:hover { border-color: var(--accent); background: var(--accent-subtle); color: var(--accent); }
+.detail-actions .icon-btn { flex: 0 0 auto; }
 .detail-logs {
   max-height: 220px;
   overflow: auto;
