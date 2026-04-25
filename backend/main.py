@@ -1,7 +1,7 @@
 """FastAPI application for MediaStack-RAD.
 
 IMPORTANT — SPA route ordering:
-===============================
+================================
 The SPA catch-all route (/{full_path:path}) MUST be registered as the
 very last route. If it comes before an API route, every API call gets
 served the index.html file silently and debugging is miserable.
@@ -21,18 +21,13 @@ import logging
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
 
 import httpx
+
 from fastapi import FastAPI, HTTPException, Request, WebSocket
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter
-from slowapi.errors import RateLimitExceededError
-from slowapi.util import get_remote_address
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import __version__
 from . import catalog as catalog_mod
@@ -56,34 +51,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
 )
 logger = logging.getLogger("rad")
-
-# ---------------------------------------------------------------------------
-# Security — validators, middleware, rate limiting
-# ---------------------------------------------------------------------------
-
-CONTAINER_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
-
-
-def validate_container_name(name: str) -> str:
-    """Validate container name for security - prevents injection."""
-    if not name or len(name) > 256:
-        raise HTTPException(422, "Invalid container name")
-    if not CONTAINER_NAME_PATTERN.match(name):
-        raise HTTPException(422, "Container name must be alphanumeric with . - or _")
-    return name
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        return response
-
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -178,18 +145,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
-
-
-@app.exception_handler(RateLimitExceededError)
-async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
-    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(status_code=422, content={"detail": "Invalid request"})
-
 
 # ---------------------------------------------------------------------------
 # API routes — ALL routes starting with /api/ must be declared here,
@@ -225,41 +180,31 @@ async def api_running_containers() -> list[str]:
 
 
 @app.post("/api/containers/{name}/start")
-@limiter.limit("5/minute")
 async def api_start(name: str) -> dict:
-    name = validate_container_name(name)
     docker_client.start(name)
     return {"ok": True}
 
 
-@limiter.limit("5/minute")
 @app.post("/api/containers/{name}/stop")
 async def api_stop(name: str) -> dict:
-    name = validate_container_name(name)
     docker_client.stop(name)
     return {"ok": True}
 
 
-@limiter.limit("5/minute")
 @app.post("/api/containers/{name}/restart")
 async def api_restart(name: str) -> dict:
-    name = validate_container_name(name)
     docker_client.restart(name)
     return {"ok": True}
 
 
-@limiter.limit("3/minute")
 @app.delete("/api/containers/{name}")
 async def api_remove(name: str, force: bool = True) -> dict:
-    name = validate_container_name(name)
     docker_client.remove(name, force=force)
     return {"ok": True}
 
 
 @app.post("/api/containers/{name}/logs")
 async def api_logs(name: str, tail: int = 200) -> PlainTextResponse:
-    name = validate_container_name(name)
-    tail = max(1, min(tail, 1000))
     c = docker_client.get_container_safe(name)
     if c is None:
         raise HTTPException(404, f"No container named {name}")
@@ -291,9 +236,12 @@ async def api_catalog() -> dict:
 
 
 @app.post("/api/stack/generate")
-@limiter.limit("10/minute")
 async def api_stack_generate(req: StackRequest) -> dict:
-    """Generate (but do not deploy) a compose file."""
+    """Generate (but do not deploy) a compose file.
+
+    Runs pre-generation validation and returns any issues alongside the YAML.
+    Errors block generation; warnings are advisory.
+    """
     validation = generator_mod.validate_request(req)
     if not validation.valid:
         raise HTTPException(400, {
@@ -304,11 +252,14 @@ async def api_stack_generate(req: StackRequest) -> dict:
         text = generator_mod.generate(req)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"yaml": text, "bytes": len(text), "warnings": [w.model_dump() for w in validation.warnings]}
+    return {
+        "yaml": text,
+        "bytes": len(text),
+        "warnings": [w.model_dump() for w in validation.warnings],
+    }
 
 
 @app.post("/api/stack/deploy")
-@limiter.limit("3/minute")
 async def api_stack_deploy(req: StackRequest) -> dict:
     """Generate, write, and bring up the stack."""
     validation = generator_mod.validate_request(req)
@@ -486,17 +437,16 @@ async def api_stack_port_check(req: StackRequest) -> dict:
 
 
 @app.post("/api/utils/hash-password")
-@limiter.limit("10/minute")
 async def hash_password(payload: dict) -> dict:
-    """Bcrypt-hash a password for use in Tinyauth USERS env var."""
+    """Bcrypt-hash a password for use in Tinyauth USERS env var.
+
+    Returns { hash: "$2b$10$..." } which the frontend combines with
+    a username to produce the 'username:hash' format Tinyauth expects.
+    """
     import bcrypt as _bcrypt
     password = (payload.get("password") or "").encode()
     if not password:
         raise HTTPException(400, "password is required")
-    if len(password) < 8:
-        raise HTTPException(400, "password must be at least 8 characters")
-    if len(password) > 128:
-        raise HTTPException(400, "password too long")
     hashed = _bcrypt.hashpw(password, _bcrypt.gensalt(rounds=10))
     return {"hash": hashed.decode()}
 

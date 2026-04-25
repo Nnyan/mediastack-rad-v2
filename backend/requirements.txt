@@ -7,5 +7,3 @@ websockets==14.1
 pydantic==2.10.4
 python-multipart==0.0.20
 bcrypt==4.3.0
-slowapi==0.1.9
-starlette>=0.40.0

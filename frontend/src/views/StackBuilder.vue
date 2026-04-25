@@ -50,22 +50,20 @@
         </div>
       </div>
 
-<!-- Service Grid -->
-      <div v-if="!dataLoaded" class="sb-loading">Loading services...</div>
-      <div v-else class="sb-grid">
-        <div
-          v-for="svc in filteredServices"
-          :key="svc.key"
-          :class="['sb-card', { selected: pick && pick[svc.key] }]"
-          @click="toggle(svc.key)"
-        >
+      <!-- Service Grid -->
+      <div class="sb-grid">
+        <template v-for="svc in filteredServices" :key="svc.key">
+          <div
+            :class="['sb-card', { selected: pick[svc.key] }]"
+            @click="toggle(svc.key)"
+          >
             <div class="card-icon">{{ svc.icon }}</div>
 
             <div class="card-body">
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
-                <span v-if="LIVE_SERVICES && LIVE_SERVICES.has && LIVE_SERVICES.has(svc.key)" class="card-badge running">Running</span>
-                <span v-else-if="pick && pick[svc.key]" class="card-badge active">Active</span>
+                <span v-if="LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
+                <span v-else-if="pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
               <div class="card-desc">{{ svc.description }}</div>
@@ -78,7 +76,7 @@
           </div>
         </template>
 
-        <div v-if="!filteredServices || !filteredServices.length" class="sb-empty">
+        <div v-if="!filteredServices.length" class="sb-empty">
           No services match your filter.
         </div>
       </div>
@@ -214,7 +212,6 @@ const configOpen = ref(false)
 const portOverrides = reactive({})
 
 const previewLoading = ref(false)
-const dataLoaded = ref(false)
 const previewText = ref('')
 const deployOutput = ref('')
 const deployOk = ref(false)
@@ -262,24 +259,18 @@ const LIVE_SERVICES = ref(new Set())
 async function loadRunningServices() {
   try {
     const running = await fetch('/api/containers/running').then(r => r.json())
-    LIVE_SERVICES.value = new Set(running || [])
+    LIVE_SERVICES.value = new Set(running)
   } catch (e) {
     console.warn('Failed to load running services:', e)
-    LIVE_SERVICES.value = new Set()
   }
 }
 
 // Computed
 const flatServices = computed(() => {
-  if (!rawCatalog.value || typeof rawCatalog.value !== 'object') {
-    return []
-  }
   const out = []
   for (const [cat, svcs] of Object.entries(rawCatalog.value)) {
-    if (Array.isArray(svcs)) {
-      for (const svc of svcs) {
-        out.push({ ...svc, category: cat, icon: ICONS[svc.key] || '📦' })
-      }
+    for (const svc of svcs) {
+      out.push({ ...svc, category: cat, icon: ICONS[svc.key] || '📦' })
     }
   }
   return out
@@ -294,33 +285,27 @@ const categories = computed(() => {
 })
 
 const filteredServices = computed(() => {
-  const services = flatServices.value || []
-  const q = search.value?.toLowerCase() || ''
-  const filtered = services.filter(svc => {
+  const q = search.value.toLowerCase()
+  let services = flatServices.value.filter(svc => {
     if (activeCategory.value && svc.category !== activeCategory.value) return false
     if (!q) return true
-    const name = svc.display_name || ''
-    const desc = svc.description || ''
-    return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
+    return svc.display_name.toLowerCase().includes(q) || svc.description.toLowerCase().includes(q)
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
-  const liveSet = LIVE_SERVICES.value || new Set()
-  const liveHas = (key) => liveSet.has ? liveSet.has(key) : false
-  filtered.sort((a, b) => {
-    const aRunning = liveHas(a.key)
-    const bRunning = liveHas(b.key)
+  services.sort((a, b) => {
+    const aRunning = LIVE_SERVICES.value.has(a.key)
+    const bRunning = LIVE_SERVICES.value.has(b.key)
     if (aRunning !== bRunning) {
       return aRunning ? -1 : 1
     }
-    return (a.display_name || '').localeCompare(b.display_name || '')
+    return a.display_name.localeCompare(b.display_name)
   })
-  return filtered
+  return services
 })
 
-const selectedServices = computed(() => {
-  if (!pick) return []
-  return Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
-})
+const selectedServices = computed(() =>
+  Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
+)
 
 // Actions
 function toggle(key) {
@@ -354,15 +339,13 @@ function buildRequest() {
 // API
 async function loadCatalog() {
   try {
-    rawCatalog.value = await fetch('/api/catalog').then(r => r.json()) || {}
-    dataLoaded.value = true
+    rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
     if (Object.keys(pick).length === 0) {
       ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
        'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
     }
   } catch (e) {
-    console.error('Failed to load catalog:', e)
-    rawCatalog.value = {}
+    showToast('Failed to load catalog', 'err')
   }
 }
 
@@ -665,13 +648,6 @@ onMounted(() => {
   text-align: center;
   color: var(--fg-2);
   font-size: 13px;
-}
-
-.sb-loading {
-  padding: var(--space-6);
-  text-align: center;
-  color: var(--fg-2);
-  font-size: 14px;
 }
 
 /* Drawer */
