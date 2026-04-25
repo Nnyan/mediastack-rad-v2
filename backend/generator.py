@@ -17,6 +17,7 @@ StackRequest and this module produces the file.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -48,10 +49,9 @@ def _esc(value: str) -> str:
     """
     if not value:
         return value
-    # Placeholder pattern: starts with ${ and ends with } — leave as-is
     if value.startswith("${") and value.endswith("}"):
         return value
-    return value.replace("$", "$$")
+    return re.sub(r'\$(?!\{[^}]+\})', '$$', value)
 
 
 # ---------------------------------------------------------------------------

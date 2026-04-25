@@ -230,32 +230,45 @@ async def api_containers_env(names: str = "") -> dict[str, dict[str, str]]:
     return result
 
 
+_SAFE_NAME_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$')
+
+
+def _validate_container_name(name: str) -> None:
+    if not _SAFE_NAME_RE.match(name):
+        raise HTTPException(400, f"Invalid container name: {name}")
+
+
 @app.post("/api/containers/{name}/start")
 async def api_start(name: str) -> dict:
+    _validate_container_name(name)
     docker_client.start(name)
     return {"ok": True}
 
 
 @app.post("/api/containers/{name}/stop")
 async def api_stop(name: str) -> dict:
+    _validate_container_name(name)
     docker_client.stop(name)
     return {"ok": True}
 
 
 @app.post("/api/containers/{name}/restart")
 async def api_restart(name: str) -> dict:
+    _validate_container_name(name)
     docker_client.restart(name)
     return {"ok": True}
 
 
 @app.delete("/api/containers/{name}")
 async def api_remove(name: str, force: bool = True) -> dict:
+    _validate_container_name(name)
     docker_client.remove(name, force=force)
     return {"ok": True}
 
 
 @app.post("/api/containers/{name}/logs")
 async def api_logs(name: str, tail: int = 200) -> PlainTextResponse:
+    _validate_container_name(name)
     c = docker_client.get_container_safe(name)
     if c is None:
         raise HTTPException(404, f"No container named {name}")
@@ -706,17 +719,25 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+def _quote_env_value(value: str) -> str:
+    """Quote a .env value if it contains spaces, #, or other special chars."""
+    if not value:
+        return '""'
+    if "'" in value or " " in value or "#" in value or "\n" in value or "\t" in value:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
 def _write_env_file(updates: dict[str, str]) -> None:
     """Write/update key=value pairs in the stack .env file."""
     env_path = config.stack_dir / ".env"
     env_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Read existing lines to preserve comments and ordering
     existing_lines: list[str] = []
     if env_path.exists():
         existing_lines = env_path.read_text().splitlines()
 
-    # Track which keys we've already updated
     updated: set[str] = set()
     new_lines: list[str] = []
 
@@ -728,15 +749,14 @@ def _write_env_file(updates: dict[str, str]) -> None:
         key, _, _ = stripped.partition("=")
         key = key.strip()
         if key in updates:
-            new_lines.append(f"{key}={updates[key]}")
+            new_lines.append(f"{key}={_quote_env_value(updates[key])}")
             updated.add(key)
         else:
             new_lines.append(line)
 
-    # Append any new keys not already in the file
     for key, value in updates.items():
         if key not in updated:
-            new_lines.append(f"{key}={value}")
+            new_lines.append(f"{key}={_quote_env_value(value)}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
 
@@ -780,16 +800,28 @@ async def api_secrets_list() -> list[SecretEntry]:
     return entries
 
 
+_ALLOWED_ENV_KEYS: set[str] = {
+    k["key"] for k in _SECRET_DEFS
+} | {
+    "PUID", "PGID", "TZ",
+    "TS_AUTHKEY", "TS_ROUTES", "TS_HOSTNAME",
+    "TINYAUTH_LAN_SUBNET",
+    "PLEX_TOKEN",
+}
+
+
 @app.post("/api/settings/secrets")
 async def api_secrets_save(payload: dict) -> dict:
     """Save one or more secrets to the stack .env file.
 
     Accepts { key: value, ... }. Values are written as-is.
+    Only keys in _ALLOWED_ENV_KEYS are accepted.
     Never logs or returns values. Returns { saved: [key, ...] }.
     """
     updates = {
         k: str(v) for k, v in payload.items()
-        if k and isinstance(k, str) and v is not None and str(v).strip()
+        if k and isinstance(k, str) and k in _ALLOWED_ENV_KEYS
+        and v is not None and str(v).strip()
     }
     if not updates:
         raise HTTPException(400, "No valid key=value pairs provided")
@@ -802,7 +834,7 @@ async def api_secrets_save(payload: dict) -> dict:
 
 @app.get("/api/checklist", response_model=list[ChecklistItem])
 async def api_checklist() -> list[ChecklistItem]:
-    return checklist_mod.build_checklist()
+    return await checklist_mod.build_checklist()
 
 
 # ---- WebSocket -------------------------------------------------------------

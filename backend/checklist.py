@@ -14,9 +14,9 @@ from __future__ import annotations
 import json
 import logging
 import time
-import urllib.request
 from typing import Optional
 
+import httpx
 import yaml
 
 from . import docker_client
@@ -72,7 +72,7 @@ def _labels_of(by_name: dict, name: str) -> dict[str, str]:
     return c.attrs.get("Config", {}).get("Labels") or {}
 
 
-def _traefik_routers() -> dict[str, dict]:
+async def _traefik_routers() -> dict[str, dict]:
     """Fetch Traefik routers with caching. Hard 2s timeout — never blocks."""
     global _routers_cache_time, _routers_cache
     now = time.monotonic()
@@ -82,8 +82,9 @@ def _traefik_routers() -> dict[str, dict]:
     for url in ("http://traefik:8081/api/http/routers",
                 "http://localhost:8081/api/http/routers"):
         try:
-            with urllib.request.urlopen(url, timeout=2) as r:
-                data = json.loads(r.read())
+            async with httpx.AsyncClient() as client:
+                r = await client.get(url, timeout=2.0)
+                data = r.json()
                 _routers_cache = {item["name"]: item for item in data}
                 _routers_cache_time = now
                 return _routers_cache
@@ -117,14 +118,14 @@ def _traefik_yaml_has_cf() -> bool:
 # Public API
 # ---------------------------------------------------------------------------
 
-def build_checklist() -> list[ChecklistItem]:
+async def build_checklist() -> list[ChecklistItem]:
     """Return only incomplete checklist items, from cache when fresh."""
     global _cache_time, _cache_items
     now = time.monotonic()
     if now - _cache_time < _cache_ttl:
         return _cache_items
 
-    all_items = _build()
+    all_items = await _build()
     _cache_items = [i for i in all_items if not i.done]
     _cache_time = now
     return _cache_items
@@ -134,12 +135,12 @@ def build_checklist() -> list[ChecklistItem]:
 # Internal builder
 # ---------------------------------------------------------------------------
 
-def _build() -> list[ChecklistItem]:
+async def _build() -> list[ChecklistItem]:
     items: list[ChecklistItem] = []
 
     # Single Docker call — all helpers below use this dict
     by_name = _fetch_containers()
-    routers = _traefik_routers()
+    routers = await _traefik_routers()
 
     # Parse compose file for service list
     compose_file = config.stack_dir / "docker-compose.yml"
