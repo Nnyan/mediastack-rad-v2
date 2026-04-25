@@ -355,10 +355,10 @@
           >
             <span class="tile-icon">{{ svc.icon }}</span>
             <span class="tile-name">{{ svc.display_name }}</span>
-            <span class="tile-right">
-              <span v-if="svc.web_port" class="tile-port">:{{ portOverrides[svc.key] || svc.web_port }}</span>
+            <span class="tile-status">
               <span v-if="liveServices.has(svc.key)" class="tile-dot dot-ok">●</span>
               <span v-else-if="pick[svc.key]" class="tile-dot dot-err">●</span>
+              <span v-else class="tile-dot dot-off">●</span>
             </span>
           </button>
 
@@ -1086,14 +1086,11 @@ onUnmounted(() => {
 }
 .tile.on .tile-name,
 .tile-selected .tile-name { color: var(--accent); }
-.tile-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
-.tile-port {
-  font-family: var(--font-mono); font-size: 10px;
-  color: var(--fg-2); flex-shrink: 0;
-}
+.tile-status { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; margin-left: auto; }
 .tile-dot { font-size: 11px; flex-shrink: 0; line-height: 1; }
 .dot-ok  { color: #16a34a; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); }
 .dot-err { color: #dc2626; text-shadow: 0 0 6px rgba(220,38,38,0.9), 0 0 12px rgba(220,38,38,0.5); }
+.dot-off { color: var(--fg-2); opacity: 0.6; }
 
 
 
