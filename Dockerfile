@@ -71,6 +71,7 @@ WORKDIR /app
 COPY --from=pybuild /install /usr/local
 COPY backend/*.py /app/backend/
 COPY --from=frontend /app/frontend/dist /app/static/
+COPY entrypoint.sh /app/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -78,16 +79,15 @@ ENV PYTHONUNBUFFERED=1 \
     RAD_BIND_HOST=0.0.0.0 \
     RAD_BIND_PORT=8090
 
-# Run as a non-root user. The Docker socket is still mounted at runtime
-# (required for container management) but the process itself does not
-# run as UID 0. The user is added to the 'docker' group so it can access
-# the socket without needing root.
 RUN groupadd -r docker || true \
     && groupadd -r rad \
     && useradd -r -g rad -G docker rad \
-    && chown -R rad:rad /app
+    && chown -R rad:rad /app \
+    && chmod +x /app/entrypoint.sh
 
-USER rad
+# Entrypoint runs as root to fix Docker socket group permissions,
+# then drops to the 'rad' user before exec'ing the CMD.
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 EXPOSE 8090
 
