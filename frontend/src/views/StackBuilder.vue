@@ -431,7 +431,21 @@ if (!_stored || Object.keys(_stored).length === 0) {
 }
 const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
-watch(req,  v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true })
+
+// Sensitive fields that must never be persisted to localStorage.
+const SENSITIVE_FIELDS = new Set([
+  'tailscale_auth_key', 'tinyauth_users', 'plex_token', 'plex_claim',
+])
+
+function sanitizeForStorage(v) {
+  const safe = { ...v }
+  for (const key of SENSITIVE_FIELDS) {
+    delete safe[key]
+  }
+  return safe
+}
+
+watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeForStorage(v))), { deep: true })
 watch(pick,   v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
 
 // ── Constants ──────────────────────────────────────────────────────────────

@@ -78,6 +78,15 @@ ENV PYTHONUNBUFFERED=1 \
     RAD_BIND_HOST=0.0.0.0 \
     RAD_BIND_PORT=8090
 
+# Run as a non-root user. The Docker socket is still mounted at runtime
+# (required for container management) but the process itself does not
+# run as UID 0. The user is added to the 'docker' group so it can access
+# the socket without needing root.
+RUN groupadd -r rad && useradd -r -g rad -G docker rad \
+    && chown -R rad:rad /app
+
+USER rad
+
 EXPOSE 8090
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -344,6 +344,9 @@ async def api_stack_deploy(req: StackRequest) -> dict:
 
 
 
+_CONTAINER_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$")
+
+
 @app.post("/api/stack/purge-conflicts")
 async def api_purge_conflicts(payload: dict) -> dict:
     """Stop and remove containers that are blocking a deploy.
@@ -357,6 +360,11 @@ async def api_purge_conflicts(payload: dict) -> dict:
     names: list[str] = payload.get("names") or []
     if not names:
         raise HTTPException(400, "No container names provided")
+
+    # Validate each name to prevent injection or accidental broad removals.
+    invalid = [n for n in names if not _CONTAINER_NAME_RE.match(str(n))]
+    if invalid:
+        raise HTTPException(422, f"Invalid container name(s): {', '.join(invalid)}")
 
     removed: list[str] = []
     errors: list[str] = []

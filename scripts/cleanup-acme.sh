@@ -17,7 +17,7 @@
 #
 #   --delete    actually delete them. Without it, just lists.
 
-set -euo pipefail
+set -uo pipefail
 
 CF_TOKEN="${CF_TOKEN:-${CLOUDFLARE_API_TOKEN:-}}"
 ZONE="${ZONE:-}"
@@ -84,13 +84,22 @@ fi
 
 echo
 echo "Deleting..."
+FAIL=0
 while IFS=$'\t' read -r id name content; do
-    if curl -fsS -X DELETE -H "$AUTH" \
-         "$API/zones/$ZONE_ID/dns_records/$id" >/dev/null; then
-        echo "  deleted $name"
+    # Temporarily disable exit-on-error so a failed delete doesn't abort
+    # the loop — we want to attempt all records and report failures at the end.
+    if curl -fsS -X DELETE -H "${AUTH}" \
+         "${API}/zones/${ZONE_ID}/dns_records/${id}" >/dev/null 2>&1; then
+        echo "  deleted ${name}"
     else
-        echo "  FAILED to delete $name" >&2
+        echo "  FAILED to delete ${name}" >&2
+        FAIL=1
     fi
 done <<< "$RECORDS"
+
+if [[ "$FAIL" -ne 0 ]]; then
+    echo "Some records could not be deleted. Check your token permissions." >&2
+    exit 1
+fi
 
 echo "Done."

@@ -7,6 +7,7 @@ so permissions, error handling, and testing are centralized.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime
@@ -93,6 +94,12 @@ def with_retry(fn, *, attempts: int = 3, backoff: float = 0.5):
             _reset_client()
             time.sleep(backoff * attempt)
     raise last_exc  # type: ignore[misc]
+
+
+async def with_retry_async(fn, attempts: int = 3, backoff: float = 1.0):
+    """Async-safe version of with_retry — runs blocking Docker calls in a
+    thread executor so the event loop is never blocked during retries."""
+    return await asyncio.to_thread(with_retry, fn, attempts, backoff)
 
 
 # ---------------------------------------------------------------------------
