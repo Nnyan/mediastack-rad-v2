@@ -341,45 +341,143 @@
         </div>
       </div><!-- /config-panel -->
 
-      <!-- Right: service grid -->
+      <!-- Right: services + instances -->
       <div class="grid-panel">
 
-        <!-- Service grid — compact single-line tiles, fixed 4 columns -->
-        <div class="service-grid">
-          <button
-            v-for="svc in filteredServices"
-            :key="svc.key"
-            :class="['tile', tileClass(svc.key)]"
-            
-            @click="toggle(svc.key)"
-          >
-            <span class="tile-icon">{{ svc.icon }}</span>
-            <span class="tile-name">{{ svc.display_name }}</span>
-            <span class="tile-status">
-              <span v-if="liveServices.has(svc.key)" class="tile-dot dot-ok">●</span>
-              <span v-else-if="pick[svc.key]" class="tile-dot dot-err">●</span>
-              <span v-else class="tile-dot dot-off">●</span>
-            </span>
-          </button>
+        <div class="card tile-card">
+          <div class="tile-header">
+            <div>
+              <h3 class="tile-title">Service Catalog</h3>
+              <p class="tile-sub">Select the apps you want to include in your stack.</p>
+            </div>
+            <div class="search-wrap tile-search">
+              <span class="search-icon">🔍</span>
+              <input v-model="search" placeholder="Search services…" class="search-input" />
+            </div>
+          </div>
 
+          <div class="service-grid">
+            <button
+              v-for="svc in filteredServices"
+              :key="svc.key"
+              :class="['tile', tileClass(svc.key)]"
+              @click="toggle(svc.key)"
+            >
+              <span class="tile-icon">{{ svc.icon }}</span>
+              <span class="tile-name">{{ svc.display_name }}</span>
+              <span class="tile-status">
+                <span v-if="liveServices.has(svc.key)" class="tile-dot dot-ok">●</span>
+                <span v-else-if="pick[svc.key]" class="tile-dot dot-err">●</span>
+                <span v-else class="tile-dot dot-off">●</span>
+              </span>
+            </button>
+          </div>
+
+          <div v-if="portConflicts.length" class="port-conflict-banner">
+            <div class="port-conflict-banner-head">
+              <span class="port-conflict-icon">⚠</span>
+              <span class="port-conflict-title">{{ portConflicts.length }} port conflict{{ portConflicts.length !== 1 ? 's' : '' }} detected</span>
+              <span v-if="portsChecking" class="port-conflict-checking">checking…</span>
+            </div>
+            <div v-for="c in portConflicts" :key="c.service" class="port-conflict-row">
+              <span class="port-conflict-svc">{{ svcName(c.service) }}</span>
+              <span class="port-conflict-detail">
+                port <strong>{{ c.port }}</strong> already used by
+                <code>{{ c.conflict_with }}</code>
+              </span>
+              <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
+                Use {{ c.suggested_port }}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <!-- Port conflict banner — below the service grid -->
-        <div v-if="portConflicts.length" class="port-conflict-banner">
-          <div class="port-conflict-banner-head">
-            <span class="port-conflict-icon">⚠</span>
-            <span class="port-conflict-title">{{ portConflicts.length }} port conflict{{ portConflicts.length !== 1 ? 's' : '' }} detected</span>
-            <span v-if="portsChecking" class="port-conflict-checking">checking…</span>
+        <div class="card instances-card">
+          <div class="instances-header">
+            <div>
+              <h3 class="instances-title">Running Instances</h3>
+              <p class="instances-sub">{{ filteredContainers.length }} container{{ filteredContainers.length === 1 ? '' : 's' }} · auto-refresh every 10s</p>
+            </div>
+            <div class="instances-controls">
+              <div class="search-wrap instances-search">
+                <span class="search-icon">🔍</span>
+                <input v-model="containerSearch" placeholder="Search containers…" class="search-input" />
+              </div>
+              <label class="toggle-stopped">
+                <input type="checkbox" v-model="showStoppedContainers" />
+                <span>Show stopped</span>
+              </label>
+            </div>
           </div>
-          <div v-for="c in portConflicts" :key="c.service" class="port-conflict-row">
-            <span class="port-conflict-svc">{{ svcName(c.service) }}</span>
-            <span class="port-conflict-detail">
-              port <strong>{{ c.port }}</strong> already used by
-              <code>{{ c.conflict_with }}</code>
-            </span>
-            <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
-              Use {{ c.suggested_port }}
-            </button>
+
+          <div class="instances-list">
+            <div
+              v-for="c in filteredContainers"
+              :key="c.id"
+              :class="['instance-row', instanceRowClass(c), { selected: selectedContainerId === c.id }]"
+              @click="selectContainer(c.id)"
+            >
+              <div class="instance-main">
+                <span class="instance-dot" :class="containerDotClass(c)"></span>
+                <span class="instance-name">{{ formatContainerName(c.name) }}</span>
+                <span class="instance-meta">{{ containerMeta(c) }}</span>
+              </div>
+              <div class="instance-actions" @click.stop>
+                <a
+                  v-if="containerUrls[c.id]"
+                  :href="containerUrls[c.id]"
+                  target="_blank"
+                  class="icon-btn"
+                  title="Open app"
+                >↗</a>
+                <button
+                  class="icon-btn"
+                  :title="c.state === 'running' ? 'Stop' : 'Start'"
+                  @click="containerAction(c.name, c.state === 'running' ? 'stop' : 'start')"
+                >{{ c.state === 'running' ? '⏸' : '▶' }}</button>
+                <button class="icon-btn" title="Restart" @click="containerAction(c.name, 'restart')">↺</button>
+                <button class="icon-btn" title="Logs" @click="loadLogs(c.name)">≡</button>
+                <button class="icon-btn danger" title="Remove" @click="confirmRemove(c.name)">✕</button>
+              </div>
+            </div>
+            <div v-if="!filteredContainers.length" class="instances-empty">No containers yet.</div>
+          </div>
+
+          <div v-if="selectedContainer" class="instance-detail">
+            <div class="detail-header">
+              <div>
+                <div class="detail-name">{{ formatContainerName(selectedContainer.name) }}</div>
+                <div class="detail-meta">{{ containerMeta(selectedContainer, true) }}</div>
+              </div>
+              <button class="icon-btn" @click="clearSelection">✕</button>
+            </div>
+            <div class="detail-grid">
+              <div>
+                <span class="detail-label">Image</span>
+                <span class="detail-value mono">{{ shortImage(selectedContainer.image) }}</span>
+              </div>
+              <div>
+                <span class="detail-label">Created</span>
+                <span class="detail-value">{{ createdTime(selectedContainer) }}</span>
+              </div>
+              <div>
+                <span class="detail-label">Ports</span>
+                <span class="detail-value">{{ containerPorts(selectedContainer) }}</span>
+              </div>
+              <div>
+                <span class="detail-label">Status</span>
+                <span class="detail-value">{{ containerStatusLabel(selectedContainer) }}</span>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <button class="detail-btn" @click.stop="containerAction(selectedContainer.name, 'restart')">Restart</button>
+              <button class="detail-btn" @click.stop="containerAction(selectedContainer.name, selectedContainer.state === 'running' ? 'stop' : 'start')">
+                {{ selectedContainer.state === 'running' ? 'Stop' : 'Start' }}
+              </button>
+              <button class="detail-btn" @click.stop="loadLogs(selectedContainer.name)">Refresh logs</button>
+            </div>
+            <pre v-if="containerLogs && containerLogsName === selectedContainer.name" class="detail-logs mono">{{ containerLogs }}</pre>
+            <div v-else-if="containerLogsLoading" class="detail-logs muted">Loading logs…</div>
           </div>
         </div>
 
@@ -464,6 +562,20 @@ const deployOutput    = ref('')
 const deployOk        = ref(false)
 const deploying       = ref(false)
 const deployConflicts = ref([])   // container names blocking the deploy
+
+// Containers merged view
+const containers = ref([])
+const stats = ref({})
+const containerSearch = ref('')
+const showStoppedContainers = ref(false)
+const selectedContainerId = ref(null)
+const containerLogs = ref('')
+const containerLogsName = ref('')
+const containerLogsLoading = ref(false)
+
+let containersPollTimer = null
+let statsWs = null
+let statsWsActive = false
 
 // ── Persistence ────────────────────────────────────────────────────────────
 const STORAGE_KEY      = 'rad-stack-builder-v3'
@@ -676,6 +788,35 @@ const selectedServices = computed(() =>
   Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
 )
 
+const containerUrls = computed(() => {
+  const map = {}
+  const host = window.location.hostname
+  for (const c of containers.value) {
+    if (c.web_url) {
+      map[c.id] = c.web_url.replace('://0.0.0.0:', `://${host}:`)
+    } else {
+      map[c.id] = null
+    }
+  }
+  return map
+})
+
+const filteredContainers = computed(() => {
+  const q = containerSearch.value.toLowerCase().trim()
+  return containers.value
+    .filter(c => showStoppedContainers.value || c.state === 'running')
+    .filter(c => !q || c.name.toLowerCase().includes(q) || c.image.toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (a.state === 'running' && b.state !== 'running') return -1
+      if (a.state !== 'running' && b.state === 'running') return 1
+      return a.name.localeCompare(b.name)
+    })
+})
+
+const selectedContainer = computed(() =>
+  containers.value.find(c => c.id === selectedContainerId.value) || null
+)
+
 // ── Style helpers — consistent: all take category or key via svcByKey ──────
 function catColors(cat)    { return CAT_COLORS[cat] || { bg: 'var(--accent-subtle)', border: 'var(--accent-dim)', text: 'var(--accent)' } }
 function tagStyle(cat)     { const c = catColors(cat); return { background: c.bg, color: c.text, borderColor: c.border } }
@@ -686,6 +827,184 @@ function tileClass(key)   {
 }
 function svcPillStyle(key) { const c = catColors(svcByKey.value[key]?.category); return { background: c.bg, color: c.text, borderColor: c.border } }
 function svcName(key)      { return svcByKey.value[key]?.display_name || key }
+
+function formatContainerName(n) { return n.replace(/^\//, '') }
+function shortImage(img) {
+  return img.split('/').slice(-2).join('/').split(':')[0]
+}
+function humanBytes(b) {
+  if (!b || b < 1024) return '0B'
+  if (b < 1048576) return (b / 1024).toFixed(1) + 'K'
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + 'M'
+  return (b / 1073741824).toFixed(2) + 'G'
+}
+function containerUptime(c) {
+  if (!c.created) return '—'
+  const secs = Math.max(0, Math.floor(Date.now() / 1000) - c.created)
+  if (secs < 60) return `${secs}s`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h`
+  return `${Math.floor(secs / 86400)}d`
+}
+function containerStatusLabel(c) {
+  if (c.health === 'unhealthy') return 'Unhealthy'
+  if (c.health === 'starting') return 'Starting'
+  if (c.state === 'restarting') return 'Restarting'
+  if (c.state === 'paused') return 'Paused'
+  if (c.state === 'dead') return 'Stopped'
+  if (c.state === 'exited') return 'Exited'
+  if (c.state === 'running') return 'Running'
+  return c.status || 'Unknown'
+}
+function containerDotClass(c) {
+  if (c.health === 'unhealthy' || c.state === 'dead') return 'dot-err'
+  if (c.state === 'restarting' || c.health === 'starting' || c.state === 'paused') return 'dot-warn'
+  if (c.state === 'running') return 'dot-ok'
+  return 'dot-off'
+}
+function instanceRowClass(c) {
+  if (c.health === 'unhealthy' || c.state === 'dead') return 'instance-row-err'
+  if (c.state === 'restarting' || c.health === 'starting' || c.state === 'paused') return 'instance-row-warn'
+  if (c.state === 'running') return 'instance-row-ok'
+  return 'instance-row-off'
+}
+function containerMeta(c, verbose = false) {
+  const parts = [containerStatusLabel(c)]
+  const up = containerUptime(c)
+  if (up !== '—') parts.push(`up ${up}`)
+  const stat = stats.value[c.id]
+  if (stat) {
+    parts.push(`${stat.cpu_percent.toFixed(1)}% CPU`)
+    parts.push(`${(stat.mem_usage_bytes / 1048576).toFixed(0)}MB RAM`)
+    if (verbose) {
+      parts.push(`↓${humanBytes(stat.net_rx_bytes)} ↑${humanBytes(stat.net_tx_bytes)}`)
+    }
+  }
+  return parts.join(' · ')
+}
+function containerPorts(c) {
+  if (!c.ports || !c.ports.length) return '—'
+  const items = c.ports
+    .filter(p => p.host_port)
+    .map(p => `${p.host_port}:${p.container_port}`)
+  return items.length ? items.join(', ') : '—'
+}
+function createdTime(c) {
+  if (!c.created) return 'Unknown'
+  return new Date(c.created * 1000).toLocaleString()
+}
+
+function selectContainer(id) {
+  selectedContainerId.value = selectedContainerId.value === id ? null : id
+  if (selectedContainerId.value) {
+    containerLogs.value = ''
+    containerLogsName.value = ''
+    containerLogsLoading.value = false
+  }
+}
+
+function clearSelection() {
+  selectedContainerId.value = null
+  containerLogs.value = ''
+  containerLogsName.value = ''
+  containerLogsLoading.value = false
+}
+
+async function refreshContainers() {
+  try {
+    containers.value = await fetch('/api/containers').then(r => r.json())
+  } catch (e) {
+    console.error('Containers refresh failed:', e)
+  }
+  if (selectedContainerId.value && !containers.value.some(c => c.id === selectedContainerId.value)) {
+    clearSelection()
+  }
+}
+
+function openStatsWebSocket() {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  statsWs = new WebSocket(`${proto}//${window.location.host}/ws/stats`)
+  statsWs.onmessage = e => {
+    const msg = JSON.parse(e.data)
+    if (msg.type === 'stats') {
+      const next = {}
+      for (const row of msg.containers) next[row.id] = row
+      stats.value = next
+    }
+  }
+  statsWs.onclose = () => { if (statsWsActive) setTimeout(openStatsWebSocket, 2000) }
+}
+
+async function containerAction(name, kind) {
+  try {
+    const r = await fetch(`/api/containers/${name}/${kind}`, { method: kind === 'remove' ? 'DELETE' : 'POST' })
+    if (r.ok) {
+      showToast(`${kind} ${name} → ok`)
+      await new Promise(res => setTimeout(res, 500))
+      await refreshContainers()
+    } else {
+      showToast(`${kind} ${name} failed: ${await r.text()}`, 'err')
+    }
+  } catch (e) {
+    showToast(`${kind} ${name}: ${e.message}`, 'err')
+  }
+}
+
+async function removeContainer(name) {
+  const c = containers.value.find(x => x.name === name)
+  try {
+    if (c?.state === 'running') {
+      showToast(`Stopping ${name}…`, 'warn', 2000)
+      const s = await fetch(`/api/containers/${name}/stop`, { method: 'POST' })
+      if (!s.ok) {
+        showToast(`Could not stop ${name}`, 'err')
+        return
+      }
+      await new Promise(res => setTimeout(res, 800))
+    }
+    const r = await fetch(`/api/containers/${name}`, { method: 'DELETE' })
+    if (r.ok) {
+      showToast(`${name} removed`)
+      await refreshContainers()
+      if (selectedContainerId.value && !containers.value.some(c => c.name === name)) {
+        clearSelection()
+      }
+    } else {
+      showToast(`Remove failed: ${await r.text()}`, 'err')
+    }
+  } catch (e) {
+    showToast(`Remove error: ${e.message}`, 'err')
+  }
+}
+
+async function loadLogs(name) {
+  const container = containers.value.find(c => c.name === name)
+  if (!container) {
+    showToast(`No container named ${name}`, 'warn')
+    return
+  }
+  if (selectedContainerId.value !== container.id) {
+    selectContainer(container.id)
+  }
+  containerLogsName.value = name
+  containerLogsLoading.value = true
+  containerLogs.value = ''
+  try {
+    const r = await fetch(`/api/containers/${name}/logs?tail=300`, { method: 'POST' })
+    containerLogs.value = await r.text()
+  } catch (e) {
+    containerLogs.value = String(e)
+    showToast(`Log fetch error: ${e.message}`, 'err')
+  } finally {
+    containerLogsLoading.value = false
+  }
+}
+
+function confirmRemove(name) {
+  if (window.confirm(`Remove ${name}? This stops and deletes the container.`)) {
+    removeContainer(name)
+  }
+}
 
 // ── Actions ────────────────────────────────────────────────────────────────
 // Map service key → config section id (only services that have a config section)
@@ -997,10 +1316,17 @@ onMounted(() => {
   loadCatalog()
   loadRunningServices()
   runningPollTimer = setInterval(loadRunningServices, 15000)
+  refreshContainers()
+  containersPollTimer = setInterval(refreshContainers, 10000)
+  statsWsActive = true
+  openStatsWebSocket()
 })
 
 onUnmounted(() => {
   if (runningPollTimer) clearInterval(runningPollTimer)
+  if (containersPollTimer) clearInterval(containersPollTimer)
+  statsWsActive = false
+  if (statsWs) statsWs.close()
 })
 </script>
 
@@ -1021,6 +1347,17 @@ onUnmounted(() => {
 .grid-panel {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (max-width: 960px) {
+  .builder-layout { flex-direction: column; }
+  .config-panel { flex: none; width: 100%; }
+  .tile-header, .instances-header { flex-direction: column; align-items: stretch; }
+  .instances-controls { flex-wrap: wrap; }
+  .tile-search, .instances-search { flex: 1 1 100%; max-width: none; }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -1048,13 +1385,232 @@ onUnmounted(() => {
 }
 .search-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-1);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.tile-card .service-grid { margin-top: var(--space-1); }
+.tile-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-2);
+  margin: 0 0 4px;
+}
+.tile-sub {
+  font-size: 11.5px;
+  color: var(--fg-2);
+  margin: 0;
+}
+.tile-search { max-width: 240px; flex: 0 0 220px; }
+
+.instances-card { gap: var(--space-2); }
+.instances-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.instances-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-2);
+  margin: 0 0 4px;
+}
+.instances-sub {
+  font-size: 11.5px;
+  color: var(--fg-2);
+  margin: 0;
+}
+.instances-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.instances-search { max-width: 220px; flex: 0 0 200px; }
+.toggle-stopped {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.toggle-stopped input { cursor: pointer; }
+
+.instances-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.instance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-0);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.instance-row:hover { background: var(--bg-1); }
+.instance-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+.instance-row-ok { border-left: 3px solid var(--ok); }
+.instance-row-warn { border-left: 3px solid var(--warn); }
+.instance-row-err { border-left: 3px solid var(--err); }
+.instance-row-off { border-left: 3px solid var(--border); }
+.instance-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.instance-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  font-size: 11px;
+}
+.instance-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-0);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.instance-meta {
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.instance-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.icon-btn:hover { border-color: var(--border-strong); background: var(--bg-2); color: var(--fg-0); }
+.icon-btn.danger { border-color: var(--err-dim); color: var(--err); }
+.icon-btn.danger:hover { background: var(--err); color: #fff; }
+
+.instances-empty {
+  font-size: 11.5px;
+  color: var(--fg-2);
+  padding: 12px;
+  text-align: center;
+}
+
+.instance-detail {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.detail-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.detail-meta {
+  font-size: 11.5px;
+  color: var(--fg-2);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-2);
+}
+.detail-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-2);
+  margin-bottom: 4px;
+}
+.detail-value {
+  font-size: 12px;
+  color: var(--fg-0);
+}
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.detail-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-0);
+  cursor: pointer;
+}
+.detail-btn:hover { border-color: var(--accent); background: var(--accent-subtle); color: var(--accent); }
+.detail-logs {
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-size: 11.5px;
+}
+.detail-logs.muted {
+  color: var(--fg-2);
+  font-style: italic;
+}
+
 /* ── Service grid ───────────────────────────────────────────────────────── */
 /* ── Service grid — compact fixed-column layout ──────────────────────────── */
 .service-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 
 /* Single-line tile: icon · name · live dot */
@@ -1089,6 +1645,7 @@ onUnmounted(() => {
 .tile-status { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; margin-left: auto; }
 .tile-dot { font-size: 11px; flex-shrink: 0; line-height: 1; }
 .dot-ok  { color: #16a34a; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); }
+.dot-warn { color: var(--warn); text-shadow: 0 0 6px rgba(217,119,6,0.5); }
 .dot-err { color: #dc2626; text-shadow: 0 0 6px rgba(220,38,38,0.9), 0 0 12px rgba(220,38,38,0.5); }
 .dot-off { color: var(--fg-2); opacity: 0.6; }
 
