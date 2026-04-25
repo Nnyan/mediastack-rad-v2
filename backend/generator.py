@@ -85,14 +85,23 @@ def validate_request(request: StackRequest) -> StackValidation:
             message="Domain is required — at least one selected service needs a domain for HTTPS routing.",
         ))
 
-    # Cloudflare token required when cloudflared selected
+    # Cloudflare token — warning if not provided (may be in .env)
     if "cloudflared" in enabled_keys and not request.cloudflare_token:
-        errors.append(ValidationIssue(
+        warnings.append(ValidationIssue(
             service="cloudflared", field="cloudflare_token",
-            severity="error",
-            message="CF_DNS_API_TOKEN is required for DNS-01 certificate issuance. "
+            severity="warning",
+            message="CF_DNS_API_TOKEN not provided — cert issuance will fail unless the token "
+                    "is set in your .env file (Settings → Secrets). "
                     "Generate at dash.cloudflare.com → My Profile → API Tokens "
                     "(Zone:DNS:Edit + Zone:Zone:Read).",
+        ))
+    # Traefik also needs the token for DNS-01 when any web service is selected
+    elif _has_web_service(request) and not request.cloudflare_token:
+        warnings.append(ValidationIssue(
+            service="traefik", field="cloudflare_token",
+            severity="warning",
+            message="CF_DNS_API_TOKEN not provided — HTTPS cert issuance will fail unless the token "
+                    "is set in your .env file (Settings → Secrets).",
         ))
 
     # Plex claim — warning only (it's optional after first boot)
@@ -524,10 +533,12 @@ def _render_traefik(request: StackRequest, domain: str | None) -> dict[str, Any]
     LEGO timeout that fixed our cert issues.
     """
     env: dict[str, str] = {
-        "LEGO_DNS_TIMEOUT": "300",  # default is too short for Cloudflare
+        "LEGO_DNS_TIMEOUT": "300",
     }
     if request.cloudflare_token:
         env["CF_DNS_API_TOKEN"] = request.cloudflare_token
+    else:
+        env["CF_DNS_API_TOKEN"] = "${CF_DNS_API_TOKEN}"
 
     return {
         "image": "traefik:latest",

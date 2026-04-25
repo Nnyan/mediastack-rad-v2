@@ -86,7 +86,38 @@
           </div>
           </div>
 
-          <!-- Cloudflare — credentials live in Settings → Secrets, no config needed here -->
+          <!-- Cloudflare — only when traefik or cloudflared is selected -->
+                    <template v-if="pick['traefik'] || pick['cloudflared']">
+          <div class="cfg-section" :class="{ open: expanded.cloudflare }">
+          <div class="cfg-head" @click="toggleCfg('cloudflare')">
+            <span class="cfg-icon">☁️</span>
+            <span class="cfg-title">Cloudflare</span>
+          </div>
+          <div v-if="expanded.cloudflare" class="cfg-body">
+            <div class="cfg-note cfg-note-neutral" style="margin-bottom: 6px">
+              Tokens can also be set in <strong>Settings → Secrets</strong> and will persist across deploys. Values entered here are used for this deploy only.
+            </div>
+            <div class="cfg-grid">
+              <label v-if="pick['traefik']" class="cfg-field span2">
+                <span class="cfg-label">
+                  DNS API Token
+                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="cfg-link">Create ↗</a>
+                </span>
+                <input v-model="req.cloudflare_token" type="password" placeholder="CF_DNS_API_TOKEN — Zone:DNS:Edit + Zone:Zone:Read" />
+                <span class="cfg-hint">Required for DNS-01 HTTPS cert issuance via Traefik</span>
+              </label>
+              <label v-if="pick['cloudflared']" class="cfg-field span2">
+                <span class="cfg-label">
+                  Tunnel Token
+                  <a href="https://one.dash.cloudflare.com/" target="_blank" class="cfg-link">Zero Trust ↗</a>
+                </span>
+                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="CLOUDFLARED_TOKEN from Zero Trust → Tunnels" />
+                <span class="cfg-hint">Authenticates the cloudflared daemon to your tunnel</span>
+              </label>
+            </div>
+          </div>
+          </div>
+          </template>
 
           <!-- Tailscale — only when tailscale is selected -->
                     <template v-if="pick['tailscale']">
@@ -258,11 +289,13 @@
               <input v-model="addInput" placeholder="lscr.io/linuxserver/heimdall  or  portainer/portainer-ce" class="url-input" />
             </template>
             <template v-else>
-              <div class="file-drop">
+              <div class="file-drop" @click="fileInput?.click()" @dragover.prevent @drop.prevent="onFileDrop">
                 <div class="file-drop-icon">📄</div>
                 <div class="file-drop-title">Drop a compose file here</div>
                 <div class="file-drop-sub">or click to browse — .yml and .yaml supported</div>
+                <div v-if="addFileName" class="file-drop-name">{{ addFileName }}</div>
               </div>
+              <input ref="fileInput" type="file" accept=".yml,.yaml" style="display:none" @change="onFilePick" />
             </template>
             <!-- Parse result preview -->
             <div v-if="addResult" class="parse-result">
@@ -387,6 +420,8 @@ const portConflicts  = ref([])        // [{service, port, conflict_with, suggest
 const portsChecking  = ref(false)
 const addParsing   = ref(false)
 const addResult    = ref(null)   // { yaml, services } from backend
+const addFileName  = ref('')     // name of uploaded file
+const fileInput    = ref(null)   // template ref for hidden <input type="file">
 const customYaml   = ref('')     // confirmed YAML to include in deploy
 const previewText  = ref('')
 const previewLoading = ref(false)
@@ -402,12 +437,10 @@ const defaults = {
   domain: '', timezone: 'America/Los_Angeles', puid: 1000, pgid: 1000,
   config_root: '/home/stack/mediacenter/config',
   media_root: '/mnt/media',
+  cloudflare_token: '', cloudflare_tunnel_token: '',
   external_plex_url: '',
-  plex_server_name: '',
-  plex_url: '',
-  plex_token: '',
-  // Credentials (CF token, tunnel token, Plex claim, Tinyauth secrets)
-  // are managed in Settings → Secrets, not stored here
+  plex_server_name: '', plex_claim: '',
+  plex_url: '', plex_token: '',
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
@@ -426,6 +459,7 @@ const req = reactive({ ...defaults, ...stored })
 
 // Sensitive fields that must never be persisted to localStorage.
 const SENSITIVE_FIELDS = new Set([
+  'cloudflare_token', 'cloudflare_tunnel_token',
   'tailscale_auth_key', 'tinyauth_users', 'plex_token', 'plex_claim',
 ])
 
@@ -549,7 +583,7 @@ function svcName(key)      { return svcByKey.value[key]?.display_name || key }
 
 // ── Actions ────────────────────────────────────────────────────────────────
 // Map service key → config section id (only services that have a config section)
-const SERVICE_SECTION = { cloudflared: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
+const SERVICE_SECTION = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
 
 function toggle(key) {
   pick[key] = !pick[key]
@@ -622,6 +656,33 @@ function confirmCustomApp() {
   showToast('Custom app added to stack — click Deploy to apply')
 }
 
+function readFile(file) {
+  addFileName.value = file.name
+  const reader = new FileReader()
+  reader.onload = () => {
+    addInput.value = reader.result
+    addTab.value = 'compose'
+    showToast(`Loaded ${file.name} — click Parse & add`)
+  }
+  reader.onerror = () => showToast('Failed to read file', 'err')
+  reader.readAsText(file)
+}
+
+function onFilePick(e) {
+  const file = e.target.files?.[0]
+  if (file) readFile(file)
+  e.target.value = ''
+}
+
+function onFileDrop(e) {
+  const file = e.dataTransfer?.files?.[0]
+  if (file && /\.(ya?ml)$/i.test(file.name)) {
+    readFile(file)
+  } else {
+    showToast('Only .yml / .yaml files are supported', 'warn')
+  }
+}
+
 // ── Port conflict check ───────────────────────────────────────────────────────
 let _portCheckTimer = null
 function schedulePortCheck() {
@@ -672,31 +733,41 @@ async function loadCatalog() {
 }
 
 function buildRequest() {
+  const envForService = (key) => {
+    const rows = (extraEnvRows[key] || []).filter(r => r.k && r.k.trim())
+    if (!rows.length) return {}
+    const obj = {}
+    for (const r of rows) obj[r.k.trim()] = r.v ?? ''
+    return obj
+  }
+
   return {
-    domain:                 req.domain,
-    timezone:               req.timezone,
-    puid:                   req.puid,
-    pgid:                   req.pgid,
-    config_root:            req.config_root,
-    media_root:             req.media_root,
-    // Credentials come from .env on the server (managed in Settings → Secrets)
+    domain:                    req.domain,
+    timezone:                  req.timezone,
+    puid:                      req.puid,
+    pgid:                      req.pgid,
+    config_root:               req.config_root,
+    media_root:                req.media_root,
+    cloudflare_token:          req.cloudflare_token || undefined,
+    cloudflare_tunnel_token:   req.cloudflare_tunnel_token || undefined,
+    plex_claim:                req.plex_claim || undefined,
     plex_server_name:          req.plex_server_name,
     plex_url:                  req.plex_url || req.external_plex_url || undefined,
     plex_token:                req.plex_token || undefined,
     external_plex_url:         req.external_plex_url || undefined,
-    tailscale_auth_key:     req.tailscale_auth_key,
-    tailscale_routes:       req.tailscale_routes,
-    tailscale_hostname:     req.tailscale_hostname,
-    tinyauth_enabled:       !!pick['tinyauth'],
-    tinyauth_users:         req.tinyauth_users,
-    tinyauth_app_url:       req.tinyauth_app_url,
-    lan_subnet:             req.lan_subnet,
-    services:               selectedServices.value.map(k => ({
+    tailscale_auth_key:        req.tailscale_auth_key,
+    tailscale_routes:          req.tailscale_routes,
+    tailscale_hostname:        req.tailscale_hostname,
+    tinyauth_enabled:          !!pick['tinyauth'],
+    tinyauth_users:            req.tinyauth_users,
+    tinyauth_app_url:          req.tinyauth_app_url,
+    lan_subnet:                req.lan_subnet,
+    services:                  selectedServices.value.map(k => ({
       key: k, enabled: true,
       port_override: portOverrides[k] || undefined,
-      extra_env:    {},
+      extra_env:     envForService(k),
     })),
-    custom_yaml:            customYaml.value || undefined,
+    custom_yaml:               customYaml.value || undefined,
   }
 }
 
@@ -797,7 +868,7 @@ async function deploy() {
 }
 
 // Auto-expand the config section when a service with one is first selected
-const SERVICE_CFG = { cloudflared: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
+const SERVICE_CFG = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
 watch(() => ({ ...pick }), (cur, prev) => {
   for (const [svcKey, cfgId] of Object.entries(SERVICE_CFG)) {
     if (cur[svcKey] && !prev?.[svcKey]) expanded[cfgId] = true
@@ -805,7 +876,7 @@ watch(() => ({ ...pick }), (cur, prev) => {
 })
 
 watch(addInput, () => { addResult.value = null })
-watch(addTab,   () => { addResult.value = null; addInput.value = '' })
+watch(addTab,   () => { addResult.value = null; addInput.value = ''; addFileName.value = '' })
 watch(selectedServices, schedulePortCheck)
 
 let runningPollTimer = null
@@ -999,6 +1070,7 @@ onUnmounted(() => {
 .file-drop-icon  { font-size: 26px; margin-bottom: 6px; }
 .file-drop-title { font-size: 13.5px; font-weight: 600; color: var(--fg-0); margin-bottom: 3px; }
 .file-drop-sub   { font-size: 12px; color: var(--fg-2); }
+.file-drop-name  { font-size: 11px; color: var(--ok); font-weight: 600; margin-top: 4px; }
 
 /* Parse result preview */
 .parse-result {

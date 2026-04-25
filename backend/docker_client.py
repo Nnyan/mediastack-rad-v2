@@ -97,9 +97,7 @@ def with_retry(fn, *, attempts: int = 3, backoff: float = 0.5):
 
 
 async def with_retry_async(fn, attempts: int = 3, backoff: float = 1.0):
-    """Async-safe version of with_retry — runs blocking Docker calls in a
-    thread executor so the event loop is never blocked during retries."""
-    return await asyncio.to_thread(with_retry, fn, attempts, backoff)
+    return await asyncio.to_thread(with_retry, fn, attempts=attempts, backoff=backoff)
 
 
 # ---------------------------------------------------------------------------
