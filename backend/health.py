@@ -234,7 +234,7 @@ def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
     out = []
     if ts.status != "running":
         out.append(HealthIssue(
-            id="tailscale.not_running", severity="error", category="network",
+            id="tailscale.not_running", severity="error", category="Network",
             title="Tailscale container is not running",
             detail=f"State: '{ts.status}'. Check: docker logs tailscale",
             fix_hint="docker start tailscale",
@@ -246,7 +246,7 @@ def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
     authkey = env.get("TS_AUTHKEY", "")
     if not authkey or authkey in ("${TS_AUTHKEY}", ""):
         out.append(HealthIssue(
-            id="tailscale.no_authkey", severity="error", category="network",
+            id="tailscale.no_authkey", severity="error", category="Network",
             title="TS_AUTHKEY not set on Tailscale container",
             detail=("Tailscale needs an auth key. Generate a reusable, non-ephemeral key at "
                     "https://login.tailscale.com/admin/settings/keys"),
@@ -266,7 +266,7 @@ def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
             if not has_tun:
                 missing.append("devices: [/dev/net/tun:/dev/net/tun]")
             out.append(HealthIssue(
-                id="tailscale.no_tun", severity="warning", category="network",
+                id="tailscale.no_tun", severity="warning", category="Network",
                 title="Tailscale missing TUN configuration",
                 detail=f"TS_USERSPACE=false requires: {', '.join(missing)}.",
                 fix_hint="Redeploy via Stack Builder — it adds these automatically.",
@@ -417,7 +417,7 @@ CHECK_META: dict[str, tuple[str, str, str]] = {
     "check_port_conflicts":   ("Docker",  "Port conflicts",       "no conflicts"),
     "check_acme_storage":     ("Traefik", "ACME storage",         "mode 0600"),
     "check_traefik_network":  ("Traefik", "Service networks",     "all services connected"),
-    "check_tailscale":        ("Auth",    "Tailscale",            "running"),
+    "check_tailscale":        ("Network", "Tailscale",            "running"),
     "check_tinyauth":         ("Auth",    "Tinyauth",             "running, all routers correct"),
     "check_cloudflare_token": ("Traefik", "Cloudflare token",     "valid"),
 }

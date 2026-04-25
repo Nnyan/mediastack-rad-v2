@@ -102,7 +102,7 @@ let pollTimer   = null
 const checks = computed(() => report.value?.checks || [])
 
 const groups = computed(() => {
-  const order = ['Docker', 'Config', 'Traefik', 'Auth', 'Security', 'System', 'internal', 'network']
+  const order = ['Docker', 'Config', 'Traefik', 'Network', 'Auth', 'Security', 'System', 'internal']
   const map = {}
   for (const c of checks.value) {
     const cat = c.category || 'System'
