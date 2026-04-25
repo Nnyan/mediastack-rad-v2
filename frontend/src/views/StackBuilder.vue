@@ -3,7 +3,14 @@
 
     <!-- ── Header ──────────────────────────────────────────────────────── -->
     <div class="builder-header">
-      <h1 class="page-title">Stack Builder</h1>
+      <div>
+        <h1 class="page-title">Stack Builder</h1>
+        <div class="header-sub">
+          <span>{{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected</span>
+          <span v-if="req.domain" class="header-sub-sep">·</span>
+          <span v-if="req.domain">{{ req.domain }}</span>
+        </div>
+      </div>
       <div class="header-actions">
         <button class="btn-review" :disabled="previewLoading || !selectedServices.length" @click="preview">
           {{ previewLoading ? 'Generating…' : 'Review' }}
@@ -79,22 +86,7 @@
           </div>
           </div>
 
-          <!-- Cloudflare — only when cloudflared is selected -->
-          <template v-if="pick['cloudflared']">
-          <div class="cfg-section" :class="{ open: expanded.cloudflare }">
-            <div class="cfg-head" @click="toggleCfg('cloudflare')">
-              <span class="cfg-icon">☁️</span>
-              <span class="cfg-title">Cloudflare Tunnel</span>
-            </div>
-            <div v-if="expanded.cloudflare" class="cfg-body">
-              <div class="cfg-note cfg-note-neutral">
-                ☁️ Cloudflare credentials (DNS API token and Tunnel token) are managed in
-                <strong>Settings → Secrets</strong>. They are stored in <code>.env</code>
-                on your server and never embedded in the compose file.
-              </div>
-            </div>
-          </div>
-          </template>
+          <!-- Cloudflare — credentials live in Settings → Secrets, no config needed here -->
 
           <!-- Tailscale — only when tailscale is selected -->
                     <template v-if="pick['tailscale']">
@@ -249,7 +241,7 @@
           <div v-if="expanded.custom" class="cfg-body">
             <div class="tab-row">
               <button
-                v-for="[t, label] in [['compose','Paste docker-compose'],['url','Image URL'],['file','Upload file']]"
+                v-for="[t, label] in [['compose','Compose YAML'],['url','Image URL'],['file','Upload']]"
                 :key="t" :class="['tab-btn', { active: addTab === t }]" @click="addTab = t"
               >{{ label }}</button>
             </div>
@@ -293,8 +285,8 @@
             </div>
 
             <div class="custom-actions">
-              <button class="primary" :disabled="addParsing" @click="parseAndAdd">
-                {{ addParsing ? 'Fetching…' : 'Parse & add →' }}
+              <button class="btn-review" :disabled="addParsing" @click="parseAndAdd">
+                {{ addParsing ? 'Fetching…' : 'Parse & add' }}
               </button>
             </div>
           </div>
@@ -851,6 +843,8 @@ onUnmounted(() => {
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .builder-header { margin-bottom: var(--space-3); display: flex; align-items: center; justify-content: space-between; }
 .header-actions { display: flex; align-items: center; gap: var(--space-2); }
+.header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
+.header-sub-sep { opacity: 0.5; }
 .btn-review     { font-size: 13.5px; font-weight: 600; font-family: var(--font-sans); padding: 6px 14px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
 .btn-review:hover:not(:disabled) { background: var(--accent-subtle); }
 .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
