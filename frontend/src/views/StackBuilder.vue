@@ -62,8 +62,7 @@
             <div class="card-body">
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
-                <span v-if="LIVE_SERVICES.value.has(svc.key)" class="card-badge running">Running</span>
-                <span v-else-if="pick[svc.key]" class="card-badge active">Active</span>
+                <span v-if="pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
               <div class="card-desc">{{ svc.description }}</div>
@@ -254,16 +253,9 @@ const CATEGORIES = {
   infra: { key: 'infra', name: 'Infra', icon: '⚙️' },
 }
 
-const LIVE_SERVICES = ref(new Set())
-
-async function loadRunningServices() {
-  try {
-    const running = await fetch('/api/containers/running').then(r => r.json())
-    LIVE_SERVICES.value = new Set(running)
-  } catch (e) {
-    console.warn('Failed to load running services:', e)
-  }
-}
+const LIVE_SERVICES = new Set([
+  'traefik', 'plex', 'sonarr', 'radarr', 'prowlarr', 'qbittorrent', 'cloudflared',
+])
 
 // Computed
 const flatServices = computed(() => {
@@ -293,8 +285,8 @@ const filteredServices = computed(() => {
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
   services.sort((a, b) => {
-    const aRunning = LIVE_SERVICES.value.has(a.key)
-    const bRunning = LIVE_SERVICES.value.has(b.key)
+    const aRunning = LIVE_SERVICES.has(a.key)
+    const bRunning = LIVE_SERVICES.has(b.key)
     if (aRunning !== bRunning) {
       return aRunning ? -1 : 1
     }
@@ -420,10 +412,7 @@ async function generateCredentials() {
   }
 }
 
-onMounted(() => {
-  loadCatalog()
-  loadRunningServices()
-})
+onMounted(loadCatalog)
 </script>
 
 <style scoped>
@@ -611,11 +600,6 @@ onMounted(() => {
 .card-badge.active {
   background: var(--accent);
   color: #fff;
-}
-
-.card-badge.running {
-  background: var(--ok-bg);
-  color: var(--ok);
 }
 
 .card-desc {
