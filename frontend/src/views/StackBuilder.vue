@@ -62,7 +62,7 @@
             <div class="card-body">
               <div class="card-header">
                 <span class="card-name">{{ svc.display_name }}</span>
-                <span v-if="isRunning(svc.key)" class="card-badge running">Running</span>
+                <span v-if="liveServices.has(svc.key)" class="card-badge running">Running</span>
                 <span v-else-if="pick[svc.key]" class="card-badge active">Active</span>
                 <span v-else class="card-badge">Inactive</span>
               </div>
@@ -199,7 +199,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 
 const showToast = inject('showToast')
 
@@ -254,11 +254,9 @@ const CATEGORIES = {
   infra: { key: 'infra', name: 'Infra', icon: '⚙️' },
 }
 
+// Keyed by container name — assumes container name === service key, which holds
+// for compose-managed stacks where the service name is the container name.
 const liveServices = ref(new Set())
-
-function isRunning(key) {
-  return liveServices.value.has(key)
-}
 
 async function loadRunningServices() {
   try {
@@ -297,8 +295,8 @@ const filteredServices = computed(() => {
   })
   // Sort: running first (alphabetically), then inactive (alphabetically)
   services.sort((a, b) => {
-    const aRunning = isRunning(a.key)
-    const bRunning = isRunning(b.key)
+    const aRunning = liveServices.value.has(a.key)
+    const bRunning = liveServices.value.has(b.key)
     if (aRunning !== bRunning) return aRunning ? -1 : 1
     return a.display_name.localeCompare(b.display_name)
   })
@@ -422,9 +420,16 @@ async function generateCredentials() {
   }
 }
 
+let runningPollTimer = null
+
 onMounted(() => {
   loadCatalog()
   loadRunningServices()
+  runningPollTimer = setInterval(loadRunningServices, 15000)
+})
+
+onUnmounted(() => {
+  if (runningPollTimer) clearInterval(runningPollTimer)
 })
 </script>
 
