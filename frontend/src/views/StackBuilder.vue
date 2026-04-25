@@ -963,7 +963,8 @@ onUnmounted(() => {
   min-width: 0;
 }
 .tile:hover { background: var(--bg-2); border-color: var(--border); }
-.tile.on    { background: var(--accent-subtle); border-color: var(--accent); }
+.tile.on,
+.tile-selected    { background: var(--accent-subtle); border-color: var(--accent); }
 
 .tile-icon  { font-size: 13px; line-height: 1; flex-shrink: 0; }
 .tile-name  {
@@ -971,7 +972,10 @@ onUnmounted(() => {
   letter-spacing: -0.01em; flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tile.on .tile-name { color: var(--accent); }
+.tile.on .tile-name,
+.tile-selected .tile-name { color: var(--accent); }
+.tile-live-on .tile-name { color: var(--accent); }
+.tile-live-on { background: rgba(22,163,74,0.07); border-color: #16a34a; }
 .tile-live  { font-size: 11px; color: #16a34a; flex-shrink: 0; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); line-height: 1; }
 .tile-port-override {
   font-family: var(--font-mono); font-size: 9px;
