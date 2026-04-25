@@ -29,7 +29,7 @@
 
       <div class="card tools-card">
         <h3 class="section-title">Cleanup tools</h3>
-        <p class="small muted mb-3">
+        <p class="small muted mb-2">
           If DNS-01 challenges are failing with "time limit exceeded",
           stale <code>_acme-challenge</code> TXT records in Cloudflare can
           poison propagation checks. Use the cleanup button to wipe them.
@@ -220,18 +220,20 @@ onUnmounted(() => {
 }
 
 .status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .status-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 6px 12px;
   background: var(--bg-0);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  flex: 1 1 180px;
+  min-height: 38px;
 }
 
 .badge-status {
@@ -269,19 +271,26 @@ onUnmounted(() => {
   flex: 1 1 320px;
   margin-bottom: 0;
 }
+.status-card,
 .tools-card {
-  flex: 1 1 260px;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 .tool-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-2);
 }
 .tool-actions button {
-  flex: 1 1 160px;
+  flex: 1 1 50%;
+  white-space: nowrap;
 }
 .routes-card { margin-top: 0; }
+
+@media (max-width: 640px) {
+  .status-grid { flex-wrap: wrap; }
+  .tool-actions { flex-wrap: wrap; }
+  .tool-actions button { flex: 1 1 100%; }
+}
 </style>
