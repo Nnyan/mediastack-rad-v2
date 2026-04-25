@@ -58,7 +58,7 @@
   --cat-media:       #db2777;   /* pink — Plex, Jellyfin */
   --cat-indexers:    #7c3aed;   /* violet — *arr apps */
   --cat-downloaders: #2563eb;   /* blue — qBit, SAB */
-  --cat-requests:    #ea580c;   /* orange — Overseerr */
+  --cat-requests:    #ea580c;   /* orange — Seerr */
   --cat-infra:       #0891b2;   /* teal — Traefik, Cloudflare, Tailscale */
 
   /* ---- Typography ---- */

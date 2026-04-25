@@ -391,7 +391,7 @@ async def _build() -> list[ChecklistItem]:
             action_url="/containers",
         ))
 
-    if "seerr" in services or "overseerr" in services or "jellyseerr" in services:
+    if "seerr" in services:
         items.append(ChecklistItem(
             id="seerr.setup",
             title="Run the Seerr setup wizard",

@@ -219,7 +219,14 @@ let wsActive  = false
 // ── Computed ───────────────────────────────────────────────────────────────
 const webUiUrls = computed(() => {
   const map = {}
-  for (const c of containers.value) map[c.id] = webUiUrl(c)
+  const host = window.location.hostname
+  for (const c of containers.value) {
+    if (c.web_url) {
+      map[c.id] = c.web_url.replace('://0.0.0.0:', `://${host}:`)
+    } else {
+      map[c.id] = null
+    }
+  }
   return map
 })
 
@@ -291,17 +298,6 @@ function uptime(c) {
   return `${Math.floor(secs/86400)}d`
 }
 
-function webUiUrl(c) {
-  const webPorts = [80, 443, 3000, 5055, 5000, 6767, 6789, 7878, 8080, 8081,
-                    8085, 8096, 8686, 8787, 8989, 9696, 32400]
-  const port = (c.ports || []).find(p => p.host_port && webPorts.includes(p.container_port))
-  if (!port) return null
-  const host   = window.location.hostname
-  const scheme = port.container_port === 443 ? 'https' : 'http'
-  const path   = c.name === 'plex' ? '/web' : c.name === 'traefik' ? '/dashboard/' : ''
-  return `${scheme}://${host}:${port.host_port}${path}`
-}
-
 // ── Actions ────────────────────────────────────────────────────────────────
 function toggleExpand(id) {
   expanded.value = expanded.value === id ? null : id
@@ -325,7 +321,11 @@ async function action(name, kind) {
   try {
     const r = await fetch(`/api/containers/${name}/${kind}`,
       { method: kind === 'remove' ? 'DELETE' : 'POST' })
-    if (r.ok) { showToast(`${kind} ${name} → ok`); refresh() }
+    if (r.ok) {
+      showToast(`${kind} ${name} → ok`)
+      await new Promise(r => setTimeout(r, 500))
+      refresh()
+    }
     else showToast(`${kind} ${name} failed: ${await r.text()}`, 'err')
   } catch (e) { showToast(`${kind} ${name}: ${e.message}`, 'err') }
 }

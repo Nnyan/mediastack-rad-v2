@@ -192,6 +192,9 @@ def _summarize(c: Container) -> ContainerSummary:
     health_info = state.get("Health") or {}
     health = health_info.get("Status") or "none"
 
+    # Determine best web URL from Traefik labels or host port
+    web_url = _web_url(labels=cfg.get("Labels") or {}, ports=ports, name=c.name)
+
     return ContainerSummary(
         id=c.id[:12],
         name=c.name,
@@ -203,7 +206,41 @@ def _summarize(c: Container) -> ContainerSummary:
         ports=ports,
         labels=cfg.get("Labels") or {},
         networks=networks,
+        web_url=web_url,
     )
+
+
+_KNOWN_WEB_PORTS = {
+    80, 443, 3000, 5055, 5000, 6767, 6789, 7878, 8080, 8081,
+    8085, 8096, 8686, 8787, 8989, 9696, 32400,
+}
+
+_SPECIAL_PATHS = {
+    "plex": "/web",
+    "traefik": "/dashboard/",
+}
+
+
+def _web_url(labels: dict, ports: list[ContainerPort], name: str) -> str | None:
+    """Return the best URL for a container's web UI.
+
+    Prefer Traefik Host() rule (HTTPS via domain) when available.
+    Fall back to direct host-port URL (HTTP).
+    """
+    import re
+    for key, val in labels.items():
+        if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
+            m = re.search(r"Host\(`([^`]+)`\)", val)
+            if m:
+                host = m.group(1)
+                if not host.startswith("auth."):
+                    return f"https://{host}/"
+    port = next((p for p in ports if p.host_port and p.container_port in _KNOWN_WEB_PORTS), None)
+    if not port:
+        return None
+    scheme = "https" if port.container_port == 443 else "http"
+    path = _SPECIAL_PATHS.get(name, "")
+    return f"{scheme}://0.0.0.0:{port.host_port}{path}"
 
 
 def _iso_to_unix(iso: str) -> int:

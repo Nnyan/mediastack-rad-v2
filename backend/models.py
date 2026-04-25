@@ -33,6 +33,7 @@ class ContainerSummary(BaseModel):
     ports: list[ContainerPort] = []
     labels: dict[str, str] = {}
     networks: list[str] = []
+    web_url: str | None = None
 
 
 class ContainerStats(BaseModel):

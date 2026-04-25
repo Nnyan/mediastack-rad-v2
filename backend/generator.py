@@ -232,7 +232,7 @@ def generate(request: StackRequest) -> str:
         if svc_def is None:
             continue
         # Special case: if user has external Plex, skip the Plex service
-        # but still install Overseerr with PLEX_URL set externally.
+        # but still install Seerr with PLEX_URL set externally.
         if svc_def.key == "plex" and request.external_plex_url:
             continue
         rendered = _render_service(svc_def, request, domain, choice)
@@ -425,8 +425,8 @@ def _render_service(
     # Prefer plex_url (new field), fall back to external_plex_url (legacy).
     _plex_url = request.plex_url or request.external_plex_url
 
-    # Seerr / Overseerr: inject URL so setup wizard auto-discovers Plex.
-    if svc.key in ("seerr", "overseerr") and _plex_url:
+    # Seerr: inject URL so setup wizard auto-discovers Plex.
+    if svc.key == "seerr" and _plex_url:
         svc_dict["environment"]["PLEX_URL"] = _plex_url
 
     # *arr apps + Bazarr: inject PLEX_URL and PLEX_TOKEN so they can

@@ -77,9 +77,6 @@
             <span class="cfg-title">Cloudflare</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
-            <div class="cfg-note cfg-note-neutral" style="margin-bottom: 6px">
-              Tokens can also be set in <strong>Settings → Secrets</strong> and will persist across deploys. Values entered here are used for this deploy only.
-            </div>
             <div class="cfg-grid">
               <label v-if="pick['traefik']" class="cfg-field span2">
                 <span class="cfg-label">
@@ -379,7 +376,7 @@
               <code>{{ c.conflict_with }}</code>
             </span>
             <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
-              Use {{ c.suggested_port }} instead
+              Use {{ c.suggested_port }}
             </button>
           </div>
         </div>
@@ -421,6 +418,7 @@ const showToast = inject('showToast')
 
 // ── State ──────────────────────────────────────────────────────────────────
 const rawCatalog   = ref({})
+localStorage.removeItem('rad-stack-builder-pick')
 const pick         = reactive({})
 const search       = ref('')
 const activeFilter = ref('')
@@ -515,7 +513,7 @@ const SHORT_DESCS = {
   sonarr: 'TV manager', radarr: 'Movie manager', lidarr: 'Music manager',
   readarr: 'Books & audiobooks', bazarr: 'Subtitle manager', prowlarr: 'Index manager',
   qbittorrent: 'BitTorrent client', sabnzbd: 'Usenet downloader', nzbget: 'Usenet (lite)',
-  seerr: 'Request manager (Plex/Jellyfin/Emby)',  // replaces Overseerr + Jellyseerr
+  seerr: 'Request manager (Plex/Jellyfin/Emby)',
   traefik: 'Reverse proxy & HTTPS', tinyauth: 'Auth gateway',
   tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel',
 }
@@ -1208,6 +1206,46 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .output-block.ok  .output-label { background: var(--ok-bg);  color: var(--ok);  }
 .output-block.err .output-label { background: var(--err-bg); color: var(--err); }
 .output-block .output { border-top: none; border-radius: 0; }
+
+/* Port conflict banner (service grid) */
+.port-conflict-banner {
+  margin-top: var(--space-3);
+  border: 1.5px solid rgba(217,119,6,0.4);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--warn-bg);
+}
+.port-conflict-banner-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(217,119,6,0.15);
+}
+.port-conflict-icon { font-size: 14px; color: var(--warn); }
+.port-conflict-title { font-size: 12px; font-weight: 600; color: var(--warn); }
+.port-conflict-checking { font-size: 11px; color: var(--fg-2); font-style: italic; }
+.port-conflict-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px;
+}
+.port-conflict-svc {
+  font-size: 12px; font-weight: 600; color: var(--fg-0); min-width: 90px;
+}
+.port-conflict-detail {
+  font-size: 12px; color: var(--fg-1); flex: 1;
+}
+.port-conflict-detail code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: var(--bg-1); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px; color: var(--fg-0);
+}
+.port-conflict-accept {
+  font-size: 11px; font-weight: 600; font-family: var(--font-sans);
+  padding: 4px 10px; border-radius: 6px;
+  border: 1.5px solid var(--accent); background: transparent;
+  color: var(--accent); cursor: pointer; white-space: nowrap;
+  transition: all 0.13s; margin-left: auto;
+}
+.port-conflict-accept:hover { background: var(--accent-subtle); }
 
 /* Container name conflict banner (deploy-time) */
 .conflict-banner {
