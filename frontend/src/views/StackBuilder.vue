@@ -381,7 +381,8 @@
           >
             <span class="tile-icon">{{ svc.icon }}</span>
             <span class="tile-name">{{ svc.display_name }}</span>
-            <span v-if="liveServices.has(svc.key)" class="tile-live">●</span>
+            <span v-if="liveServices.has(svc.key)" class="tile-dot dot-ok">●</span>
+            <span v-else-if="pick[svc.key]" class="tile-dot dot-err">●</span>
             <span v-if="portOverrides[svc.key]" class="tile-port-override">:{{ portOverrides[svc.key] }}</span>
           </button>
 
@@ -653,7 +654,6 @@ function catColors(cat)    { return CAT_COLORS[cat] || { bg: 'var(--accent-subtl
 function tagStyle(cat)     { const c = catColors(cat); return { background: c.bg, color: c.text, borderColor: c.border } }
 function tileStyle(cat)    { const c = catColors(cat); return { '--tc': c.text, '--tc-bg': c.bg } }
 function tileClass(key)   {
-  if (liveServices.value.has(key) && pick[key]) return 'tile-live-on'
   if (pick[key]) return 'tile-selected'
   return ''
 }
@@ -1057,9 +1057,9 @@ onUnmounted(() => {
 }
 .tile.on .tile-name,
 .tile-selected .tile-name { color: var(--accent); }
-.tile-live-on .tile-name { color: var(--accent); }
-.tile-live-on { background: rgba(22,163,74,0.07); border-color: #16a34a; }
-.tile-live  { font-size: 11px; color: #16a34a; flex-shrink: 0; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); line-height: 1; }
+.tile-dot { font-size: 11px; flex-shrink: 0; line-height: 1; }
+.dot-ok  { color: #16a34a; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); }
+.dot-err { color: #dc2626; text-shadow: 0 0 6px rgba(220,38,38,0.9), 0 0 12px rgba(220,38,38,0.5); }
 .tile-port-override {
   font-family: var(--font-mono); font-size: 9px;
   color: var(--warn); flex-shrink: 0;
