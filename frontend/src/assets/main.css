@@ -156,13 +156,13 @@ a:hover { text-decoration: underline; }
 /* ---- Buttons ----------------------------------------------------------- */
 button {
   font-family: var(--font-sans);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   background: var(--bg-1);
   color: var(--fg-0);
   border: 1px solid var(--border-strong);
-  padding: 7px 15px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
   white-space: nowrap;

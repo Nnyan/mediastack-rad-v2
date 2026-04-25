@@ -348,7 +348,6 @@
           <div class="tile-header">
             <div>
               <h3 class="tile-title">Service Catalog</h3>
-              <p class="tile-sub">Select the apps you want to include in your stack.</p>
             </div>
             <div class="search-wrap tile-search">
               <span class="search-icon">🔍</span>
@@ -396,7 +395,6 @@
           <div class="instances-header">
             <div>
               <h3 class="instances-title">Running Instances</h3>
-              <p class="instances-sub">{{ filteredContainers.length }} container{{ filteredContainers.length === 1 ? '' : 's' }} · auto-refresh every 10s</p>
             </div>
             <div class="instances-controls">
               <div class="search-wrap instances-search">
@@ -1001,9 +999,7 @@ async function loadLogs(name) {
 }
 
 function confirmRemove(name) {
-  if (window.confirm(`Remove ${name}? This stops and deletes the container.`)) {
-    removeContainer(name)
-  }
+  removeContainer(name)
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -1365,7 +1361,7 @@ onUnmounted(() => {
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .header-sub-sep { opacity: 0.5; }
-.btn-review     { font-size: 13.5px; font-weight: 600; font-family: var(--font-sans); padding: 6px 14px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
+.btn-review     { font-size: 13px; font-weight: 600; font-family: var(--font-sans); padding: 6px 12px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
 .btn-review:hover:not(:disabled) { background: var(--accent-subtle); }
 .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -1404,16 +1400,11 @@ onUnmounted(() => {
 }
 .tile-card .service-grid { margin-top: var(--space-1); }
 .tile-title {
-  font-size: 13px;
+  font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
   margin: 0 0 4px;
-}
-.tile-sub {
-  font-size: 11.5px;
-  color: var(--fg-2);
-  margin: 0;
 }
 .tile-search { max-width: 240px; flex: 0 0 220px; }
 
@@ -1425,16 +1416,11 @@ onUnmounted(() => {
   gap: var(--space-3);
 }
 .instances-title {
-  font-size: 13px;
+  font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
   margin: 0 0 4px;
-}
-.instances-sub {
-  font-size: 11.5px;
-  color: var(--fg-2);
-  margin: 0;
 }
 .instances-controls {
   display: flex;
@@ -1656,7 +1642,7 @@ onUnmounted(() => {
 /* CfgSection — styles for the inline component template */
 .cfg-section      { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: box-shadow 0.13s; }
 .cfg-section.open { box-shadow: var(--shadow-1); }
-.cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; user-select: none; }
+.cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; user-select: none; }
 .cfg-head:hover   { background: var(--bg-2); }
 .cfg-icon         { font-size: 13px; }
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
@@ -1664,8 +1650,7 @@ onUnmounted(() => {
 .cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); white-space: nowrap; flex-shrink: 0; }
 .cfg-head-pinned  { cursor: default; }
 .cfg-head-pinned:hover { background: var(--bg-1); }
-.cfg-chevron      { color: var(--fg-2); font-size: 16px; transition: transform 0.13s; display: inline-block; line-height: 1; }
-.cfg-chevron.open { transform: rotate(90deg); }
+.cfg-chevron      { display: none; }
 
 
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
