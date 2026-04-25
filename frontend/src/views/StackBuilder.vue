@@ -4,9 +4,14 @@
     <!-- ── Header ──────────────────────────────────────────────────────── -->
     <div class="builder-header">
       <h1 class="page-title">Stack Builder</h1>
-      <button class="primary" :disabled="deploying || !selectedServices.length" @click="deploy">
-        {{ deploying ? 'Deploying…' : 'Deploy stack →' }}
-      </button>
+      <div class="header-actions">
+        <button class="btn-review" :disabled="previewLoading || !selectedServices.length" @click="preview">
+          {{ previewLoading ? 'Generating…' : 'Review' }}
+        </button>
+        <button class="primary" :disabled="deploying || !selectedServices.length" @click="deploy">
+          {{ deploying ? 'Deploying…' : 'Deploy stack →' }}
+        </button>
+      </div>
     </div>
 
     <!-- ── Two-column layout: config left, grid right ───────────────────── -->
@@ -321,48 +326,6 @@
           </div>
           </div>
 
-          <!-- Review & deploy — always visible -->
-          <div class="cfg-section" :class="{ open: expanded.deploy }">
-          <div class="cfg-head cfg-head-pinned">
-            <span class="cfg-icon">🚀</span>
-            <span class="cfg-title">Review &amp; deploy</span>
-          </div>
-          <div v-if="expanded.deploy" class="cfg-body">
-            <div class="deploy-row">
-              <button class="deploy-btn" @click="preview" :disabled="previewLoading">
-                {{ previewLoading ? 'Generating…' : 'Preview' }}
-              </button>
-              <button class="deploy-btn primary" :disabled="deploying" @click="deploy">
-                {{ deploying ? 'Deploying…' : 'Deploy' }}
-              </button>
-              <span class="muted small ml-auto">{{ selectedServices.length }} · {{ req.domain || 'no domain' }}</span>
-            </div>
-            <pre v-if="previewText" class="output mono">{{ previewText }}</pre>
-            <div v-if="deployOutput" class="output-block" :class="deployOk ? 'ok' : 'err'">
-              <div class="output-label">{{ deployOk ? '✓ Deploy complete' : '✗ Deploy failed' }}</div>
-              <pre class="output mono">{{ deployOutput }}</pre>
-            </div>
-
-            <!-- Conflict resolution banner -->
-            <div v-if="deployConflicts.length" class="conflict-banner">
-              <div class="conflict-banner-head">
-                <span class="conflict-icon">⚠</span>
-                <span class="conflict-title">
-                  {{ deployConflicts.length }} container{{ deployConflicts.length !== 1 ? 's' : '' }} already exist and must be removed first
-                </span>
-              </div>
-              <div class="conflict-names">
-                <code v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</code>
-              </div>
-              <div class="conflict-actions">
-                <span class="conflict-warn">These containers will be stopped and removed.</span>
-                <button class="conflict-btn" :disabled="deploying" @click="purgeAndRetry">
-                  {{ deploying ? 'Removing…' : 'Remove conflicts & retry deploy' }}
-                </button>
-              </div>
-            </div>
-          </div>
-          </div>
 
         </div>
       </div><!-- /config-panel -->
@@ -863,6 +826,10 @@ onUnmounted(() => {
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .builder-header { margin-bottom: var(--space-3); display: flex; align-items: center; justify-content: space-between; }
+.header-actions { display: flex; align-items: center; gap: var(--space-2); }
+.btn-review     { font-size: 13.5px; font-weight: 600; font-family: var(--font-sans); padding: 6px 14px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
+.btn-review:hover:not(:disabled) { background: var(--accent-subtle); }
+.btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
 .search-wrap { position: relative; margin-bottom: var(--space-3); }
@@ -1048,7 +1015,7 @@ onUnmounted(() => {
 .parse-confirmed { padding: 5px 12px; font-size: 11px; font-weight: 600; color: var(--ok); border-top: 1px solid rgba(22,163,74,0.15); }
 
 /* Deploy area */
-.deploy-row    { display: flex; align-items: center; gap: 6px; margin-top: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+
 .deploy-btn    { font-size: 11.5px; padding: 4px 10px; white-space: nowrap; }
 .output        { max-height: 380px; overflow: auto; background: var(--bg-0); padding: var(--space-3); border-radius: var(--radius); font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border); margin: 0; }
 .output-block  { border-radius: var(--radius); overflow: hidden; margin-top: var(--space-2); }
