@@ -265,10 +265,14 @@ def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
                 missing.append("cap_add: [NET_ADMIN, NET_RAW]")
             if not has_tun:
                 missing.append("devices: [/dev/net/tun:/dev/net/tun]")
+            details = [
+                "TS_USERSPACE is false, so Tailscale needs kernel TUN access.",
+                "Missing: " + ", ".join(missing),
+            ]
             out.append(HealthIssue(
                 id="tailscale.no_tun", severity="warning", category="Network",
                 title="Tailscale missing TUN configuration",
-                detail=f"TS_USERSPACE=false requires: {', '.join(missing)}.",
+                detail=" ".join(details),
                 fix_hint="Redeploy via Stack Builder — it adds these automatically.",
             ))
     return out
