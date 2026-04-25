@@ -324,18 +324,6 @@ async def _build() -> list[ChecklistItem]:
             category="recommended",
             action_url="https://login.tailscale.com/admin/machines",
         ))
-        items.append(ChecklistItem(
-            id="tailscale.magicdns",
-            title="Enable MagicDNS for hostname access (optional)",
-            detail=(
-                "With MagicDNS enabled, reach your stack as 'mediastack' from any enrolled "
-                "device instead of by IP. Configure at https://login.tailscale.com/admin/dns"
-            ),
-            done=False,
-            category="optional",
-            action_url="https://login.tailscale.com/admin/dns",
-        ))
-
     # ---- Per-service ------------------------------------------------------
 
     if "plex" in services:
