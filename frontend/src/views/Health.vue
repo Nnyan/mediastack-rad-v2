@@ -312,8 +312,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   text-overflow: ellipsis;
 }
 .result-ok   .result-text { color: var(--fg-2); }
-.result-warn .result-text { color: var(--warn); font-weight: 500; }
-.result-error .result-text { color: var(--err); font-weight: 500; }
+.result-warn .result-text,
+.result-error .result-text,
+.detail-text { color: var(--warn); }
 
 /* Timestamp */
 .row-ts {
@@ -351,8 +352,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   border: 1px solid var(--border);
 }
 .detail-text {
-  font-size: 12px; color: var(--fg-1);
-  margin: 0 0 5px; line-height: 1.5;
+  font-size: 12px; margin: 0 0 5px; line-height: 1.5;
 }
 .detail-hint {
   font-size: 11.5px; color: var(--fg-2);

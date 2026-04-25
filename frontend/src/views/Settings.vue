@@ -77,7 +77,6 @@
     <div class="section-head todo-head">
       <div>
         <h2 class="section-title">To-do</h2>
-        <p class="section-sub">Setup tasks that disappear when complete.</p>
       </div>
       <div class="pill-count" v-if="total > 0">{{ total }} remaining</div>
     </div>
@@ -374,11 +373,15 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .task.recommended { border-left-color: var(--warn-dim); }
 
 .task-main {
-  display: flex; align-items: center; gap: var(--space-2);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
 }
-.task-title { font-weight: 500; font-size: 13px; flex: 1; }
-.task-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; }
+.task-title { font-weight: 500; font-size: 12.5px; }
+.task-action { margin-left: auto; }
+.task-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; justify-self: end; }
 .task-chevron.open { transform: rotate(90deg); }
 
 .task-detail {
