@@ -12,6 +12,10 @@
         </div>
       </div>
       <div class="header-actions">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input v-model="search" placeholder="Search services…" class="search-input" />
+        </div>
         <button class="btn-review" :disabled="previewLoading || !selectedServices.length" @click="preview">
           {{ previewLoading ? 'Generating…' : 'Review' }}
         </button>
@@ -27,28 +31,7 @@
       <!-- Left: config accordion -->
       <div class="config-panel">
         <div class="config-area">
-          <!-- Port conflict banner -->
-          <div v-if="portConflicts.length" class="port-conflict-banner">
-            <div class="port-conflict-banner-head">
-              <span class="port-conflict-icon">⚠</span>
-              <span class="port-conflict-title">{{ portConflicts.length }} port conflict{{ portConflicts.length !== 1 ? 's' : '' }} detected</span>
-              <span v-if="portsChecking" class="port-conflict-checking">checking…</span>
-            </div>
-            <div v-for="c in portConflicts" :key="c.service" class="port-conflict-row">
-              <span class="port-conflict-svc">{{ svcName(c.service) }}</span>
-              <span class="port-conflict-detail">
-                port <strong>{{ c.port }}</strong> already used by
-                <code>{{ c.conflict_with }}</code>
-              </span>
-              <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
-                Use {{ c.suggested_port }} instead
-              </button>
-            </div>
-          </div>
 
-          <div class="config-heading">Configuration</div>
-
-          <!-- Core settings — always visible -->
           <div class="cfg-section" :class="{ open: expanded.core }">
           <div class="cfg-head cfg-head-pinned">
             <span class="cfg-icon">⚙️</span>
@@ -265,9 +248,9 @@
 
           <!-- Add custom app — always visible below Core settings -->
           <div class="cfg-section" :class="{ open: expanded.custom }">
-          <div class="cfg-head" @click="toggleCfg('custom')">
-            <span class="cfg-icon">＋</span>
-            <span class="cfg-title">Add custom app</span>
+           <div class="cfg-head" @click="toggleCfg('custom')">
+             <span class="cfg-icon">📦</span>
+             <span class="cfg-title">Add custom app</span>
           </div>
           <div v-if="expanded.custom" class="cfg-body">
             <div class="tab-row">
@@ -364,12 +347,6 @@
       <!-- Right: service grid -->
       <div class="grid-panel">
 
-        <!-- Search under title -->
-        <div class="search-wrap">
-          <span class="search-icon">🔍</span>
-          <input v-model="search" placeholder="Search services…" class="search-input" />
-        </div>
-
         <!-- Service grid — compact single-line tiles, fixed 4 columns -->
         <div class="service-grid">
           <button
@@ -386,6 +363,25 @@
             <span v-if="portOverrides[svc.key]" class="tile-port-override">:{{ portOverrides[svc.key] }}</span>
           </button>
 
+        </div>
+
+        <!-- Port conflict banner — below the service grid -->
+        <div v-if="portConflicts.length" class="port-conflict-banner">
+          <div class="port-conflict-banner-head">
+            <span class="port-conflict-icon">⚠</span>
+            <span class="port-conflict-title">{{ portConflicts.length }} port conflict{{ portConflicts.length !== 1 ? 's' : '' }} detected</span>
+            <span v-if="portsChecking" class="port-conflict-checking">checking…</span>
+          </div>
+          <div v-for="c in portConflicts" :key="c.service" class="port-conflict-row">
+            <span class="port-conflict-svc">{{ svcName(c.service) }}</span>
+            <span class="port-conflict-detail">
+              port <strong>{{ c.port }}</strong> already used by
+              <code>{{ c.conflict_with }}</code>
+            </span>
+            <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
+              Use {{ c.suggested_port }} instead
+            </button>
+          </div>
         </div>
 
       </div><!-- /grid-panel -->
@@ -425,14 +421,14 @@ const showToast = inject('showToast')
 
 // ── State ──────────────────────────────────────────────────────────────────
 const rawCatalog   = ref({})
-const pick         = reactive(JSON.parse(localStorage.getItem('rad-stack-builder-pick') || '{}'))
+const pick         = reactive({})
 const search       = ref('')
 const activeFilter = ref('')
 // Plain reactive object — boolean per section. More reliable than reactive(Set)
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: true, extraenv: false, deploy: true,
+  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
 })
 const plexMode     = ref('local')
 const addTab       = ref('compose')
@@ -496,7 +492,6 @@ function sanitizeForStorage(v) {
 }
 
 watch(req, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeForStorage(v))), { deep: true })
-watch(pick,   v => localStorage.setItem('rad-stack-builder-pick', JSON.stringify({...v})), { deep: true })
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TAG_LABELS = {
@@ -952,7 +947,6 @@ async function deploy() {
       showToast('Deploy complete', 'ok', 5000)
       // Clear selections — deployed stack is now running; live dots show status
       Object.keys(pick).forEach(k => { pick[k] = false })
-      localStorage.setItem('rad-stack-builder-pick', JSON.stringify({}))
     } else if (deployConflicts.value.length) {
       showToast(`${deployConflicts.value.length} container conflict(s) — click "Remove conflicts & retry"`, 'warn', 8000)
     } else {
@@ -982,6 +976,7 @@ watch(selectedServices, schedulePortCheck)
 let runningPollTimer = null
 
 onMounted(() => {
+  localStorage.removeItem('rad-stack-builder-pick')
   loadCatalog()
   loadRunningServices()
   runningPollTimer = setInterval(loadRunningServices, 15000)
@@ -1013,7 +1008,7 @@ onUnmounted(() => {
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .builder-header { margin-bottom: var(--space-3); display: flex; align-items: center; justify-content: space-between; }
-.header-actions { display: flex; align-items: center; gap: var(--space-2); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
 .header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .header-sub-sep { opacity: 0.5; }
 .btn-review     { font-size: 13.5px; font-weight: 600; font-family: var(--font-sans); padding: 6px 14px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
@@ -1021,7 +1016,7 @@ onUnmounted(() => {
 .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
-.search-wrap { position: relative; margin-bottom: var(--space-3); }
+.search-wrap { position: relative; flex: 1; min-width: 140px; }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
 .search-input {
   width: 100%;
@@ -1086,12 +1081,6 @@ onUnmounted(() => {
 
 /* ── Config area ────────────────────────────────────────────────────────── */
 .config-area    { display: flex; flex-direction: column; gap: 6px; }
-.config-heading {
-  font-size: 11px; font-weight: 700;
-  color: var(--fg-2); text-transform: uppercase;
-  letter-spacing: 0.08em; margin-bottom: 6px;
-}
-
 /* CfgSection — styles for the inline component template */
 .cfg-section      { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: box-shadow 0.13s; }
 .cfg-section.open { box-shadow: var(--shadow-1); }

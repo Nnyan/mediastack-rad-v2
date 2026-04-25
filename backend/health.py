@@ -105,7 +105,7 @@ def check_env_file(ctx: _CheckContext) -> list[HealthIssue]:
             id=f"env.{i.severity}.{hash((i.line, i.message)) & 0xffff:x}",
             severity="error" if i.severity == "error" else "warning",
             category="config",
-            title=f".env {i.severity}",
+            title=f"Env file {i.severity}",
             detail=f"Line {i.line}: {i.message}" if i.line else i.message,
         )
         for i in validate_env_file(config.stack_dir / ".env")
@@ -126,7 +126,7 @@ def check_traefik_yaml(ctx: _CheckContext) -> list[HealthIssue]:
             id=f"traefik.yml.{hash(i.message) & 0xffff:x}",
             severity="error" if i.severity == "error" else "warning",
             category="traefik",
-            title=f"traefik.yml {i.severity}",
+            title=f"Traefik.yml {i.severity}",
             detail=f"Line {i.line}: {i.message}" if i.line else i.message,
         )
         for i in validate_traefik_yaml(t)
@@ -412,7 +412,7 @@ CHECK_META: dict[str, tuple[str, str, str]] = {
     "check_docker_socket":    ("Docker",  "Docker daemon",        "connected"),
     "check_compose_file":     ("Config",  "Compose file",         "valid"),
     "check_env_file":         ("Config",  "Environment file",     "no issues"),
-    "check_traefik_yaml":     ("Traefik", "traefik.yml",          "valid"),
+    "check_traefik_yaml":     ("Traefik", "Traefik.yml",          "valid"),
     "check_ghost_containers": ("Docker",  "Ghost containers",     "none found"),
     "check_port_conflicts":   ("Docker",  "Port conflicts",       "no conflicts"),
     "check_acme_storage":     ("Traefik", "ACME storage",         "mode 0600"),

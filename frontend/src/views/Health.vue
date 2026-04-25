@@ -53,9 +53,6 @@
               <span class="dot" :class="`dot-${check.status}`"></span>
               <span class="row-label">{{ check.label }}</span>
               <span class="row-result" :class="`result-${check.status}`">
-                <span v-if="check.status !== 'ok'" class="sev-pill" :class="`pill-${check.status}`">
-                  {{ check.status }}
-                </span>
                 <span class="result-text">{{ check.summary }}</span>
               </span>
               <span class="row-ts">{{ formatTime(report.checked_at) }}</span>
@@ -308,7 +305,8 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   overflow: hidden;
 }
 .result-text {
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -316,14 +314,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .result-ok   .result-text { color: var(--fg-2); }
 .result-warn .result-text { color: var(--warn); font-weight: 500; }
 .result-error .result-text { color: var(--err); font-weight: 500; }
-
-.sev-pill {
-  font-size: 9.5px; font-weight: 700;
-  padding: 1px 6px; border-radius: 20px;
-  flex-shrink: 0;
-}
-.pill-warn  { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,0.2); }
-.pill-error { background: var(--err-bg);  color: var(--err);  border: 1px solid rgba(220,38,38,0.2); }
 
 /* Timestamp */
 .row-ts {
