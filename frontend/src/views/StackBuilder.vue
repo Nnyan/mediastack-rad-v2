@@ -385,6 +385,21 @@
 
     </div><!-- /builder-layout -->
 
+    <!-- ── Preview output ───────────────────────────────────────────────── -->
+    <div v-if="previewText" class="deploy-output-area">
+      <div v-if="previewWarnings.length" class="preview-warnings">
+        <div v-for="w in previewWarnings" :key="w.message" class="preview-warn-row">
+          <span class="preview-warn-icon">⚠</span>
+          <span class="preview-warn-svc" v-if="w.service">{{ w.service }}</span>
+          <span class="preview-warn-msg">{{ w.message }}</span>
+        </div>
+      </div>
+      <div class="output-block ok">
+        <div class="output-label">Generated compose ({{ previewText.length }} bytes)</div>
+        <pre class="output">{{ previewText }}</pre>
+      </div>
+    </div>
+
     <!-- ── Deploy output ────────────────────────────────────────────────── -->
     <div v-if="deployOutput" class="deploy-output-area">
       <div :class="['output-block', deployOk ? 'ok' : 'err']">
@@ -676,8 +691,8 @@ const SERVICE_SECTION = { cloudflared: 'cloudflare', traefik: 'cloudflare', tail
 
 function toggle(key) {
   pick[key] = !pick[key]
-  // Auto-open the config section when a service is selected,
-  // auto-close it when deselected (unless it was already open)
+  previewText.value = ''
+  previewWarnings.value = []
   const section = SERVICE_SECTION[key]
   if (section) {
     expanded[section] = pick[key]
@@ -812,10 +827,6 @@ function acceptPortSuggestion(conflict) {
 async function loadCatalog() {
   try {
     rawCatalog.value = await fetch('/api/catalog').then(r => r.json())
-    if (Object.keys(pick).length === 0) {
-      ['traefik', 'prowlarr', 'sonarr', 'radarr', 'bazarr', 'seerr',
-       'qbittorrent', 'plex', 'cloudflared'].forEach(k => { pick[k] = true })
-    }
   } catch (e) {
     showToast('Failed to load catalog — check the backend is running', 'err')
   }
@@ -860,9 +871,12 @@ function buildRequest() {
   }
 }
 
+const previewWarnings = ref([])
+
 async function preview() {
   previewLoading.value = true
   previewText.value = ''
+  previewWarnings.value = []
   expanded.deploy = true
   try {
     const r = await fetch('/api/stack/generate', {
@@ -873,7 +887,8 @@ async function preview() {
     if (!r.ok) throw new Error(await r.text())
     const data = await r.json()
     previewText.value = data.yaml
-    const warnCount = data.warnings?.length || 0
+    previewWarnings.value = data.warnings || []
+    const warnCount = previewWarnings.value.length
     showToast(`Generated — ${data.bytes} bytes${warnCount ? ` · ${warnCount} warning(s)` : ''}`)
   } catch (e) {
     const msg = typeof e === 'object' && e.errors
@@ -915,6 +930,8 @@ async function purgeAndRetry() {
 async function deploy() {
   deploying.value = true
   deployOutput.value = ''
+  previewText.value = ''
+  previewWarnings.value = []
   expanded.deploy = true
   try {
     const r = await fetch('/api/stack/deploy', {
@@ -1206,6 +1223,28 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .output-block.ok  .output-label { background: var(--ok-bg);  color: var(--ok);  }
 .output-block.err .output-label { background: var(--err-bg); color: var(--err); }
 .output-block .output { border-top: none; border-radius: 0; }
+
+.preview-warnings {
+  border: 1.5px solid rgba(217,119,6,0.4);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--warn-bg);
+  margin-bottom: var(--space-2);
+}
+.preview-warn-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(217,119,6,0.12);
+}
+.preview-warn-row:last-child { border-bottom: none; }
+.preview-warn-icon { color: var(--warn); font-size: 13px; flex-shrink: 0; }
+.preview-warn-svc {
+  font-size: 11.5px; font-weight: 600; font-family: var(--font-mono);
+  color: var(--fg-0); background: var(--bg-1);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 6px; white-space: nowrap;
+}
+.preview-warn-msg { font-size: 12px; color: var(--fg-1); }
 
 /* Port conflict banner (service grid) */
 .port-conflict-banner {
