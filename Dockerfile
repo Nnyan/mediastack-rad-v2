@@ -82,7 +82,9 @@ ENV PYTHONUNBUFFERED=1 \
 # (required for container management) but the process itself does not
 # run as UID 0. The user is added to the 'docker' group so it can access
 # the socket without needing root.
-RUN groupadd -r rad && useradd -r -g rad -G docker rad \
+RUN groupadd -r docker || true \
+    && groupadd -r rad \
+    && useradd -r -g rad -G docker rad \
     && chown -R rad:rad /app
 
 USER rad
