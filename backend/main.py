@@ -199,6 +199,37 @@ async def api_running_containers() -> list[str]:
     return [c.name for c in docker_client.list_containers(include_stopped=False)]
 
 
+@app.get("/api/containers/env")
+async def api_containers_env(names: str = "") -> dict[str, dict[str, str]]:
+    """Return environment variables for named containers.
+
+    Query param `names` is a comma-separated list of container names.
+    Returns { container_name: { KEY: VALUE, ... }, ... }.
+    Values matching known secret patterns are masked.
+    """
+    MASK_KEYS = {
+        "CF_DNS_API_TOKEN", "CLOUDFLARED_TOKEN", "TUNNEL_TOKEN",
+        "TS_AUTHKEY", "TINYAUTH_AUTH_USERS", "PLEX_CLAIM", "PLEX_TOKEN",
+    }
+    result: dict[str, dict[str, str]] = {}
+    if not names:
+        return result
+    for name in names.split(","):
+        name = name.strip()
+        if not name:
+            continue
+        c = docker_client.get_container_safe(name)
+        if not c:
+            continue
+        env_map: dict[str, str] = {}
+        for entry in (c.attrs.get("Config", {}).get("Env", []) or []):
+            if "=" in entry:
+                k, _, v = entry.partition("=")
+                env_map[k] = "***" if k in MASK_KEYS else v
+        result[name] = env_map
+    return result
+
+
 @app.post("/api/containers/{name}/start")
 async def api_start(name: str) -> dict:
     docker_client.start(name)

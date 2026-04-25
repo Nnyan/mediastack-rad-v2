@@ -58,7 +58,7 @@
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">Domain</span>
-                <input v-model="req.domain" placeholder="nyrdalyrt.com" />
+                <input v-model="req.domain" placeholder="nyrdalyrt.com" :readonly="isFieldFromLive('domain')" :class="{ 'cfg-readonly': isFieldFromLive('domain') }" />
                 <span class="cfg-hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
               </label>
               <label class="cfg-field span2">
@@ -72,7 +72,7 @@
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Timezone</span>
-                <input v-model="req.timezone" placeholder="America/Los_Angeles" />
+                <input v-model="req.timezone" placeholder="America/Los_Angeles" :readonly="isFieldFromLive('timezone')" :class="{ 'cfg-readonly': isFieldFromLive('timezone') }" />
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">PUID</span>
@@ -103,7 +103,7 @@
                   DNS API Token
                   <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="cfg-link">Create ↗</a>
                 </span>
-                <input v-model="req.cloudflare_token" type="password" placeholder="CF_DNS_API_TOKEN — Zone:DNS:Edit + Zone:Zone:Read" />
+                <input v-model="req.cloudflare_token" type="password" placeholder="CF_DNS_API_TOKEN — Zone:DNS:Edit + Zone:Zone:Read" :readonly="isFieldFromLive('cloudflare_token')" :class="{ 'cfg-readonly': isFieldFromLive('cloudflare_token') }" />
                 <span class="cfg-hint">Required for DNS-01 HTTPS cert issuance via Traefik</span>
               </label>
               <label v-if="pick['cloudflared']" class="cfg-field span2">
@@ -111,7 +111,7 @@
                   Tunnel Token
                   <a href="https://one.dash.cloudflare.com/" target="_blank" class="cfg-link">Zero Trust ↗</a>
                 </span>
-                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="CLOUDFLARED_TOKEN from Zero Trust → Tunnels" />
+                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="CLOUDFLARED_TOKEN from Zero Trust → Tunnels" :readonly="isFieldFromLive('cloudflare_tunnel_token')" :class="{ 'cfg-readonly': isFieldFromLive('cloudflare_tunnel_token') }" />
                 <span class="cfg-hint">Authenticates the cloudflared daemon to your tunnel</span>
               </label>
             </div>
@@ -133,17 +133,17 @@
                   Auth key
                   <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" class="cfg-link">Tailscale admin ↗</a>
                 </span>
-                <input v-model="req.tailscale_auth_key" type="password" placeholder="tskey-auth-… (reusable, non-ephemeral)" />
+                <input v-model="req.tailscale_auth_key" type="password" placeholder="tskey-auth-… (reusable, non-ephemeral)" :readonly="isFieldFromLive('tailscale_auth_key')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_auth_key') }" />
                 <span class="cfg-hint">Generate a reusable, non-ephemeral key — ephemeral keys expire and drop the node.</span>
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Node hostname</span>
-                <input v-model="req.tailscale_hostname" placeholder="mediastack" />
+                <input v-model="req.tailscale_hostname" placeholder="mediastack" :readonly="isFieldFromLive('tailscale_hostname')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_hostname') }" />
                 <span class="cfg-hint">How this server appears in your tailnet</span>
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Subnet routes</span>
-                <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" />
+                <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" :readonly="isFieldFromLive('tailscale_routes')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_routes') }" />
                 <span class="cfg-hint">Docker network CIDR — gives enrolled devices direct container access</span>
               </label>
             </div>
@@ -171,7 +171,7 @@
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">App URL</span>
-                <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" />
+                <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" :readonly="isFieldFromLive('tinyauth_app_url')" :class="{ 'cfg-readonly': isFieldFromLive('tinyauth_app_url') }" />
                 <span class="cfg-hint">⚠ Must be added as a public hostname in your CF Tunnel → forward to http://tinyauth:3000</span>
               </label>
 
@@ -180,7 +180,7 @@
                   Users
                   <button class="gen-btn" type="button" @click="generateCredentials">Generate admin</button>
                 </span>
-                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." />
+                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." :readonly="isFieldFromLive('tinyauth_users')" :class="{ 'cfg-readonly': isFieldFromLive('tinyauth_users') }" />
                 <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate admin or separate multiple users with commas</span>
               </label>
               <div v-if="generatedPassword" class="generated-password-box">
@@ -231,7 +231,7 @@
                     X-Plex-Token
                     <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" class="cfg-link">How to find ↗</a>
                   </span>
-                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" />
+                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" :readonly="isFieldFromLive('plex_token')" :class="{ 'cfg-readonly': isFieldFromLive('plex_token') }" />
                   <span class="cfg-hint">Your personal Plex auth token. Used by Sonarr, Radarr, Prowlarr and other apps to authenticate with this Plex server.</span>
                 </label>
               </div>
@@ -391,6 +391,29 @@
 
     </div><!-- /builder-layout -->
 
+    <!-- ── Deploy output ────────────────────────────────────────────────── -->
+    <div v-if="deployOutput" class="deploy-output-area">
+      <div :class="['output-block', deployOk ? 'ok' : 'err']">
+        <div class="output-label">{{ deployOk ? 'Deploy output' : 'Deploy errors' }}</div>
+        <pre class="output">{{ deployOutput }}</pre>
+      </div>
+      <div v-if="deployConflicts.length" class="conflict-banner">
+        <div class="conflict-banner-head">
+          <span class="conflict-icon">⚠</span>
+          <span class="conflict-title">{{ deployConflicts.length }} container conflict(s)</span>
+        </div>
+        <div class="conflict-names">
+          <span v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</span>
+        </div>
+        <div class="conflict-actions">
+          <span class="conflict-warn">Removing these containers will allow the deploy to proceed.</span>
+          <button class="conflict-btn" :disabled="deploying" @click="purgeAndRetry">
+            {{ deploying ? 'Purging…' : 'Remove conflicts & retry' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -512,14 +535,76 @@ const ICONS = {
 // Keyed by container name — assumes container name === service key, which holds
 // for compose-managed stacks where the service name is the container name.
 const liveServices = ref(new Set())
+const liveEnv = ref({})  // { container_name: { KEY: VALUE } }
+
+const ENV_TO_FIELD = {
+  PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
+  CF_DNS_API_TOKEN: 'cloudflare_token', TUNNEL_TOKEN: 'cloudflare_tunnel_token',
+  TS_AUTHKEY: 'tailscale_auth_key', TS_ROUTES: 'tailscale_routes', TS_HOSTNAME: 'tailscale_hostname',
+  TINYAUTH_AUTH_USERS: 'tinyauth_users', TINYAUTH_APPURL: 'tinyauth_app_url',
+  PLEX_CLAIM: 'plex_claim', PLEX_TOKEN: 'plex_token',
+}
 
 async function loadRunningServices() {
   try {
     const running = await fetch('/api/containers/running').then(r => r.json())
-    liveServices.value = new Set(Array.isArray(running) ? running : [])
+    const names = Array.isArray(running) ? running : []
+    liveServices.value = new Set(names)
+    if (names.length) {
+      try {
+        const envData = await fetch(`/api/containers/env?names=${names.join(',')}`).then(r => r.json())
+        liveEnv.value = envData
+        _prefillFromLiveEnv(envData)
+      } catch (e) {
+        console.warn('Could not load running env:', e)
+      }
+    }
   } catch (e) {
     console.warn('Could not load running services:', e)
   }
+}
+
+function _prefillFromLiveEnv(envData) {
+  const core = envData.traefik || envData.sonarr || envData.radarr || envData.plex || {}
+  for (const [envKey, field] of Object.entries(ENV_TO_FIELD)) {
+    const val = core[envKey] ?? envData.tailscale?.[envKey] ?? envData.tinyauth?.[envKey] ?? envData.cloudflared?.[envKey] ?? envData.plex?.[envKey]
+    if (val !== undefined && val !== '***' && !req[field]) {
+      if (field === 'puid' || field === 'pgid') {
+        req[field] = parseInt(val, 10) || req[field]
+      } else {
+        req[field] = val
+      }
+    }
+  }
+  const domain = _extractDomain(envData)
+  if (domain && !req.domain) req.domain = domain
+  const lanSubnet = envData.tinyauth?.TINYAUTH_LAN_SUBNET
+  if (lanSubnet && !req.lan_subnet) req.lan_subnet = lanSubnet
+}
+
+function _extractDomain(envData) {
+  const appurl = envData.tinyauth?.TINYAUTH_APPURL || ''
+  const m = appurl.match(/https?:\/\/auth\.([^.]+\.[^.]+)/)
+  return m ? m[1] : ''
+}
+
+function isFieldFromLive(field) {
+  const val = req[field]
+  if (field === 'puid' || field === 'pgid') return false
+  if (!val || typeof val !== 'string') return false
+  return liveServices.value.size > 0 && val === _getLiveEnvValue(field)
+}
+
+function _getLiveEnvValue(field) {
+  for (const [envKey, f] of Object.entries(ENV_TO_FIELD)) {
+    if (f === field) {
+      for (const name of Object.keys(liveEnv.value)) {
+        const v = liveEnv.value[name]?.[envKey]
+        if (v && v !== '***') return v
+      }
+    }
+  }
+  return null
 }
 
 // ── Computed ───────────────────────────────────────────────────────────────
@@ -556,13 +641,7 @@ const filteredServices = computed(() => {
       TAG_LABELS[svc.category]?.toLowerCase().includes(q)
     )
   })
-  // Order: live (installed+running) first, then selected, then rest — each group alpha
-  const rank = svc => liveServices.value.has(svc.key) ? 0 : pick[svc.key] ? 1 : 2
-  return [...filtered].sort((a, b) => {
-    const rd = rank(a) - rank(b)
-    if (rd !== 0) return rd
-    return a.display_name.localeCompare(b.display_name)
-  })
+  return [...filtered].sort((a, b) => a.display_name.localeCompare(b.display_name))
 })
 
 const selectedServices = computed(() =>
@@ -824,7 +903,6 @@ async function purgeAndRetry() {
 }
 
 async function deploy() {
-  if (!confirm('Deploy this stack? Running containers may be recreated.')) return
   deploying.value = true
   deployOutput.value = ''
   expanded.deploy = true
@@ -837,11 +915,16 @@ async function deploy() {
     const data = await r.json()
     if (!r.ok) {
       deployOk.value = false
-      const lines = (data.errors || []).map(e => `✗  ${e.message || e}`)
+      const validationErrors = (data.errors || [])
+      const lines = validationErrors.map(e => {
+        const prefix = e.service ? `[${e.service}]` : ''
+        return `✗ ${prefix} ${e.message || e}`
+      })
+      const detail = data.detail || data.message || ''
       deployOutput.value = lines.length
         ? lines.join('\n')
-        : (data.message || data.detail || `HTTP ${r.status}`)
-      showToast(data.message || 'Deploy blocked — fix errors below', 'err', 7000)
+        : detail || `HTTP ${r.status}`
+      showToast(lines.length ? lines[0] : (detail || 'Deploy failed'), 'err', 7000)
       return
     }
     deployOk.value = data.ok
@@ -1009,6 +1092,7 @@ onUnmounted(() => {
 
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 2px 6px; font-size: 10px; }
+input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; cursor: default; border-style: dashed; }
 
 .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
 .cfg-field        { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
@@ -1110,6 +1194,7 @@ onUnmounted(() => {
 
 /* Deploy area */
 
+.deploy-output-area { margin-top: var(--space-4); max-width: 100%; }
 .deploy-btn    { font-size: 11.5px; padding: 4px 10px; white-space: nowrap; }
 .output        { max-height: 380px; overflow: auto; background: var(--bg-0); padding: var(--space-3); border-radius: var(--radius); font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border); margin: 0; }
 .output-block  { border-radius: var(--radius); overflow: hidden; margin-top: var(--space-2); }
