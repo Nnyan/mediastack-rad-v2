@@ -78,7 +78,7 @@
         poison propagation checks. Use the cleanup button to wipe them.
       </p>
       <div class="flex gap-3">
-        <button @click="cleanupAcmeJson">Reset acme.json</button>
+        <button @click="cleanupAcmeJson">Fix acme.json permissions</button>
         <button @click="restartTraefik">Restart Traefik</button>
       </div>
       <pre v-if="toolOutput" class="mono preview mt-3">{{ toolOutput }}</pre>
@@ -171,12 +171,12 @@ function extractHost(rule) {
 }
 
 async function cleanupAcmeJson() {
-  if (!confirm('Reset acme.json? Traefik will re-request every cert.')) return
+  if (!confirm('Fix acme.json permissions? This sets the file to mode 0600 as required by Traefik.')) return
   try {
     const r = await fetch('/api/health/fix/acme.perms', { method: 'POST' })
     const data = await r.json()
     toolOutput.value = data.message
-    showToast(data.ok ? 'acme.json permissions fixed' : data.message,
+    showToast(data.ok ? 'acme.json permissions set to 0600' : data.message,
               data.ok ? 'ok' : 'err')
   } catch (e) {
     toolOutput.value = String(e)

@@ -174,18 +174,20 @@
           </template>
 
           <!-- Plex — only when plex is selected -->
-                    <template v-if="pick['plex']">
+          <template v-if="pick['plex']">
           <div class="cfg-section" :class="{ open: expanded.plex }">
           <div class="cfg-head" @click="toggleCfg('plex')">
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">Plex</span>
-            <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'local' : 'external' }}</span>
+            <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'new server' : 'existing server' }}</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
             <div class="mode-toggle">
-              <button :class="['mode-btn', { active: plexMode === 'local' }]" @click="plexMode = 'local'">Running on this stack</button>
-              <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">External server</button>
+              <button :class="['mode-btn', { active: plexMode === 'local' }]" @click="plexMode = 'local'">New Plex server</button>
+              <button :class="['mode-btn', { active: plexMode === 'external' }]" @click="plexMode = 'external'">Link existing server</button>
             </div>
+
+            <!-- New Plex server -->
             <div v-show="plexMode === 'local'">
               <div class="cfg-grid">
                 <label class="cfg-field">
@@ -194,42 +196,46 @@
                   <span class="cfg-hint">Friendly name shown in Plex clients</span>
                 </label>
                 <label class="cfg-field">
-                  <span class="cfg-label">&nbsp;</span>
+                  <span class="cfg-label">
+                    Plex Claim Token
+                    <a href="https://plex.tv/claim" target="_blank" class="cfg-link">Get one ↗</a>
+                  </span>
+                  <input v-model="req.plex_claim" type="password" placeholder="claim-xxxxxxxxxxxxxxxxxxxx" />
+                  <span class="cfg-hint">Links this server to your Plex account on first boot. Expires in 4 minutes — generate it just before deploying.</span>
                 </label>
-                <label class="cfg-field span2">
-                  <span class="cfg-label">Plex Claim Token</span>
-                  <div class="cfg-note cfg-note-neutral" style="margin-top:0">
-                    Managed in <strong>Settings → Secrets</strong> (PLEX_CLAIM).
-                    <a href="https://plex.tv/claim" target="_blank" class="cfg-link" style="margin-left:4px">Get token ↗</a>
-                  </div>
-                </label>
-                <label class="cfg-field span2">
+                <label class="cfg-field">
                   <span class="cfg-label">
                     X-Plex-Token
-                    <a href="https://support.plex.tv/articles/204059436" target="_blank" class="cfg-link">How to find it ↗</a>
+                    <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" class="cfg-link">How to find ↗</a>
                   </span>
-                  <input v-model="req.plex_token" type="password" placeholder="Your Plex authentication token" />
-                  <span class="cfg-hint">Used by Sonarr, Radarr, and other apps for API auth. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
+                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" />
+                  <span class="cfg-hint">Your personal Plex auth token. Used by Sonarr, Radarr, Prowlarr and other apps to authenticate with this Plex server.</span>
                 </label>
               </div>
             </div>
-            <div v-show="plexMode !== 'local'">
+
+            <!-- Existing Plex server -->
+            <div v-show="plexMode === 'external'">
+              <div class="cfg-note cfg-note-info" style="margin-bottom: var(--space-3)">
+                Plex will not be added to this stack. The IP address and token below will be passed to Sonarr, Radarr, Prowlarr, Bazarr and Seerr so they can connect to your existing server.
+              </div>
               <div class="cfg-grid">
                 <label class="cfg-field span2">
                   <span class="cfg-label">Plex server URL</span>
-                  <input v-model="req.external_plex_url" placeholder="http://192.168.1.50:32400" />
-                  <span class="cfg-hint">LAN address preferred — avoids unnecessary external routing.</span>
+                  <input v-model="req.plex_url" placeholder="http://192.168.1.50:32400" />
+                  <span class="cfg-hint">Use the local LAN IP for best performance. Port is usually 32400.</span>
                 </label>
                 <label class="cfg-field span2">
                   <span class="cfg-label">
                     X-Plex-Token
-                    <a href="https://support.plex.tv/articles/204059436" target="_blank" class="cfg-link">How to find it ↗</a>
+                    <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" class="cfg-link">How to find ↗</a>
                   </span>
-                  <input v-model="req.plex_token" type="password" placeholder="Your Plex authentication token" />
-                  <span class="cfg-hint">Required for API access. In Plex: Account → Troubleshooting → Show → X-Plex-Token.</span>
+                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" />
+                  <span class="cfg-hint">Your personal Plex auth token. In Plex Web: Settings → Troubleshooting → Show → X-Plex-Token. Passed to Sonarr, Radarr, Prowlarr, Bazarr and Seerr.</span>
                 </label>
               </div>
             </div>
+
           </div>
           </div>
           </template>
@@ -406,6 +412,8 @@ const defaults = {
   media_root: '/mnt/media',
   external_plex_url: '',
   plex_server_name: '',
+  plex_url: '',
+  plex_token: '',
   // Credentials (CF token, tunnel token, Plex claim, Tinyauth secrets)
   // are managed in Settings → Secrets, not stored here
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
@@ -667,7 +675,9 @@ function buildRequest() {
     media_root:             req.media_root,
     // Credentials come from .env on the server (managed in Settings → Secrets)
     plex_server_name:          req.plex_server_name,
-    external_plex_url:         req.external_plex_url,
+    plex_url:                  req.plex_url || req.external_plex_url || undefined,
+    plex_token:                req.plex_token || undefined,
+    external_plex_url:         req.external_plex_url || undefined,
     tailscale_auth_key:     req.tailscale_auth_key,
     tailscale_routes:       req.tailscale_routes,
     tailscale_hostname:     req.tailscale_hostname,
@@ -678,7 +688,7 @@ function buildRequest() {
     services:               selectedServices.value.map(k => ({
       key: k, enabled: true,
       port_override: portOverrides[k] || undefined,
-      extra_env:    buildExtraEnv(k),
+      extra_env:    {},
     })),
     custom_yaml:            customYaml.value || undefined,
   }

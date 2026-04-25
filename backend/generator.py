@@ -412,11 +412,22 @@ def _render_service(
     if svc.key == "plex" and request.plex_server_name:
         svc_dict["hostname"] = request.plex_server_name
 
-    # Overseerr with external Plex: inject the URL as an env var
-    # so the Overseerr setup wizard can find it.
-    # Seerr (and legacy Overseerr) with external Plex: inject URL
-    if svc.key in ("seerr", "overseerr") and request.external_plex_url:
-        svc_dict["environment"]["PLEX_URL"] = request.external_plex_url
+    # Plex URL and token propagation.
+    # Prefer plex_url (new field), fall back to external_plex_url (legacy).
+    _plex_url = request.plex_url or request.external_plex_url
+
+    # Seerr / Overseerr: inject URL so setup wizard auto-discovers Plex.
+    if svc.key in ("seerr", "overseerr") and _plex_url:
+        svc_dict["environment"]["PLEX_URL"] = _plex_url
+
+    # *arr apps + Bazarr: inject PLEX_URL and PLEX_TOKEN so they can
+    # connect to Plex for library scanning, health checks, etc.
+    PLEX_CONSUMERS = {"sonarr", "radarr", "lidarr", "readarr", "bazarr", "prowlarr"}
+    if svc.key in PLEX_CONSUMERS:
+        if _plex_url:
+            svc_dict["environment"]["PLEX_URL"] = _plex_url
+        if request.plex_token:
+            svc_dict["environment"]["PLEX_TOKEN"] = request.plex_token
 
     # Merge any per-service extra_env the user specified in the builder.
     # Applied last so user values override catalog and generator defaults.

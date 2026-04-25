@@ -75,8 +75,10 @@ class StackRequest(BaseModel):
     cloudflare_tunnel_token: str | None = None  # TUNNEL_TOKEN for cloudflared
     plex_claim: str | None = None               # PLEX_CLAIM — required for first boot
     plex_server_name: str | None = None         # friendly server name shown in Plex clients
+    plex_token: str | None = None               # X-Plex-Token — used by *arr apps to auth with Plex
+    plex_url: str | None = None                 # Plex server URL for existing servers (overrides external_plex_url)
     services: list[ServiceChoice] = []
-    external_plex_url: str | None = None  # if user has Plex elsewhere
+    external_plex_url: str | None = None  # if user has Plex elsewhere (legacy, use plex_url)
     # Tailscale
     tailscale_auth_key: str | None = None   # TS_AUTHKEY — reusable key from admin console
     tailscale_routes: str | None = None     # TS_ROUTES — subnet CIDR to advertise
