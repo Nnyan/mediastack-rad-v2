@@ -166,7 +166,7 @@
             <div class="cfg-grid">
               <label class="cfg-field">
                 <span class="cfg-label">LAN subnet</span>
-                <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" />
+                <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" :readonly="isFieldFromLive('lan_subnet')" :class="{ 'cfg-readonly': isFieldFromLive('lan_subnet') }" />
                 <span class="cfg-hint">Devices in this CIDR bypass Tinyauth entirely</span>
               </label>
               <label class="cfg-field">
@@ -569,11 +569,16 @@ function _prefillFromLiveEnv(envData) {
   const core = envData.traefik || envData.sonarr || envData.radarr || envData.plex || {}
   for (const [envKey, field] of Object.entries(ENV_TO_FIELD)) {
     const val = core[envKey] ?? envData.tailscale?.[envKey] ?? envData.tinyauth?.[envKey] ?? envData.cloudflared?.[envKey] ?? envData.plex?.[envKey]
-    if (val !== undefined && val !== '***' && !req[field]) {
-      if (field === 'puid' || field === 'pgid') {
-        req[field] = parseInt(val, 10) || req[field]
-      } else {
-        req[field] = val
+    if (val !== undefined && val !== '***') {
+      const current = req[field]
+      const isEmpty = current === '' || current === undefined || current === null || (typeof current === 'number' && current === defaults[field])
+      if (isEmpty) {
+        if (field === 'puid' || field === 'pgid') {
+          const num = parseInt(val, 10)
+          if (num) req[field] = num
+        } else if (!current) {
+          req[field] = val
+        }
       }
     }
   }
@@ -585,15 +590,27 @@ function _prefillFromLiveEnv(envData) {
 
 function _extractDomain(envData) {
   const appurl = envData.tinyauth?.TINYAUTH_APPURL || ''
-  const m = appurl.match(/https?:\/\/auth\.([^.]+\.[^.]+)/)
+  const m = appurl.match(/https?:\/\/[^.]+\.([^.]+\.[^\s/]+)/)
   return m ? m[1] : ''
 }
 
 function isFieldFromLive(field) {
+  if (!liveServices.value.size) return false
+  if (field === 'domain') {
+    const liveDomain = _extractDomain(liveEnv.value)
+    return liveDomain !== '' && req.domain === liveDomain
+  }
+  if (field === 'lan_subnet') {
+    const liveSubnet = liveEnv.value.tinyauth?.TINYAUTH_LAN_SUBNET || ''
+    return liveSubnet !== '' && req.lan_subnet === liveSubnet
+  }
+  if (field === 'puid' || field === 'pgid') {
+    const liveVal = _getLiveEnvValue(field)
+    return liveVal !== null && parseInt(liveVal, 10) === req[field]
+  }
   const val = req[field]
-  if (field === 'puid' || field === 'pgid') return false
   if (!val || typeof val !== 'string') return false
-  return liveServices.value.size > 0 && val === _getLiveEnvValue(field)
+  return val === _getLiveEnvValue(field)
 }
 
 function _getLiveEnvValue(field) {
