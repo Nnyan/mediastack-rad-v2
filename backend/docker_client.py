@@ -224,10 +224,16 @@ _SPECIAL_PATHS = {
 def _web_url(labels: dict, ports: list[ContainerPort], name: str) -> str | None:
     """Return the best URL for a container's web UI.
 
-    Prefer Traefik Host() rule (HTTPS via domain) when available.
-    Fall back to direct host-port URL (HTTP).
+    For Traefik, always use the direct port URL (dashboard needs insecure API).
+    For other services, prefer Traefik Host() rule (HTTPS via domain) when available,
+    falling back to direct host-port URL (HTTP).
     """
     import re
+    if name == "traefik":
+        port = next((p for p in ports if p.host_port and p.container_port == 8081), None)
+        if port:
+            return f"http://0.0.0.0:{port.host_port}/dashboard/"
+        return None
     for key, val in labels.items():
         if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
             m = re.search(r"Host\(`([^`]+)`\)", val)
