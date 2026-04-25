@@ -5,28 +5,44 @@
       <span class="sub">routing, certificates, DNS</span>
     </h1>
 
-    <div class="card">
-      <h3 class="section-title">Status</h3>
-      <div class="status-grid">
-        <div class="status-item">
-          <span class="dot" :class="pingClass"></span>
-          <span>Traefik API</span>
-          <span class="mono small muted">{{ pingMsg }}</span>
+    <div class="card-row">
+      <div class="card status-card">
+        <h3 class="section-title">Status</h3>
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="dot" :class="pingClass"></span>
+            <span>Traefik API</span>
+            <span class="mono small muted">{{ pingMsg }}</span>
+          </div>
+          <div class="status-item">
+            <span class="dot" :class="apiVersionClass"></span>
+            <span>Cloudflare API</span>
+            <span class="mono small muted">{{ cfMsg }}</span>
+          </div>
+          <div class="status-item">
+            <span class="dot" :class="acmeClass"></span>
+            <span>ACME storage</span>
+            <span class="mono small muted">{{ acmeMsg }}</span>
+          </div>
         </div>
-        <div class="status-item">
-          <span class="dot" :class="apiVersionClass"></span>
-          <span>Cloudflare API</span>
-          <span class="mono small muted">{{ cfMsg }}</span>
+      </div>
+
+      <div class="card tools-card">
+        <h3 class="section-title">Cleanup tools</h3>
+        <p class="small muted mb-3">
+          If DNS-01 challenges are failing with "time limit exceeded",
+          stale <code>_acme-challenge</code> TXT records in Cloudflare can
+          poison propagation checks. Use the cleanup button to wipe them.
+        </p>
+        <div class="tool-actions">
+          <button @click="cleanupAcmeJson">Fix acme.json permissions</button>
+          <button @click="restartTraefik">Restart Traefik</button>
         </div>
-        <div class="status-item">
-          <span class="dot" :class="acmeClass"></span>
-          <span>ACME storage</span>
-          <span class="mono small muted">{{ acmeMsg }}</span>
-        </div>
+        <pre v-if="toolOutput" class="mono preview mt-3">{{ toolOutput }}</pre>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card routes-card">
       <h3 class="section-title">Routes</h3>
       <p class="small muted mb-3">
         These are the hosts Traefik is currently serving. A green dot
@@ -70,19 +86,6 @@
       </table>
     </div>
 
-    <div class="card">
-      <h3 class="section-title">Cleanup tools</h3>
-      <p class="small muted mb-3">
-        If DNS-01 challenges are failing with "time limit exceeded",
-        stale <code>_acme-challenge</code> TXT records in Cloudflare can
-        poison propagation checks. Use the cleanup button to wipe them.
-      </p>
-      <div class="flex gap-3">
-        <button @click="cleanupAcmeJson">Fix acme.json permissions</button>
-        <button @click="restartTraefik">Restart Traefik</button>
-      </div>
-      <pre v-if="toolOutput" class="mono preview mt-3">{{ toolOutput }}</pre>
-    </div>
   </div>
 </template>
 
@@ -255,4 +258,30 @@ onUnmounted(() => {
   font-size: 12px;
 }
 .mt-3 { margin-top: var(--space-3); }
+
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.card-row .card {
+  flex: 1 1 320px;
+  margin-bottom: 0;
+}
+.tools-card {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.tool-actions button {
+  flex: 1 1 160px;
+}
+.routes-card { margin-top: 0; }
 </style>
