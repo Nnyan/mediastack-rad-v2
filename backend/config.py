@@ -40,6 +40,12 @@ class Config:
     # The Dockerfile copies the Vite build output here.
     static_dir: Path
 
+    # Optional API key for bearer-token authentication.
+    # When set, all /api/* and /ws/* requests require the header
+    # "Authorization: Bearer <key>". When empty (default), auth is disabled
+    # for the home-lab LAN-only use case.
+    api_key: str
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
@@ -55,6 +61,7 @@ class Config:
             health_interval=int(os.environ.get("RAD_HEALTH_INTERVAL", "30")),
             stats_interval=float(os.environ.get("RAD_STATS_INTERVAL", "2.0")),
             static_dir=Path(os.environ.get("RAD_STATIC_DIR", "/app/static")),
+            api_key=os.environ.get("RAD_API_KEY", ""),
         )
 
 

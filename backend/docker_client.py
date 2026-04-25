@@ -60,10 +60,15 @@ def _reset_client() -> None:
 
 
 def ping() -> bool:
-    """Quick liveness check — returns True if the daemon responds."""
+    """Quick liveness check — returns True if the daemon responds.
+
+    Resets the cached client on failure so the next call reconnects.
+    """
     try:
-        return client().ping()
-    except DockerException:
+        result = client().ping()
+        return bool(result)
+    except (DockerException, OSError):
+        _reset_client()
         return False
 
 
@@ -339,6 +344,7 @@ def daemon_info() -> dict:
             "cpus": info.get("NCPU", 0),
             "memory_bytes": info.get("MemTotal", 0),
         }
-    except DockerException as e:
+    except (DockerException, OSError) as e:
         logger.error("Cannot get daemon info: %s", e)
+        _reset_client()
         return {"error": str(e)}

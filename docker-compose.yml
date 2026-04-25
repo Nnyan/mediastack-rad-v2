@@ -27,6 +27,7 @@ services:
     environment:
       RAD_STACK_DIR: /compose
       RAD_TRAEFIK_DIR: /compose/config/traefik
+      # RAD_API_KEY: changeme   # set to enable bearer-token auth on all API calls
       # RAD_HEALTH_INTERVAL: 30   # seconds between background health checks
       # RAD_STATS_INTERVAL: 2.0   # seconds between stats WebSocket pushes
     networks:

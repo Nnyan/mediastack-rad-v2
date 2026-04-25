@@ -147,6 +147,27 @@ app = FastAPI(
 
 
 # ---------------------------------------------------------------------------
+# Optional API key authentication
+# ---------------------------------------------------------------------------
+
+if config.api_key:
+
+    @app.middleware("http")
+    async def require_api_key(request: Request, call_next):
+        if request.url.path.startswith(("/api/", "/ws/")):
+            auth = request.headers.get("Authorization", "")
+            if auth != f"Bearer {config.api_key}":
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or missing API key"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        return await call_next(request)
+
+    logger.info("API key authentication enabled")
+
+
+# ---------------------------------------------------------------------------
 # API routes — ALL routes starting with /api/ must be declared here,
 # BEFORE the SPA catch-all at the bottom of this file. See module
 # docstring for why.
@@ -758,6 +779,11 @@ async def api_checklist() -> list[ChecklistItem]:
 
 @app.websocket("/ws/stats")
 async def ws_stats(ws: WebSocket) -> None:
+    if config.api_key:
+        token = ws.query_params.get("token", "")
+        if token != config.api_key:
+            await ws.close(code=4001, reason="Invalid or missing API key")
+            return
     await ws_mod.stats_endpoint(ws)
 
 
