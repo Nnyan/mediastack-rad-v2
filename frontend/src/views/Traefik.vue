@@ -211,8 +211,8 @@ onUnmounted(() => {
 
 <style scoped>
 .section-title {
-  margin: 0 0 var(--space-3);
-  font-size: 13px;
+  margin: 0 0 4px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
@@ -222,18 +222,19 @@ onUnmounted(() => {
 .status-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 6px;
 }
 .status-item {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 4px 8px;
   background: var(--bg-0);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   flex: 1 1 180px;
-  min-height: 38px;
+  min-height: 24px;
+  font-size: 12px;
 }
 
 .badge-status {
@@ -264,27 +265,35 @@ onUnmounted(() => {
 .card-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 .card-row .card {
   flex: 1 1 320px;
   margin-bottom: 0;
+  padding: 8px 10px;
 }
 .status-card,
 .tools-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 5px;
+}
+.tools-card p {
+  margin: 0;
+  line-height: 1.25;
+  font-size: 11.5px;
 }
 .tool-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: var(--space-2);
+  gap: 6px;
 }
 .tool-actions button {
   flex: 1 1 50%;
   white-space: nowrap;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 .routes-card { margin-top: 0; }
 

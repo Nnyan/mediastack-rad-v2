@@ -23,7 +23,7 @@
         :key="group.service"
         class="secret-group"
       >
-        <div class="secret-group-head">
+        <div class="secret-group-head" :class="serviceClass(group.service)">
           <span class="secret-service-icon">{{ serviceIcon(group.service) }}</span>
           <span class="secret-service-name">{{ serviceLabel(group.service) }}</span>
         </div>
@@ -156,6 +156,7 @@ const SERVICE_ICONS  = { cloudflared: '☁️', tinyauth: '🔒', tailscale: '�
 const SERVICE_LABELS = { cloudflared: 'Cloudflare Tunnel', tinyauth: 'Tinyauth', tailscale: 'Tailscale', plex: 'Plex' }
 const serviceIcon  = k => SERVICE_ICONS[k]  || '🔑'
 const serviceLabel = k => SERVICE_LABELS[k] || k
+const serviceClass = k => `service-${String(k || 'unknown').replace(/[^a-z0-9_-]/gi, '').toLowerCase()}`
 
 const secretGroups = computed(() => {
   const map = {}
@@ -327,9 +328,18 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   padding: 6px 12px;
   background: var(--bg-0);
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
 }
 .secret-service-icon { font-size: 13px; }
-.secret-service-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-2); }
+.secret-service-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); }
+.secret-group-head.service-tinyauth { border-left-color: var(--purple); }
+.secret-group-head.service-tinyauth .secret-service-name { color: var(--purple); }
+.secret-group-head.service-cloudflared { border-left-color: var(--blue); }
+.secret-group-head.service-cloudflared .secret-service-name { color: var(--blue); }
+.secret-group-head.service-tailscale { border-left-color: var(--teal); }
+.secret-group-head.service-tailscale .secret-service-name { color: var(--teal); }
+.secret-group-head.service-plex { border-left-color: var(--orange); }
+.secret-group-head.service-plex .secret-service-name { color: var(--orange); }
 
 .secret-rows {
   padding: 6px 12px 10px;

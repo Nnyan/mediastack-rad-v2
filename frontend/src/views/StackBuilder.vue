@@ -429,7 +429,6 @@
               </div>
               <div class="instance-bottom">
                 <div class="instance-status-row">
-                  <span class="instance-status">{{ containerStatusLabel(c) }}</span>
                   <span class="instance-metrics">{{ containerMetrics(c) }}</span>
                 </div>
                 <div class="instance-actions" @click.stop>
@@ -1477,6 +1476,8 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 .instances-search { max-width: 220px; flex: 0 0 200px; }
+.instances-search .search-input { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+.instances-search .search-icon { font-size: 11px; }
 .toggle-stopped {
   display: flex;
   align-items: center;
@@ -1496,7 +1497,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 5px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-0);
@@ -1563,13 +1564,12 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 .instance-status-row {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 4px;
+  display: block;
+  padding-left: 14px;
   font-size: 11px;
   color: var(--fg-1);
   line-height: 1.2;
@@ -1577,17 +1577,8 @@ onUnmounted(() => {
   align-items: center;
   min-width: 0;
 }
-.instance-status {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
-  color: var(--fg-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .instance-metrics {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1596,15 +1587,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 2px;
+  gap: 1px;
   flex: 0 0 auto;
+  justify-self: end;
 }
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border-radius: 5px;
   border: 1.5px solid var(--border);
