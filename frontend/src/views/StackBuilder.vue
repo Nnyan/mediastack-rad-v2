@@ -427,19 +427,21 @@
                 >{{ formatContainerName(c.name) }}</button>
                 <span v-else class="instance-name">{{ formatContainerName(c.name) }}</span>
               </div>
-              <div class="instance-status-row">
-                <span class="instance-status">{{ containerStatusLabel(c) }}</span>
-                <span class="instance-metrics">{{ containerMetrics(c) }}</span>
-              </div>
-              <div class="instance-actions" @click.stop>
-                <button
-                  class="icon-btn"
-                  :title="c.state === 'running' ? 'Stop' : 'Start'"
-                  @click="containerAction(c.name, c.state === 'running' ? 'stop' : 'start')"
-                >{{ c.state === 'running' ? '⏸' : '▶' }}</button>
-                <button class="icon-btn" title="Restart" @click="containerAction(c.name, 'restart')">↺</button>
-                <button class="icon-btn" title="Logs" @click="loadLogs(c.name)">≡</button>
-                <button class="icon-btn danger" title="Remove" @click="confirmRemove(c.name)">✕</button>
+              <div class="instance-bottom">
+                <div class="instance-status-row">
+                  <span class="instance-status">{{ containerStatusLabel(c) }}</span>
+                  <span class="instance-metrics">{{ containerMetrics(c) }}</span>
+                </div>
+                <div class="instance-actions" @click.stop>
+                  <button
+                    class="icon-btn"
+                    :title="c.state === 'running' ? 'Stop' : 'Start'"
+                    @click="containerAction(c.name, c.state === 'running' ? 'stop' : 'start')"
+                  >{{ c.state === 'running' ? '⏸' : '▶' }}</button>
+                  <button class="icon-btn" title="Restart" @click="containerAction(c.name, 'restart')">↺</button>
+                  <button class="icon-btn" title="Logs" @click="loadLogs(c.name)">≡</button>
+                  <button class="icon-btn danger" title="Remove" @click="confirmRemove(c.name)">✕</button>
+                </div>
               </div>
             </div>
             <div v-if="!filteredContainers.length" class="instances-empty">No containers yet.</div>
@@ -1487,14 +1489,14 @@ onUnmounted(() => {
 
 .instances-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px;
 }
 .instance-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: 4px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-0);
@@ -1514,25 +1516,26 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
 .instance-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 9px;
+  flex: 0 0 8px;
 }
 .instance-icon {
-  font-size: 20px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 .instance-icon.link { color: var(--purple); }
 .instance-name {
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--fg-0);
   overflow: hidden;
@@ -1544,7 +1547,7 @@ onUnmounted(() => {
   text-align: left;
   cursor: default;
   font-family: inherit;
-  line-height: 1.2;
+  line-height: 1.1;
   text-transform: uppercase;
   appearance: none;
 }
@@ -1556,23 +1559,33 @@ onUnmounted(() => {
 }
 .instance-name.has-link:hover { text-decoration: underline; }
 .instance-name.has-link:focus { outline: none; text-decoration: underline; }
+.instance-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .instance-status-row {
   display: grid;
-  grid-template-columns: 100px 1fr;
-  gap: 6px;
-  font-size: 12px;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 4px;
+  font-size: 11px;
   color: var(--fg-1);
-  margin: 2px 0 6px;
-  line-height: 1.5;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  align-items: baseline;
+  align-items: center;
+  min-width: 0;
 }
 .instance-status {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .instance-metrics {
   overflow: hidden;
@@ -1583,20 +1596,22 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
-  margin-top: auto;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border-radius: 5px;
   border: 1.5px solid var(--border);
   background: var(--bg-1);
   color: var(--fg-1);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.12s;
 }
