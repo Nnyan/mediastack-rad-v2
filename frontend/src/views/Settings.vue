@@ -7,6 +7,16 @@
         <h2 class="section-title">Secrets</h2>
         <p class="section-sub">Stored in <code>.env</code> on the server. Edit any time — redeploy the stack to apply changes.</p>
       </div>
+      <div class="secrets-actions" v-if="secrets.length">
+        <button
+          class="primary"
+          :disabled="saving || !hasEdits"
+          @click="saveSecrets"
+        >{{ saving ? 'Saving…' : 'Save secrets' }}</button>
+        <span v-if="saveMsg" class="save-msg" :class="saveOk ? 'ok' : 'err'">
+          {{ saveMsg }}
+        </span>
+      </div>
     </div>
 
     <div v-if="secretsLoading" class="loading-state">
@@ -62,23 +72,12 @@
       </div>
     </div>
 
-    <div class="secrets-actions" v-if="secrets.length">
-      <button
-        class="primary"
-        :disabled="saving || !hasEdits"
-        @click="saveSecrets"
-      >{{ saving ? 'Saving…' : 'Save secrets' }}</button>
-      <span v-if="saveMsg" class="save-msg" :class="saveOk ? 'ok' : 'err'">
-        {{ saveMsg }}
-      </span>
-    </div>
-
     <!-- ── Health ───────────────────────────────────────────────────────── -->
     <div class="section-head health-head">
       <div>
         <h2 class="section-title">Health</h2>
       </div>
-      <button class="outline" :disabled="healthRefreshing" @click="loadHealth(true)">
+      <button class="primary" :disabled="healthRefreshing" @click="loadHealth(true)">
         {{ healthRefreshing ? 'Checking…' : 'Re-run checks' }}
       </button>
     </div>
@@ -299,6 +298,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: var(--space-3);
+  gap: var(--space-3);
 }
 .todo-head { margin-top: var(--space-5); }
 .section-title { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
@@ -376,7 +376,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 }
 .secret-link:hover { background: var(--accent); color: #fff; }
 
-.secrets-actions { display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-4); }
+.secrets-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
 .save-msg { font-size: 12px; font-weight: 500; }
 .save-msg.ok  { color: var(--ok); }
 .save-msg.err { color: var(--err); }
@@ -400,7 +400,11 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .health-meta { display: flex; align-items: center; gap: 6px; color: var(--fg-2); font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
 .bullet { color: var(--border-strong); }
 
-.health-groups { display: flex; flex-direction: column; gap: 8px; }
+.health-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-3);
+}
 .health-card {
   background: var(--bg-1); border: 1.5px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
@@ -414,10 +418,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .health-card-body { padding: 3px 14px 5px; }
 .health-row { padding: 7px 0; border-top: 1px solid var(--border); }
 .health-row:first-child { border-top: none; }
-.health-row-main { display: grid; grid-template-columns: 10px 175px 1fr; align-items: center; gap: 9px; min-width: 0; }
+.health-row-main { display: grid; grid-template-columns: 10px minmax(100px, 125px) minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
 .health-row-label { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .health-row-result { font-size: 12.5px; color: var(--fg-1); min-width: 0; }
-.health-row-detail, .health-row-hint { margin: 5px 0 0 194px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
+.health-row-detail, .health-row-hint { margin: 5px 0 0 144px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
 .health-row.warning .health-row-result, .health-row.warning .health-row-detail { color: var(--warn); }
 .health-row.error .health-row-result, .health-row.error .health-row-detail { color: var(--err); }
 .health-row-hint { font-style: italic; }
