@@ -66,6 +66,47 @@
                 <input v-model.number="req.pgid" type="number" />
               </label>
             </div>
+            <div v-if="configSteps.length" class="required-config-box">
+              <div class="required-config-head">
+                <div>
+                  <div class="required-title">Required setup</div>
+                  <div class="required-sub">Complete each selected app before deploy.</div>
+                </div>
+                <div class="required-progress">{{ completedConfigSteps }}/{{ configSteps.length }}</div>
+              </div>
+              <div class="required-step-tabs">
+                <button
+                  v-for="step in configSteps"
+                  :key="step.id"
+                  :class="['required-step-tab', { active: activeConfigStep?.id === step.id, done: stepComplete(step) }]"
+                  @click="activeConfigStepId = step.id"
+                >{{ step.label }}</button>
+              </div>
+              <div v-if="activeConfigStep" class="required-step-card">
+                <div class="required-step-title">
+                  <span>{{ activeConfigStep.icon }}</span>
+                  <span>{{ activeConfigStep.label }}</span>
+                  <span v-if="stepComplete(activeConfigStep)" class="required-ok">ready</span>
+                </div>
+                <div class="required-step-note">{{ activeConfigStep.note }}</div>
+                <div class="required-fields">
+                  <label v-for="field in activeConfigStep.fields" :key="field.key" class="cfg-field span2">
+                    <span class="cfg-label">
+                      {{ field.label }}
+                      <a v-if="field.link" :href="field.link" target="_blank" class="cfg-link">Open ↗</a>
+                    </span>
+                    <input
+                      v-model="req[field.key]"
+                      :type="field.secret ? 'password' : 'text'"
+                      :placeholder="savedConfigField(field.key) ? 'Saved in .env' : field.placeholder"
+                      :readonly="isFieldFromLive(field.key)"
+                      :class="{ 'cfg-readonly': isFieldFromLive(field.key), missing: !fieldSatisfied(field) }"
+                    />
+                    <span class="cfg-hint">{{ savedConfigField(field.key) ? `${field.envKey} already saved in .env` : field.hint }}</span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
           </div>
 
@@ -664,6 +705,8 @@ const ICONS = {
 // for compose-managed stacks where the service name is the container name.
 const liveServices = ref(new Set())
 const liveEnv = ref({})  // { container_name: { KEY: VALUE } }
+const secretStatus = ref({}) // { ENV_KEY: true } from Settings → Secrets, values never exposed
+const activeConfigStepId = ref('')
 
 const ENV_TO_FIELD = {
   PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
@@ -689,6 +732,17 @@ async function loadRunningServices() {
     }
   } catch (e) {
     console.warn('Could not load running services:', e)
+  }
+}
+
+async function loadSecretStatus() {
+  try {
+    const rows = await fetch('/api/settings/secrets').then(r => r.json())
+    const next = {}
+    for (const row of rows || []) next[row.key] = !!row.is_set
+    secretStatus.value = next
+  } catch (e) {
+    console.warn('Could not load saved secret status:', e)
   }
 }
 
@@ -752,6 +806,34 @@ function _getLiveEnvValue(field) {
   return null
 }
 
+function savedConfigField(field) {
+  const step = configSteps.value.find(s => s.fields.some(f => f.key === field))
+  const cfg = step?.fields.find(f => f.key === field)
+  if (!cfg?.envKey) return false
+  if (secretStatus.value[cfg.envKey]) return true
+  if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
+  const liveVal = _getLiveEnvValue(field)
+  return !!(liveVal && liveVal !== '***')
+}
+
+function fieldSatisfied(field) {
+  const val = req[field.key]
+  return savedConfigField(field.key) || !!(typeof val === 'string' ? val.trim() : val)
+}
+
+function stepComplete(step) {
+  return step.fields.every(fieldSatisfied)
+}
+
+function ensureRequiredConfig() {
+  const missing = configSteps.value.find(step => !stepComplete(step))
+  if (!missing) return true
+  expanded.core = true
+  activeConfigStepId.value = missing.id
+  showToast(`Complete ${missing.label} setup before deploy`, 'warn', 7000)
+  return false
+}
+
 // ── Computed ───────────────────────────────────────────────────────────────
 const flatServices = computed(() => {
   const out = []
@@ -798,6 +880,95 @@ const selectedServices = computed(() =>
   Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
 )
 
+const webSelected = computed(() =>
+  selectedServices.value.some(k => {
+    const svc = svcByKey.value[k]
+    return svc?.web_port && !svc?.skip_traefik
+  })
+)
+
+const configSteps = computed(() => {
+  const steps = []
+  if (webSelected.value || pick.traefik) {
+    steps.push({
+      id: 'traefik', label: 'Traefik', icon: '🔀',
+      note: 'Required for HTTPS certificates through Cloudflare DNS-01.',
+      fields: [{
+        key: 'cloudflare_token', envKey: 'CF_DNS_API_TOKEN', label: 'Cloudflare DNS API token', secret: true,
+        placeholder: 'Token with Zone:DNS:Edit + Zone:Zone:Read',
+        hint: 'Create in Cloudflare Profile → API Tokens.',
+        link: 'https://dash.cloudflare.com/profile/api-tokens',
+      }],
+    })
+  }
+  if (pick.cloudflared) {
+    steps.push({
+      id: 'cloudflared', label: 'Cloudflare Tunnel', icon: '☁️',
+      note: 'Required for public tunnel access without router port forwarding.',
+      fields: [{
+        key: 'cloudflare_tunnel_token', envKey: 'CLOUDFLARED_TOKEN', label: 'Tunnel token', secret: true,
+        placeholder: 'Token from Zero Trust → Networks → Tunnels',
+        hint: 'Create or copy the tunnel token in Cloudflare Zero Trust.',
+        link: 'https://one.dash.cloudflare.com/',
+      }],
+    })
+  }
+  if (pick.tailscale) {
+    steps.push({
+      id: 'tailscale', label: 'Tailscale', icon: '🔗',
+      note: 'Required for private VPN access and subnet routing.',
+      fields: [{
+        key: 'tailscale_auth_key', envKey: 'TS_AUTHKEY', label: 'Auth key', secret: true,
+        placeholder: 'tskey-auth-... reusable, non-ephemeral',
+        hint: 'Generate a reusable auth key in Tailscale admin.',
+        link: 'https://login.tailscale.com/admin/settings/keys',
+      }],
+    })
+  }
+  if (pick.tinyauth) {
+    steps.push({
+      id: 'tinyauth', label: 'Tinyauth', icon: '🔒',
+      note: 'Required before protected routes can authenticate users.',
+      fields: [
+        {
+          key: 'tinyauth_app_url', envKey: 'TINYAUTH_APPURL', label: 'App URL', secret: false,
+          placeholder: 'https://auth.example.com',
+          hint: 'Use the auth hostname you will add to Cloudflare Tunnel.',
+        },
+        {
+          key: 'tinyauth_users', envKey: 'TINYAUTH_AUTH_USERS', label: 'Users', secret: true,
+          placeholder: 'admin:$2b$10$...',
+          hint: 'Format: username:bcrypt_hash. Use the Tinyauth section to generate one.',
+        },
+      ],
+    })
+  }
+  if (plexMode.value === 'external' && (pick.sonarr || pick.radarr || pick.prowlarr || pick.bazarr || pick.seerr)) {
+    steps.push({
+      id: 'plex-external', label: 'Existing Plex', icon: '🎬',
+      note: 'Required when selected apps need to connect to an existing Plex server.',
+      fields: [
+        {
+          key: 'plex_url', envKey: '', label: 'Plex server URL', secret: false,
+          placeholder: 'http://192.168.1.50:32400', hint: 'Use the LAN URL for best performance.',
+        },
+        {
+          key: 'plex_token', envKey: 'PLEX_TOKEN', label: 'X-Plex-Token', secret: true,
+          placeholder: 'xxxxxxxxxxxxxxxxxxxx', hint: 'Find in Plex Web XML URLs or account troubleshooting.',
+          link: 'https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/',
+        },
+      ],
+    })
+  }
+  return steps
+})
+
+const activeConfigStep = computed(() =>
+  configSteps.value.find(step => step.id === activeConfigStepId.value) || configSteps.value.find(step => !stepComplete(step)) || configSteps.value[0] || null
+)
+
+const completedConfigSteps = computed(() => configSteps.value.filter(stepComplete).length)
+
 const containerUrls = computed(() => {
   const map = {}
   const host = window.location.hostname
@@ -836,8 +1007,25 @@ function catColors(cat)    { return CAT_COLORS[cat] || { bg: 'var(--accent-subtl
 function tagStyle(cat)     { const c = catColors(cat); return { background: c.bg, color: c.text, borderColor: c.border } }
 function tileStyle(cat)    { const c = catColors(cat); return { '--tc': c.text, '--tc-bg': c.bg } }
 function tileClass(key)   {
-  if (pick[key]) return 'tile-selected'
-  return ''
+  if (!pick[key]) return ''
+  const state = serviceConfigState(key)
+  if (state === 'missing') return 'tile-needs-config'
+  if (state === 'ready') return 'tile-config-ready'
+  return 'tile-selected'
+}
+
+function serviceConfigState(key) {
+  const related = configSteps.value.filter(step => {
+    if (step.id === key) return true
+    if (key === 'traefik' && step.id === 'traefik') return true
+    if (key === 'cloudflared' && step.id === 'cloudflared') return true
+    if (key === 'tailscale' && step.id === 'tailscale') return true
+    if (key === 'tinyauth' && step.id === 'tinyauth') return true
+    if ((key === 'plex' || ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'seerr'].includes(key)) && step.id === 'plex-external') return true
+    return false
+  })
+  if (!related.length) return 'none'
+  return related.every(stepComplete) ? 'ready' : 'missing'
 }
 function svcPillStyle(key) { const c = catColors(svcByKey.value[key]?.category); return { background: c.bg, color: c.text, borderColor: c.border } }
 function svcName(key)      { return svcByKey.value[key]?.display_name || key }
@@ -1290,6 +1478,7 @@ async function purgeAndRetry() {
 }
 
 async function deploy() {
+  if (!ensureRequiredConfig()) return
   deploying.value = true
   deployOutput.value = ''
   previewText.value = ''
@@ -1349,6 +1538,13 @@ watch(() => ({ ...pick }), (cur, prev) => {
 watch(addInput, () => { addResult.value = null })
 watch(addTab,   () => { addResult.value = null; addInput.value = ''; addFileName.value = '' })
 watch(selectedServices, schedulePortCheck)
+watch(configSteps, steps => {
+  if (!steps.length) {
+    activeConfigStepId.value = ''
+  } else if (!steps.some(step => step.id === activeConfigStepId.value)) {
+    activeConfigStepId.value = steps.find(step => !stepComplete(step))?.id || steps[0].id
+  }
+}, { immediate: true })
 
 let runningPollTimer = null
 
@@ -1356,6 +1552,7 @@ onMounted(() => {
   localStorage.removeItem('rad-stack-builder-pick')
   loadCatalog()
   loadRunningServices()
+  loadSecretStatus()
   runningPollTimer = setInterval(loadRunningServices, 15000)
   refreshContainers()
   containersPollTimer = setInterval(refreshContainers, 10000)
@@ -1704,6 +1901,8 @@ onUnmounted(() => {
 .tile:hover { background: var(--bg-2); border-color: var(--border); }
 .tile.on,
 .tile-selected    { background: var(--accent-subtle); border-color: var(--accent); }
+.tile-needs-config { background: var(--warn-bg); border-color: rgba(217,119,6,0.45); }
+.tile-config-ready { background: var(--ok-bg); border-color: rgba(22,163,74,0.35); }
 
 .tile-icon  { font-size: 13px; line-height: 1; flex-shrink: 0; }
 .tile-name  {
@@ -1713,6 +1912,8 @@ onUnmounted(() => {
 }
 .tile.on .tile-name,
 .tile-selected .tile-name { color: var(--accent); }
+.tile-needs-config .tile-name { color: var(--warn); }
+.tile-config-ready .tile-name { color: var(--ok); }
 .tile-status { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; margin-left: auto; }
 .tile-dot { font-size: 11px; flex-shrink: 0; line-height: 1; }
 .dot-ok  { color: #16a34a; text-shadow: 0 0 6px rgba(22,163,74,0.9), 0 0 12px rgba(22,163,74,0.5); }
@@ -1741,6 +1942,7 @@ onUnmounted(() => {
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 2px 6px; font-size: 10px; }
 input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; cursor: default; border-style: dashed; }
+.cfg-body input.missing { border-color: var(--warn); background: var(--warn-bg); }
 
 .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
 .cfg-field        { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
@@ -1773,6 +1975,35 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
+
+.required-config-box {
+  margin-top: 8px;
+  padding: 7px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--warn-dim);
+  background: var(--warn-bg);
+}
+.required-config-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.required-title { font-size: 11.5px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.05em; }
+.required-sub { font-size: 9.5px; color: var(--fg-2); }
+.required-progress { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--warn); white-space: nowrap; }
+.required-step-tabs { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+.required-step-tab {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border-color: rgba(217,119,6,0.35);
+  color: var(--warn);
+  background: var(--bg-1);
+}
+.required-step-tab.active { background: var(--warn); border-color: var(--warn); color: #fff; }
+.required-step-tab.done { color: var(--ok); border-color: rgba(22,163,74,0.35); background: var(--ok-bg); }
+.required-step-tab.done.active { background: var(--ok); color: #fff; }
+.required-step-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
+.required-step-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.required-step-note { font-size: 9.5px; color: var(--fg-2); line-height: 1.3; margin-bottom: 5px; }
+.required-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.required-ok { margin-left: auto; font-size: 9px; text-transform: uppercase; color: var(--ok); }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
 .cfg-note-purple   { background: var(--accent-subtle); color: var(--fg-1); border: 1px solid var(--accent-dim); }
