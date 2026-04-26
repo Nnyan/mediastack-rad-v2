@@ -427,7 +427,10 @@
                 >{{ formatContainerName(c.name) }}</button>
                 <span v-else class="instance-name">{{ formatContainerName(c.name) }}</span>
               </div>
-              <div class="instance-meta">{{ containerMeta(c) }}</div>
+              <div class="instance-status-row">
+                <span class="instance-status">{{ containerStatusLabel(c) }}</span>
+                <span class="instance-metrics">{{ containerMetrics(c) }}</span>
+              </div>
               <div class="instance-actions" @click.stop>
                 <button
                   class="icon-btn"
@@ -446,7 +449,10 @@
             <div class="detail-header">
               <div>
                 <div class="detail-name">{{ formatContainerName(selectedContainer.name) }}</div>
-                <div class="detail-meta">{{ containerMeta(selectedContainer, true) }}</div>
+                <div class="detail-meta">
+                  <span class="detail-status">{{ containerStatusLabel(selectedContainer) }}</span>
+                  <span class="detail-metrics">{{ containerMetrics(selectedContainer, true) }}</span>
+                </div>
               </div>
               <button class="icon-btn" @click="clearSelection">✕</button>
             </div>
@@ -894,8 +900,8 @@ function instanceCardState(c) {
   if (c.state === 'running') return 'instance-ok'
   return 'instance-off'
 }
-function containerMeta(c, verbose = false) {
-  const parts = [containerStatusLabel(c)]
+function containerMetrics(c, verbose = false) {
+  const parts = []
   const up = containerUptime(c)
   if (up !== '—') parts.push(`up ${up}`)
   const stat = stats.value[c.id]
@@ -1398,8 +1404,8 @@ onUnmounted(() => {
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
-.builder-header { margin-bottom: var(--space-3); display: flex; align-items: center; justify-content: space-between; }
-.header-actions { display: flex; align-items: center; gap: 10px; }
+.builder-header { margin-bottom: var(--space-1); display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 .header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .header-sub-sep { opacity: 0.5; }
 .btn-review     { font-size: 13px; font-weight: 600; font-family: var(--font-sans); padding: 6px 12px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
@@ -1481,14 +1487,14 @@ onUnmounted(() => {
 
 .instances-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-2);
 }
 .instance-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-0);
@@ -1507,7 +1513,8 @@ onUnmounted(() => {
 .instance-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
   min-width: 0;
 }
 .instance-dot {
@@ -1520,12 +1527,12 @@ onUnmounted(() => {
   font-size: 11px;
 }
 .instance-icon {
-  font-size: 14px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 .instance-icon.link { color: var(--purple); }
 .instance-name {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--fg-0);
   overflow: hidden;
@@ -1549,26 +1556,42 @@ onUnmounted(() => {
 }
 .instance-name.has-link:hover { text-decoration: underline; }
 .instance-name.has-link:focus { outline: none; text-decoration: underline; }
-.instance-meta {
+.instance-status-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-1);
+  margin: 2px 0 6px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  align-items: baseline;
+}
+.instance-status {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   font-size: 11px;
   color: var(--fg-2);
-  margin: 2px 0 6px;
-  min-height: 14px;
-  font-variant-numeric: tabular-nums;
+}
+.instance-metrics {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .instance-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 6px;
   margin-top: auto;
 }
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   border: 1.5px solid var(--border);
   background: var(--bg-1);
@@ -1607,8 +1630,25 @@ onUnmounted(() => {
   font-weight: 600;
 }
 .detail-meta {
-  font-size: 11.5px;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-1);
+  align-items: baseline;
+}
+.detail-status {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
   color: var(--fg-2);
+}
+.detail-metrics {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .detail-grid {
   display: grid;
