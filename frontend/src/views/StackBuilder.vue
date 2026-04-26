@@ -428,9 +428,6 @@
                 <span v-else class="instance-name">{{ formatContainerName(c.name) }}</span>
               </div>
               <div class="instance-bottom">
-                <div class="instance-status-row">
-                  <span class="instance-metrics">{{ containerMetrics(c) }}</span>
-                </div>
                 <div class="instance-actions" @click.stop>
                   <button
                     class="icon-btn"
@@ -1490,7 +1487,7 @@ onUnmounted(() => {
 
 .instances-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 6px;
 }
 .instance-card {
@@ -1561,27 +1558,12 @@ onUnmounted(() => {
 .instance-name.has-link:hover { text-decoration: underline; }
 .instance-name.has-link:focus { outline: none; text-decoration: underline; }
 .instance-bottom {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 0;
   min-width: 0;
-}
-.instance-status-row {
-  display: block;
   padding-left: 14px;
-  font-size: 11px;
-  color: var(--fg-1);
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-  align-items: center;
-  min-width: 0;
-}
-.instance-metrics {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .instance-actions {
   display: flex;
@@ -1589,14 +1571,13 @@ onUnmounted(() => {
   justify-content: flex-start;
   gap: 1px;
   flex: 0 0 auto;
-  justify-self: end;
 }
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border-radius: 5px;
   border: 1.5px solid var(--border);

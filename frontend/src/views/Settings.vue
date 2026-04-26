@@ -112,7 +112,7 @@
       </div>
 
       <div class="health-groups">
-        <div v-for="group in healthGroups" :key="group.category" class="health-card">
+        <div v-for="group in healthGroups" :key="group.category" class="health-card" :class="group.status">
           <div class="health-card-head">
             <span class="health-card-title">{{ group.category }}</span>
             <span class="health-card-meta">{{ group.passing }}/{{ group.total }} passing</span>
@@ -266,10 +266,12 @@ const healthGroups = computed(() => {
   const map = {}
   for (const check of healthChecks.value) {
     const category = check.category || 'System'
-    if (!map[category]) map[category] = { category, checks: [], passing: 0, total: 0 }
+    if (!map[category]) map[category] = { category, checks: [], passing: 0, total: 0, status: 'ok' }
     map[category].checks.push(check)
     map[category].total += 1
     if (check.status === 'ok') map[category].passing += 1
+    if (check.status === 'error') map[category].status = 'error'
+    else if (check.status === 'warning' && map[category].status !== 'error') map[category].status = 'warning'
   }
   return Object.values(map).sort((a, b) => {
     const ai = order.indexOf(a.category)
@@ -448,6 +450,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   background: var(--bg-1); border: 1.5px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
 }
+.health-card.warning { background: var(--warn-bg); border-color: rgba(217,119,6,0.35); }
+.health-card.error { background: var(--err-bg); border-color: rgba(220,38,38,0.35); }
+.health-card.warning .health-card-head { background: rgba(217,119,6,0.08); }
+.health-card.error .health-card-head { background: rgba(220,38,38,0.08); }
 .health-card-head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
   padding: 7px 14px; background: var(--bg-0); border-bottom: 1px solid var(--border);
@@ -460,7 +466,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .health-row-main { display: grid; grid-template-columns: 10px minmax(100px, 125px) minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
 .health-row-label { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .health-row-result { font-size: 12.5px; color: var(--fg-1); min-width: 0; }
-.health-row-detail, .health-row-hint { margin: 5px 0 0 144px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
+.health-row-detail, .health-row-hint { margin: 5px 0 0 19px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
 .health-row.warning .health-row-result, .health-row.warning .health-row-detail { color: var(--warn); }
 .health-row.error .health-row-result, .health-row.error .health-row-detail { color: var(--err); }
 .health-row-hint { font-style: italic; }

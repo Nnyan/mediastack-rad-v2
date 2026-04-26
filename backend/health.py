@@ -13,7 +13,9 @@ Key design decisions:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Awaitable
@@ -253,28 +255,154 @@ def check_tailscale(ctx: _CheckContext) -> list[HealthIssue]:
             fix_hint="Set TS_AUTHKEY in your compose file and recreate.",
         ))
 
+    userspace = env.get("TS_USERSPACE", "false").lower()
+    if userspace != "false":
+        out.append(HealthIssue(
+            id="tailscale.userspace_mode", severity="warning", category="Network",
+            title="Tailscale not in kernel mode",
+            detail="TS_USERSPACE should be false for subnet routing and direct tunnel access.",
+            fix_hint="Redeploy Tailscale",
+        ))
+
     # Check TUN via HostConfig attrs — no subprocess/docker exec needed
-    if env.get("TS_USERSPACE", "false") == "false":
+    if userspace == "false":
         host_cfg = ts.attrs.get("HostConfig", {}) or {}
         devices = host_cfg.get("Devices") or []
         has_tun = any("/dev/net/tun" in str(d.get("PathOnHost", "")) for d in devices)
-        has_cap = "NET_ADMIN" in (host_cfg.get("CapAdd") or [])
-        if not has_tun or not has_cap:
+        cap_add = host_cfg.get("CapAdd") or []
+        has_net_admin = "NET_ADMIN" in cap_add
+        has_net_raw = "NET_RAW" in cap_add
+        if not has_tun or not has_net_admin or not has_net_raw:
             missing = []
-            if not has_cap:
-                missing.append("cap_add: [NET_ADMIN, NET_RAW]")
+            if not has_net_admin:
+                missing.append("NET_ADMIN")
+            if not has_net_raw:
+                missing.append("NET_RAW")
             if not has_tun:
-                missing.append("devices: [/dev/net/tun:/dev/net/tun]")
-            details = [
-                "TS_USERSPACE is false, so Tailscale needs kernel TUN access.",
-                "Missing: " + ", ".join(missing),
-            ]
+                missing.append("/dev/net/tun")
             out.append(HealthIssue(
                 id="tailscale.no_tun", severity="warning", category="Network",
-                title="Tailscale missing TUN configuration",
-                detail=" ".join(details),
-                fix_hint="Redeploy via Stack Builder — it adds these automatically.",
+                title="Tailscale tunnel permissions missing",
+                detail=("Tailscale needs NET_ADMIN, NET_RAW, and /dev/net/tun when "
+                        f"TS_USERSPACE=false. Missing: {', '.join(missing)}."),
+                fix_hint="Redeploy Tailscale",
             ))
+
+    try:
+        result = ts.exec_run("tailscale status --json", demux=False)
+        exit_code = getattr(result, "exit_code", 1)
+        output = getattr(result, "output", b"") or b""
+        if exit_code != 0:
+            out.append(HealthIssue(
+                id="tailscale.status_unavailable", severity="warning", category="Network",
+                title="Tailscale tunnel status unavailable",
+                detail="The container is running, but `tailscale status` failed. It may be unauthenticated or disconnected.",
+                fix_hint="Redeploy Tailscale",
+            ))
+        else:
+            status = json.loads(output.decode("utf-8", errors="replace") or "{}")
+            backend_state = str(status.get("BackendState") or "")
+            self_state = status.get("Self") or {}
+            tailscale_ips = self_state.get("TailscaleIPs") or []
+            online = self_state.get("Online")
+            if backend_state != "Running" or online is False or not tailscale_ips:
+                out.append(HealthIssue(
+                    id="tailscale.tunnel_down", severity="warning", category="Network",
+                    title="Tailscale tunnel not connected",
+                    detail="Tailscale is running, but no active connected tunnel/IP was reported.",
+                    fix_hint="Redeploy Tailscale",
+                ))
+            ts_routes = (env.get("TS_ROUTES") or "").strip()
+            if ts_routes and ts_routes not in ("${TS_ROUTES:-}", ""):
+                active_routes = self_state.get("PrimaryRoutes") or self_state.get("AllowedIPs") or []
+                if active_routes and not any(route in active_routes for route in ts_routes.split(",")):
+                    out.append(HealthIssue(
+                        id="tailscale.routes_inactive", severity="warning", category="Network",
+                        title="Tailscale subnet route not active",
+                        detail="TS_ROUTES is set, but the route is not reported active by Tailscale.",
+                        fix_hint="Redeploy Tailscale",
+                    ))
+    except Exception as e:
+        out.append(HealthIssue(
+            id="tailscale.status_check_failed", severity="warning", category="Network",
+            title="Tailscale tunnel check failed",
+            detail=f"Could not verify active tunnel status: {e}",
+            fix_hint="Redeploy Tailscale",
+        ))
+    return out
+
+
+def check_cloudflare_tunnel(ctx: _CheckContext) -> list[HealthIssue]:
+    cf = ctx.get("cloudflared")
+    if not cf:
+        return []
+
+    out = []
+    env = ctx.env_of("cloudflared")
+    token = (env.get("TUNNEL_TOKEN") or env.get("CLOUDFLARED_TOKEN") or "").strip()
+    if cf.status != "running":
+        out.append(HealthIssue(
+            id="cloudflared.not_running", severity="error", category="Network",
+            title="Cloudflare Tunnel is not running",
+            detail=f"Local cloudflared container state is '{cf.status}'. Public tunnel access is offline.",
+            fix_hint="Redeploy Cloudflared",
+            auto_fix_available=True,
+        ))
+        return out
+
+    if not token or token in ("${CLOUDFLARED_TOKEN}", "${TUNNEL_TOKEN}"):
+        out.append(HealthIssue(
+            id="cloudflared.no_token", severity="error", category="Network",
+            title="Cloudflare Tunnel token missing",
+            detail="cloudflared is running locally, but no TUNNEL_TOKEN is configured.",
+            fix_hint="Redeploy Cloudflared",
+        ))
+
+    try:
+        logs = cf.logs(tail=200).decode("utf-8", errors="replace")
+    except Exception as e:
+        out.append(HealthIssue(
+            id="cloudflared.logs_unavailable", severity="warning", category="Network",
+            title="Cloudflare Tunnel status unknown",
+            detail=f"cloudflared is running locally, but recent logs could not be read: {e}",
+            fix_hint="Check Cloudflare Tunnel",
+        ))
+        return out
+
+    tunnel_ids = sorted(set(re.findall(r"tunnel(?:ID|_id)=([a-f0-9-]{8,})", logs, flags=re.I)))
+    name_or_id = env.get("TUNNEL_NAME") or env.get("CLOUDFLARED_TUNNEL_NAME") or (tunnel_ids[-1] if tunnel_ids else "")
+    if not name_or_id:
+        out.append(HealthIssue(
+            id="cloudflared.name_unknown", severity="info", category="Network",
+            title="Cloudflare tunnel name not visible locally",
+            detail="cloudflared runs with a token, so RAD cannot read the tunnel name. Confirm the name in Cloudflare Zero Trust.",
+            fix_hint="Check Cloudflare Tunnel",
+        ))
+
+    error_patterns = [
+        ("token", "Cloudflare Tunnel token rejected", "Cloudflare rejected the tunnel token. Update the token from Zero Trust."),
+        ("Unauthorized", "Cloudflare Tunnel unauthorized", "Cloudflare rejected cloudflared authentication. Check the tunnel token in Zero Trust."),
+        ("certificate", "Cloudflare Tunnel certificate error", "cloudflared reported a certificate/authentication problem."),
+    ]
+    for needle, title, detail in error_patterns:
+        if needle.lower() in logs.lower() and ("error" in logs.lower() or "failed" in logs.lower()):
+            out.append(HealthIssue(
+                id=f"cloudflared.{needle.lower()}", severity="error", category="Network",
+                title=title,
+                detail=detail,
+                fix_hint="Redeploy Cloudflared",
+            ))
+            return out
+
+    connected = "Registered tunnel connection" in logs or "Connection registered" in logs
+    if not connected:
+        out.append(HealthIssue(
+            id="cloudflared.not_connected", severity="warning", category="Network",
+            title="Cloudflare Tunnel not connected",
+            detail="cloudflared is running locally, but no active Cloudflare edge connection appears in recent logs.",
+            fix_hint="Check Cloudflare Tunnel",
+        ))
+
     return out
 
 
@@ -422,6 +550,7 @@ CHECK_META: dict[str, tuple[str, str, str]] = {
     "check_acme_storage":     ("Traefik", "ACME storage",         "mode 0600"),
     "check_traefik_network":  ("Traefik", "Service networks",     "all services connected"),
     "check_tailscale":        ("Network", "Tailscale",            "running"),
+    "check_cloudflare_tunnel":("Network", "Cloudflare Tunnel",    "connected"),
     "check_tinyauth":         ("Auth",    "Tinyauth",             "running, all routers correct"),
     "check_cloudflare_token": ("Traefik", "Cloudflare token",     "valid"),
 }
@@ -437,6 +566,7 @@ SYNC_CHECKS: list[Callable[[_CheckContext], list[HealthIssue]]] = [
     check_acme_storage,
     check_traefik_network,
     check_tailscale,
+    check_cloudflare_tunnel,
     check_tinyauth,
 ]
 
