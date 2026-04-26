@@ -42,6 +42,46 @@
       </div>
     </div>
 
+    <div class="card route-map-card">
+      <div class="route-map-head">
+        <div>
+          <h3 class="section-title">Route Map</h3>
+          <p class="small muted">Live topology from Cloudflare/DNS through Traefik to each app.</p>
+        </div>
+        <span class="small mono muted">{{ routers.length }} route{{ routers.length !== 1 ? 's' : '' }}</span>
+      </div>
+      <div class="route-map">
+        <div v-for="r in routers" :key="`map-${r.name}`" class="route-lane" :class="routeOverallClass(r)">
+          <div class="route-host">
+            <strong>{{ r.host || r.name }}</strong>
+            <span>{{ r.name }}</span>
+          </div>
+          <div class="topology-flow">
+            <div class="topo-node" :class="statusClass(r.dns_status, 'dns')">
+              <span>DNS</span><strong>{{ r.dns_status }}</strong>
+            </div>
+            <div class="topo-link" :class="statusClass(r.dns_status, 'dns')"></div>
+            <div class="topo-node" :class="statusClass(r.tunnel_status, 'tunnel')">
+              <span>Tunnel</span><strong>{{ r.tunnel_status }}</strong>
+            </div>
+            <div class="topo-link" :class="statusClass(r.tunnel_status, 'tunnel')"></div>
+            <div class="topo-node" :class="statusClass(r.router_status, 'router')">
+              <span>Traefik</span><strong>{{ r.router_status }}</strong>
+            </div>
+            <div class="topo-link" :class="statusClass(r.cert_status, 'cert')"></div>
+            <div class="topo-node" :class="statusClass(r.cert_status, 'cert')">
+              <span>Cert</span><strong>{{ r.cert_status }}</strong>
+            </div>
+            <div class="topo-link" :class="statusClass(r.router_status, 'router')"></div>
+            <div class="topo-node service ok">
+              <span>Service</span><strong>{{ r.service }}</strong>
+            </div>
+          </div>
+        </div>
+        <div v-if="!routers.length" class="muted route-empty">No route topology available yet.</div>
+      </div>
+    </div>
+
     <div class="card routes-card">
       <h3 class="section-title">Routes</h3>
       <p class="small muted mb-3">
@@ -170,6 +210,19 @@ function statusClass(value, kind) {
   return 'warn'
 }
 
+function routeOverallClass(route) {
+  const statuses = [
+    statusClass(route.router_status, 'router'),
+    statusClass(route.tls_config, 'tls'),
+    statusClass(route.cert_status, 'cert'),
+    statusClass(route.dns_status, 'dns'),
+    statusClass(route.tunnel_status, 'tunnel'),
+  ]
+  if (statuses.includes('err')) return 'err'
+  if (statuses.includes('warn')) return 'warn'
+  return 'ok'
+}
+
 async function cleanupAcmeJson() {
   if (!confirm('Fix acme.json permissions? This sets the file to mode 0600 as required by Traefik.')) return
   try {
@@ -293,6 +346,55 @@ onUnmounted(() => {
   font-size: 12px;
 }
 .routes-card { margin-top: 0; }
+
+.route-map-card { margin-bottom: var(--space-3); }
+.route-map-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.route-map-head p { margin: 0; }
+.route-map { display: grid; gap: 8px; }
+.route-lane {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--bg-0);
+}
+.route-lane.ok { border-color: rgba(22,163,74,0.28); background: linear-gradient(90deg, var(--ok-bg), var(--bg-0)); }
+.route-lane.warn { border-color: rgba(217,119,6,0.35); background: linear-gradient(90deg, var(--warn-bg), var(--bg-0)); }
+.route-lane.err { border-color: rgba(220,38,38,0.35); background: linear-gradient(90deg, var(--err-bg), var(--bg-0)); }
+.route-host { min-width: 0; }
+.route-host strong { display: block; font-size: 13px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-host span { display: block; margin-top: 3px; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topology-flow { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 5px; min-width: 0; }
+.topo-node {
+  min-width: 72px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-1);
+  text-align: center;
+  box-shadow: var(--shadow-1);
+}
+.topo-node span { display: block; font-size: 9px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.topo-node strong { display: block; margin-top: 2px; font-size: 11px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+.topo-node.ok { border-color: rgba(22,163,74,0.45); background: var(--ok-bg); }
+.topo-node.warn { border-color: rgba(217,119,6,0.5); background: var(--warn-bg); }
+.topo-node.err { border-color: rgba(220,38,38,0.5); background: var(--err-bg); }
+.topo-node.off { opacity: 0.65; }
+.topo-link { height: 4px; border-radius: 999px; background: var(--border-strong); min-width: 24px; position: relative; overflow: hidden; }
+.topo-link.ok { background: linear-gradient(90deg, #22c55e, #16a34a); box-shadow: 0 0 8px rgba(22,163,74,0.35); }
+.topo-link.warn { background: linear-gradient(90deg, #f59e0b, #d97706); box-shadow: 0 0 8px rgba(217,119,6,0.25); }
+.topo-link.err { background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 8px rgba(220,38,38,0.25); }
+.topo-link.off { background: var(--border); }
+.route-empty { padding: var(--space-4); text-align: center; }
+
+@media (max-width: 900px) {
+  .route-lane { grid-template-columns: 1fr; }
+  .topology-flow { grid-template-columns: 1fr; }
+  .topo-link { width: 4px; height: 18px; justify-self: center; }
+}
 
 @media (max-width: 640px) {
   .status-grid { flex-wrap: wrap; }
