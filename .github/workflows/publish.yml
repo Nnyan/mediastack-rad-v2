@@ -2,7 +2,9 @@ name: build-and-publish
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "project/**"
     tags: ["v*"]
   pull_request:
     branches: [main]
@@ -156,6 +158,10 @@ jobs:
   build:
     needs: [version-bump, build-frontend]
     runs-on: ubuntu-latest
+    if: >-
+      always() &&
+      needs.build-frontend.result == 'success' &&
+      (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped')
     permissions:
       contents: read
       packages: write
