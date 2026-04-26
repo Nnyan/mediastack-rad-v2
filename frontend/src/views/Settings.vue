@@ -218,40 +218,73 @@ async function saveSecrets() {
   }
 }
 
-// ── Checklist ─────────────────────────────────────────────────────────────────
-const items          = ref([])
-const checklistLoading = ref(true)
-const checklistError = ref(false)
-const openTask       = ref(null)
-let pollTimer        = null
+// ── Health ────────────────────────────────────────────────────────────────────
+const healthReport     = ref(null)
+const healthLoading    = ref(true)
+const healthRefreshing = ref(false)
+const healthError      = ref(false)
+let pollTimer          = null
 
-const total = computed(() => items.value.length)
-const itemsByCategory = computed(() => {
-  const out = {}
-  for (const it of items.value) (out[it.category] ||= []).push(it)
-  return out
+const healthChecks = computed(() => healthReport.value?.checks || [])
+const errorCount = computed(() => healthChecks.value.filter(c => c.status === 'error').length)
+const warningCount = computed(() => healthChecks.value.filter(c => c.status === 'warning').length)
+const okCount = computed(() => healthChecks.value.filter(c => c.status === 'ok').length)
+const totalChecks = computed(() => healthChecks.value.length)
+const lastCheckedAt = computed(() => healthReport.value?.checked_at || null)
+const durationLabel = computed(() => {
+  const ms = healthReport.value?.duration_ms
+  return ms == null ? '' : `${ms}ms`
 })
-const categories = computed(() =>
-  ['essential', 'recommended', 'optional'].filter(c => itemsByCategory.value[c]?.length > 0)
-)
 
-async function refreshChecklist() {
+const healthGroups = computed(() => {
+  const order = ['Docker', 'Config', 'Traefik', 'Network', 'Auth', 'Security', 'System', 'internal']
+  const map = {}
+  for (const check of healthChecks.value) {
+    const category = check.category || 'System'
+    if (!map[category]) map[category] = { category, checks: [], passing: 0, total: 0 }
+    map[category].checks.push(check)
+    map[category].total += 1
+    if (check.status === 'ok') map[category].passing += 1
+  }
+  return Object.values(map).sort((a, b) => {
+    const ai = order.indexOf(a.category)
+    const bi = order.indexOf(b.category)
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+  })
+})
+
+function formatHealthTime(unix) {
+  if (!unix) return 'never'
+  return new Date(unix * 1000).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+}
+
+async function loadHealth(force = false) {
+  if (force) healthRefreshing.value = true
   try {
-    const data = await fetch('/api/checklist').then(r => r.json())
-    items.value = data
-    checklistError.value = false
+    const report = await fetch(`/api/health${force ? '?refresh=true' : ''}`).then(r => r.json())
+    healthReport.value = report
+    healthError.value = false
+    if (force) {
+      const errs = (report.checks || []).filter(c => c.status === 'error').length
+      const warns = (report.checks || []).filter(c => c.status === 'warning').length
+      showToast(errs || warns ? `${errs} error(s), ${warns} warning(s)` : 'All health checks passed', errs ? 'err' : warns ? 'warn' : 'ok')
+    }
   } catch (e) {
-    checklistError.value = true
-    console.error('Checklist fetch failed:', e)
+    healthError.value = true
+    console.error('Health load failed:', e)
+    if (force) showToast('Health check failed', 'err')
   } finally {
-    checklistLoading.value = false
+    healthLoading.value = false
+    healthRefreshing.value = false
   }
 }
 
 onMounted(() => {
   loadSecrets()
-  refreshChecklist()
-  pollTimer = setInterval(refreshChecklist, 15000)
+  loadHealth()
+  pollTimer = setInterval(loadHealth, 20000)
 })
 onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 </script>
