@@ -37,6 +37,24 @@ logger = logging.getLogger(__name__)
 STACK_NETWORK = "mediastack"
 
 
+def _env_file_values() -> dict[str, str]:
+    """Read stack .env values needed for validation without exposing them."""
+    env_path = config.stack_dir / ".env"
+    if not env_path.exists():
+        return {}
+    values: dict[str, str] = {}
+    try:
+        for line in env_path.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, _, value = stripped.partition("=")
+            values[key.strip()] = value.strip().strip('"').strip("'")
+    except OSError:
+        return {}
+    return values
+
+
 def _esc(value: str) -> str:
     """Escape $ in user-supplied values so Docker Compose doesn't interpolate them.
 
@@ -74,6 +92,7 @@ def validate_request(request: StackRequest) -> StackValidation:
     warnings: list[ValidationIssue] = []
 
     enabled_keys = {s.key for s in request.services if s.enabled}
+    env_values = _env_file_values()
 
     # Domain required when any web-facing service is selected
     if not request.domain and any(
@@ -114,7 +133,9 @@ def validate_request(request: StackRequest) -> StackValidation:
         ))
 
     # Tailscale auth key required
-    if "tailscale" in enabled_keys and not request.tailscale_auth_key:
+    existing_ts_authkey = env_values.get("TS_AUTHKEY", "")
+    has_saved_ts_authkey = bool(existing_ts_authkey and existing_ts_authkey != "${TS_AUTHKEY}")
+    if "tailscale" in enabled_keys and not request.tailscale_auth_key and not has_saved_ts_authkey:
         errors.append(ValidationIssue(
             service="tailscale", field="tailscale_auth_key",
             severity="error",

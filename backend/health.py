@@ -380,14 +380,20 @@ def check_cloudflare_tunnel(ctx: _CheckContext) -> list[HealthIssue]:
         ))
 
     error_patterns = [
-        ("token", "Cloudflare Tunnel token rejected", "Cloudflare rejected the tunnel token. Update the token from Zero Trust."),
-        ("Unauthorized", "Cloudflare Tunnel unauthorized", "Cloudflare rejected cloudflared authentication. Check the tunnel token in Zero Trust."),
-        ("certificate", "Cloudflare Tunnel certificate error", "cloudflared reported a certificate/authentication problem."),
+        (r"(invalid|rejected|expired|unauthorized|forbidden).*token|token.*(invalid|rejected|expired|unauthorized|forbidden)",
+         "Cloudflare Tunnel token rejected",
+         "Cloudflare rejected the tunnel token. Update the token from Zero Trust."),
+        (r"unauthorized|forbidden",
+         "Cloudflare Tunnel unauthorized",
+         "Cloudflare rejected cloudflared authentication. Check the tunnel token in Zero Trust."),
+        (r"certificate.*(error|failed|invalid)|authentication.*(error|failed)",
+         "Cloudflare Tunnel certificate error",
+         "cloudflared reported a certificate/authentication problem."),
     ]
-    for needle, title, detail in error_patterns:
-        if needle.lower() in logs.lower() and ("error" in logs.lower() or "failed" in logs.lower()):
+    for pattern, title, detail in error_patterns:
+        if re.search(pattern, logs, flags=re.I):
             out.append(HealthIssue(
-                id=f"cloudflared.{needle.lower()}", severity="error", category="Network",
+                id=f"cloudflared.{title.lower().replace(' ', '_')}", severity="error", category="Network",
                 title=title,
                 detail=detail,
                 fix_hint="Redeploy Cloudflared",
