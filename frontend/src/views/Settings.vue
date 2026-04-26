@@ -4,8 +4,12 @@
     <!-- ── Secrets ─────────────────────────────────────────────────────── -->
     <div class="section-head">
       <div>
-        <h2 class="section-title">Secrets</h2>
-        <p class="section-sub">Stored in <code>.env</code> on the server. Edit any time — redeploy the stack to apply changes.</p>
+        <div class="title-line">
+          <h2 class="section-title">Secrets</h2>
+          <button class="env-path-link" @click="showEnvPath" :title="envPath || 'Loading .env path...'">
+            stored in <code>.env</code>
+          </button>
+        </div>
       </div>
       <div class="secrets-actions" v-if="secrets.length">
         <button
@@ -150,6 +154,7 @@ const revealed       = reactive({})
 const saving         = ref(false)
 const saveMsg        = ref('')
 const saveOk         = ref(true)
+const envPath        = ref('')
 
 const SERVICE_ICONS  = { cloudflared: '☁️', tinyauth: '🔒', tailscale: '🔗', plex: '🎬' }
 const SERVICE_LABELS = { cloudflared: 'Cloudflare Tunnel', tinyauth: 'Tinyauth', tailscale: 'Tailscale', plex: 'Plex' }
@@ -177,6 +182,26 @@ async function loadSecrets() {
     console.error('Secrets load failed:', e)
   } finally {
     secretsLoading.value = false
+  }
+}
+
+async function loadSettingsMeta() {
+  try {
+    const meta = await fetch('/api/settings/meta').then(r => r.json())
+    envPath.value = meta.env_path || '/compose/.env'
+  } catch (e) {
+    envPath.value = '/compose/.env'
+    console.error('Settings metadata load failed:', e)
+  }
+}
+
+async function showEnvPath() {
+  const path = envPath.value || '/compose/.env'
+  try {
+    await navigator.clipboard.writeText(path)
+    showToast(`.env path copied: ${path}`, 'ok')
+  } catch (e) {
+    showToast(`.env path: ${path}`, 'ok')
   }
 }
 
@@ -282,6 +307,7 @@ async function loadHealth(force = false) {
 }
 
 onMounted(() => {
+  loadSettingsMeta()
   loadSecrets()
   loadHealth()
   pollTimer = setInterval(loadHealth, 20000)
@@ -295,15 +321,28 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 /* ── Section heads ───────────────────────────────────────────────────────── */
 .section-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-3);
+  margin-bottom: 6px;
   gap: var(--space-3);
 }
 .todo-head { margin-top: var(--space-5); }
-.section-title { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
+.title-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.section-title { font-size: 14.5px; font-weight: 700; margin: 0; }
 .section-sub { font-size: 11.5px; color: var(--fg-2); margin: 0; }
 .section-sub code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-2); padding: 1px 5px; border-radius: 3px; }
+.env-path-link {
+  border: none;
+  background: none;
+  color: var(--fg-2);
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+.env-path-link code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-2); padding: 1px 5px; border-radius: 3px; color: var(--accent); }
+.env-path-link:hover { background: none; color: var(--accent); text-decoration: underline; }
+.section-head button.primary { padding: 4px 10px; font-size: 12px; line-height: 1.2; }
 
 /* ── Secrets ─────────────────────────────────────────────────────────────── */
 .empty-secrets {
@@ -382,7 +421,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .save-msg.err { color: var(--err); }
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
-.health-head { margin-top: var(--space-5); align-items: center; }
+.health-head { margin-top: var(--space-4); align-items: center; }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--fg-2); padding: var(--space-5) 0; font-size: 13px; }
 .error-state { display: flex; align-items: center; gap: var(--space-2); color: var(--warn); padding: var(--space-4) 0; font-size: 13px; }
 

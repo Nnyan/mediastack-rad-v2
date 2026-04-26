@@ -800,6 +800,12 @@ async def api_secrets_list() -> list[SecretEntry]:
     return entries
 
 
+@app.get("/api/settings/meta")
+async def api_settings_meta() -> dict:
+    """Return non-secret settings metadata for display in the UI."""
+    return {"env_path": str(config.stack_dir / ".env")}
+
+
 _ALLOWED_ENV_KEYS: set[str] = {
     k["key"] for k in _SECRET_DEFS
 } | {
