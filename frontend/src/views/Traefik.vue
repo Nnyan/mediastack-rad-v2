@@ -45,10 +45,8 @@
     <div class="card routes-card">
       <h3 class="section-title">Routes</h3>
       <p class="small muted mb-3">
-        These are the hosts Traefik is currently serving. A green dot
-        means the router is up and has a valid cert; amber means the
-        router exists but no cert is issued yet; red means something is
-        wrong (check Settings → Health).
+        TLS Config means Traefik is configured for HTTPS. DNS, certificate
+        coverage, and Cloudflare Tunnel status are checked separately.
       </p>
       <table>
         <thead>
@@ -56,8 +54,11 @@
             <th>Router</th>
             <th>Host</th>
             <th>Service</th>
-            <th>TLS</th>
-            <th>Status</th>
+            <th>Router</th>
+            <th>TLS Config</th>
+            <th>Cert</th>
+            <th>DNS</th>
+            <th>Tunnel</th>
           </tr>
         </thead>
         <tbody>
@@ -71,16 +72,23 @@
             </td>
             <td class="mono small">{{ r.service }}</td>
             <td>
-              <span v-if="r.tls" class="dot ok"></span>
-              <span v-else class="dot off"></span>
-              <span class="small mono">{{ r.tls ? 'on' : 'off' }}</span>
+              <span class="badge-status" :class="statusClass(r.router_status, 'router')">{{ r.router_status }}</span>
             </td>
             <td>
-              <span class="badge-status" :class="r.statusClass">{{ r.status }}</span>
+              <span class="badge-status" :class="statusClass(r.tls_config, 'tls')">{{ r.tls_config }}</span>
+            </td>
+            <td>
+              <span class="badge-status" :class="statusClass(r.cert_status, 'cert')">{{ r.cert_status }}</span>
+            </td>
+            <td>
+              <span class="badge-status" :class="statusClass(r.dns_status, 'dns')" :title="(r.dns_addresses || []).join(', ')">{{ r.dns_status }}</span>
+            </td>
+            <td>
+              <span class="badge-status" :class="statusClass(r.tunnel_status, 'tunnel')" :title="r.tunnel_detail">{{ r.tunnel_status }}</span>
             </td>
           </tr>
           <tr v-if="routers.length === 0">
-            <td colspan="5" class="muted">No routers registered yet.</td>
+            <td colspan="8" class="muted">No routers registered yet.</td>
           </tr>
         </tbody>
       </table>
@@ -138,23 +146,12 @@ async function refresh() {
     console.error('Traefik health check failed:', e)
   }
 
-  // Fetch Traefik routers through the RAD backend proxy (/api/traefik/routers)
-  // rather than directly at http://host:8081. Direct http:// fetches are blocked
-  // as mixed content when RAD is served over HTTPS.
+  // Fetch enriched route status through RAD so DNS/cert checks happen server-side.
   try {
-    const r = await fetch('/api/traefik/routers')
+    const r = await fetch('/api/traefik/route-status')
     if (r.ok) {
       const data = await r.json()
-      routers.value = data
-        .filter(router => !router.name.endsWith('@internal'))
-        .map(router => ({
-          name:        router.name,
-          host:        extractHost(router.rule),
-          service:     router.service,
-          tls:         !!router.tls,
-          status:      router.status,
-          statusClass: router.status === 'enabled' ? 'ok' : 'warn',
-        }))
+      routers.value = data.routes || []
       pingMsg.value   = `${routers.value.length} routers`
       pingClass.value = 'ok'
     } else {
@@ -167,10 +164,10 @@ async function refresh() {
   }
 }
 
-function extractHost(rule) {
-  // rule looks like: Host(`sonarr.example.com`)
-  const m = /Host\(`([^`]+)`\)/.exec(rule || '')
-  return m ? m[1] : ''
+function statusClass(value, kind) {
+  if (['enabled', 'configured', 'covered', 'resolves'].includes(value)) return 'ok'
+  if (['off', 'missing', 'disabled', 'stopped'].includes(value)) return kind === 'tls' ? 'off' : 'err'
+  return 'warn'
 }
 
 async function cleanupAcmeJson() {
