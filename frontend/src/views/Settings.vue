@@ -371,65 +371,58 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .save-msg.ok  { color: var(--ok); }
 .save-msg.err { color: var(--err); }
 
-/* ── Checklist ───────────────────────────────────────────────────────────── */
-.pill-count {
-  font-family: var(--font-mono); font-size: 12px;
-  padding: 4px 12px; border-radius: 12px;
-  background: var(--bg-2); border: 1px solid var(--border); color: var(--fg-1);
-}
+/* ── Health ──────────────────────────────────────────────────────────────── */
+.health-head { margin-top: var(--space-5); align-items: center; }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--fg-2); padding: var(--space-5) 0; font-size: 13px; }
-.all-done { text-align: center; padding: var(--space-6) 0; }
-.done-icon { font-size: 48px; color: var(--ok); margin-bottom: var(--space-3); }
-.done-title { font-size: 20px; font-weight: 600; margin-bottom: var(--space-2); }
+.error-state { display: flex; align-items: center; gap: var(--space-2); color: var(--warn); padding: var(--space-4) 0; font-size: 13px; }
 
-.task-section { margin-bottom: var(--space-3); }
-.task-section-label {
-  display: flex; align-items: center; gap: var(--space-2);
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.08em; color: var(--fg-2); margin-bottom: var(--space-2);
+.health-section { display: flex; flex-direction: column; gap: var(--space-3); }
+.health-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: 10px 14px; background: var(--bg-1); border: 1.5px solid var(--border);
+  border-radius: var(--radius); flex-wrap: wrap;
 }
-.section-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-2); }
-.section-dot.essential   { background: var(--err); }
-.section-dot.recommended { background: var(--warn); }
-.section-count { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg-2); color: var(--fg-2); font-weight: 600; }
+.health-counts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.health-count { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.health-count.err { color: var(--err); }
+.health-count.warn { color: var(--warn); }
+.health-count.ok { color: var(--ok); }
+.health-meta { display: flex; align-items: center; gap: 6px; color: var(--fg-2); font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+.bullet { color: var(--border-strong); }
 
-.task-list { display: flex; flex-direction: column; gap: 1px; }
-.task {
-  background: var(--bg-1); border: 1px solid var(--border);
-  border-left: 3px solid transparent; border-radius: var(--radius);
-  cursor: pointer; transition: background 0.1s; overflow: hidden;
+.health-groups { display: flex; flex-direction: column; gap: 8px; }
+.health-card {
+  background: var(--bg-1); border: 1.5px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
 }
-.task:hover { background: var(--bg-2); }
-.task.essential   { border-left-color: var(--err-dim); }
-.task.recommended { border-left-color: var(--warn-dim); }
+.health-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: 7px 14px; background: var(--bg-0); border-bottom: 1px solid var(--border);
+}
+.health-card-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-2); }
+.health-card-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); }
+.health-card-body { padding: 3px 14px 5px; }
+.health-row { padding: 7px 0; border-top: 1px solid var(--border); }
+.health-row:first-child { border-top: none; }
+.health-row-main { display: grid; grid-template-columns: 10px 175px 1fr; align-items: center; gap: 9px; min-width: 0; }
+.health-row-label { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.health-row-result { font-size: 12.5px; color: var(--fg-1); min-width: 0; }
+.health-row-detail, .health-row-hint { margin: 5px 0 0 194px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
+.health-row.warning .health-row-result, .health-row.warning .health-row-detail { color: var(--warn); }
+.health-row.error .health-row-result, .health-row.error .health-row-detail { color: var(--err); }
+.health-row-hint { font-style: italic; }
 
-.task-main {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-}
-.task-title { font-weight: 500; font-size: 12.5px; }
-.task-action { margin-left: auto; }
-.task-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; justify-self: end; }
-.task-chevron.open { transform: rotate(90deg); }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot-ok { background: var(--ok); box-shadow: 0 0 4px rgba(22,163,74,0.5); }
+.dot-warning { background: var(--warn); box-shadow: 0 0 4px rgba(217,119,6,0.5); }
+.dot-error { background: var(--err); box-shadow: 0 0 4px rgba(220,38,38,0.5); }
 
-.task-detail {
-  padding: 0 var(--space-3) var(--space-3);
-  font-size: 11.5px; color: var(--fg-1);
-  line-height: 1.45; display: flex; flex-direction: column; gap: 6px;
+@media (max-width: 700px) {
+  .health-row-main { grid-template-columns: 10px 1fr; }
+  .health-row-result { grid-column: 2; }
+  .health-row-detail, .health-row-hint { margin-left: 19px; }
+  .health-meta { white-space: normal; }
 }
-
-.task-action {
-  font-family: var(--font-mono); font-size: 12px;
-  color: var(--accent); white-space: nowrap; flex-shrink: 0;
-  padding: 4px 10px; border: 1px solid var(--border);
-  border-radius: var(--radius); transition: background 0.1s;
-  text-decoration: none; align-self: flex-start;
-}
-.task-action:hover { background: var(--bg-2); text-decoration: none; }
-.task-action-inline { margin-top: 2px; }
 
 /* Spinner */
 .spinner { display: inline-block; width: 14px; height: 14px; border: 1.5px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
