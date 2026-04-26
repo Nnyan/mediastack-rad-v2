@@ -73,65 +73,63 @@
       </span>
     </div>
 
-    <!-- ── To-do ────────────────────────────────────────────────────────── -->
-    <div class="section-head todo-head">
+    <!-- ── Health ───────────────────────────────────────────────────────── -->
+    <div class="section-head health-head">
       <div>
-        <h2 class="section-title">To-do</h2>
+        <h2 class="section-title">Health</h2>
       </div>
-      <div class="pill-count" v-if="total > 0">{{ total }} remaining</div>
+      <button class="outline" :disabled="healthRefreshing" @click="loadHealth(true)">
+        {{ healthRefreshing ? 'Checking…' : 'Re-run checks' }}
+      </button>
     </div>
 
-    <div v-if="checklistLoading" class="loading-state">
-      <span class="spinner"></span> Checking system state…
+    <div v-if="healthLoading" class="loading-state">
+      <span class="spinner"></span> Checking system health…
     </div>
 
-    <div v-else-if="checklistError" class="loading-state">
-      <span style="color: var(--warn)">⚠</span>
-      Could not load checklist — is the backend running?
+    <div v-else-if="healthError" class="error-state">
+      <span class="error-icon">⚠</span>
+      Unable to load health report.
     </div>
 
-    <div v-else-if="total === 0" class="all-done">
-      <div class="done-icon">✓</div>
-      <div class="done-title">All set up</div>
-      <div class="done-sub muted">Nothing left to configure. Check the Health tab for ongoing monitoring.</div>
-    </div>
-
-    <div v-else>
-      <div v-for="cat in categories" :key="cat" class="task-section">
-        <div class="task-section-label">
-          <span class="section-dot" :class="cat"></span>
-          {{ cat }}
-          <span class="section-count">{{ itemsByCategory[cat]?.length }}</span>
+    <div v-else class="health-section">
+      <div class="health-summary">
+        <div class="health-counts">
+          <span class="health-count err">✗ {{ errorCount }} error{{ errorCount !== 1 ? 's' : '' }}</span>
+          <span class="health-count warn">⚠ {{ warningCount }} warning{{ warningCount !== 1 ? 's' : '' }}</span>
+          <span class="health-count ok">✓ {{ okCount }} passing</span>
         </div>
-        <div class="task-list">
-          <div
-            v-for="item in itemsByCategory[cat]"
-            :key="item.id"
-            class="task"
-            :class="[cat, { 'task-open': openTask === item.id }]"
-            @click="openTask = openTask === item.id ? null : item.id"
-          >
-            <div class="task-main">
-              <div class="task-title">{{ item.title }}</div>
-              <a
-                v-if="item.action_url && openTask !== item.id"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
-              <span class="task-chevron" :class="{ open: openTask === item.id }">›</span>
+        <div class="health-meta">
+          <span>Last run {{ formatHealthTime(lastCheckedAt) }}</span>
+          <span class="bullet">·</span>
+          <span>{{ totalChecks }} checks</span>
+          <span v-if="durationLabel" class="bullet">·</span>
+          <span v-if="durationLabel">{{ durationLabel }}</span>
+        </div>
+      </div>
+
+      <div class="health-groups">
+        <div v-for="group in healthGroups" :key="group.category" class="health-card">
+          <div class="health-card-head">
+            <span class="health-card-title">{{ group.category }}</span>
+            <span class="health-card-meta">{{ group.passing }}/{{ group.total }} passing</span>
+          </div>
+          <div class="health-card-body">
+            <div
+              v-for="check in group.checks"
+              :key="check.id"
+              class="health-row"
+              :class="check.status"
+            >
+              <div class="health-row-main">
+                <span class="dot" :class="`dot-${check.status}`"></span>
+                <span class="health-row-label">{{ check.label }}</span>
+                <span class="health-row-result">{{ check.summary }}</span>
+              </div>
+              <div v-if="check.detail" class="health-row-detail">{{ check.detail }}</div>
+              <div v-if="check.fix_hint" class="health-row-hint">{{ check.fix_hint }}</div>
             </div>
-            <div v-if="openTask === item.id" class="task-detail">
-              {{ item.detail }}
-              <a
-                v-if="item.action_url"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action task-action-inline"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
-            </div>
+            <div v-if="!group.checks.length" class="health-row muted">No checks yet.</div>
           </div>
         </div>
       </div>

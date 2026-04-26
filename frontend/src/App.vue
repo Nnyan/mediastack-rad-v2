@@ -97,10 +97,10 @@ const pendingCount = computed(() =>
 const navItems = computed(() => [
   { to: '/stack-builder', label: 'Stack Builder', icon: '⊞' },
   { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
-  { to: '/health',        label: 'Health',        icon: '♥',
-    badge: errorCount.value || null, badgeColor: 'var(--err)' },
-  { to: '/settings',      label: 'Settings',      icon: '⚙',
+  { to: '/todo',          label: 'To-Do',         icon: '☑',
     badge: pendingCount.value || null, badgeColor: 'var(--orange)' },
+  { to: '/settings',      label: 'Settings',      icon: '⚙',
+    badge: errorCount.value || null, badgeColor: 'var(--err)' },
 ])
 
 function showToast(message, type = 'ok', ms = 3500) {

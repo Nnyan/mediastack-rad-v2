@@ -48,7 +48,7 @@
         These are the hosts Traefik is currently serving. A green dot
         means the router is up and has a valid cert; amber means the
         router exists but no cert is issued yet; red means something is
-        wrong (check the Health tab).
+        wrong (check Settings → Health).
       </p>
       <table>
         <thead>
