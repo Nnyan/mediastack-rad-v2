@@ -84,6 +84,10 @@ class StackRequest(BaseModel):
     tailscale_auth_key: str | None = None   # TS_AUTHKEY — reusable key from admin console
     tailscale_routes: str | None = None     # TS_ROUTES — subnet CIDR to advertise
     tailscale_hostname: str = "mediastack"  # how node appears in Tailscale admin
+    # Egress VPN / Gluetun — starts with ProtonVPN support
+    protonvpn_user: str | None = None
+    protonvpn_password: str | None = None
+    protonvpn_countries: str | None = None
     # Tinyauth — Traefik ForwardAuth for Tailscale / non-LAN access
     tinyauth_enabled: bool = False
     # v5 env vars — SECRET removed (v5 uses SQLite sessions, no cookie secret)

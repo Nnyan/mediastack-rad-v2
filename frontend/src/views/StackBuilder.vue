@@ -635,6 +635,7 @@ const defaults = {
   plex_server_name: '', plex_claim: '',
   plex_url: '', plex_token: '',
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
+  protonvpn_user: '', protonvpn_password: '', protonvpn_countries: 'United States',
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
 }
@@ -653,7 +654,7 @@ const req = reactive({ ...defaults, ...stored })
 // Sensitive fields that must never be persisted to localStorage.
 const SENSITIVE_FIELDS = new Set([
   'cloudflare_token', 'cloudflare_tunnel_token',
-  'tailscale_auth_key', 'tinyauth_users', 'plex_token', 'plex_claim',
+  'tailscale_auth_key', 'protonvpn_user', 'protonvpn_password', 'tinyauth_users', 'plex_token', 'plex_claim',
 ])
 
 function sanitizeForStorage(v) {
@@ -690,14 +691,14 @@ const SHORT_DESCS = {
   qbittorrent: 'BitTorrent client', sabnzbd: 'Usenet downloader', nzbget: 'Usenet (lite)',
   seerr: 'Request manager (Plex/Jellyfin/Emby)',
   traefik: 'Reverse proxy & HTTPS', tinyauth: 'Auth gateway',
-  tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel',
+  tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel', gluetun: 'Egress VPN gateway',
 }
 
 const ICONS = {
   plex: '🎬', jellyfin: '🎞️', sonarr: '📺', radarr: '🎥', lidarr: '🎵',
   readarr: '📚', bazarr: '💬', prowlarr: '🔍', qbittorrent: '⬇️',
   sabnzbd: '📰', nzbget: '📥', seerr: '🙋',
-  traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️',
+  traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️', gluetun: '🛡️',
 }
 
 // Set for O(1) lookup instead of Array.includes()
@@ -712,6 +713,7 @@ const ENV_TO_FIELD = {
   PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
   CF_DNS_API_TOKEN: 'cloudflare_token', TUNNEL_TOKEN: 'cloudflare_tunnel_token',
   TS_AUTHKEY: 'tailscale_auth_key', TS_ROUTES: 'tailscale_routes', TS_HOSTNAME: 'tailscale_hostname',
+  PROTONVPN_USER: 'protonvpn_user', PROTONVPN_PASSWORD: 'protonvpn_password', PROTONVPN_COUNTRIES: 'protonvpn_countries',
   TINYAUTH_AUTH_USERS: 'tinyauth_users', TINYAUTH_APPURL: 'tinyauth_app_url',
   PLEX_CLAIM: 'plex_claim', PLEX_TOKEN: 'plex_token',
 }
@@ -811,7 +813,8 @@ function savedConfigField(field) {
   const cfg = step?.fields.find(f => f.key === field)
   if (!cfg?.envKey) return false
   if (secretStatus.value[cfg.envKey]) return true
-  if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
+    if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
+  if (cfg.envKey === 'PROTONVPN_COUNTRIES') return !!secretStatus.value.PROTONVPN_COUNTRIES
   const liveVal = _getLiveEnvValue(field)
   return !!(liveVal && liveVal !== '***')
 }
@@ -925,6 +928,31 @@ const configSteps = computed(() => {
       }],
     })
   }
+  if (pick.gluetun) {
+    steps.push({
+      id: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
+      note: 'Required for ProtonVPN-backed egress routing. Apps marked for VPN must share this gateway.',
+      fields: [
+        {
+          key: 'protonvpn_user', envKey: 'PROTONVPN_USER', label: 'ProtonVPN username', secret: true,
+          placeholder: 'OpenVPN/IKEv2 username',
+          hint: 'Find this in ProtonVPN account settings.',
+          link: 'https://account.protonvpn.com/account-password',
+        },
+        {
+          key: 'protonvpn_password', envKey: 'PROTONVPN_PASSWORD', label: 'ProtonVPN password', secret: true,
+          placeholder: 'OpenVPN/IKEv2 password',
+          hint: 'Find this in ProtonVPN account settings.',
+          link: 'https://account.protonvpn.com/account-password',
+        },
+        {
+          key: 'protonvpn_countries', envKey: 'PROTONVPN_COUNTRIES', label: 'Countries', secret: false,
+          placeholder: 'United States',
+          hint: 'Optional Gluetun SERVER_COUNTRIES value.',
+        },
+      ],
+    })
+  }
   if (pick.tinyauth) {
     steps.push({
       id: 'tinyauth', label: 'Tinyauth', icon: '🔒',
@@ -1020,6 +1048,7 @@ function serviceConfigState(key) {
     if (key === 'traefik' && step.id === 'traefik') return true
     if (key === 'cloudflared' && step.id === 'cloudflared') return true
     if (key === 'tailscale' && step.id === 'tailscale') return true
+    if (key === 'gluetun' && step.id === 'gluetun') return true
     if (key === 'tinyauth' && step.id === 'tinyauth') return true
     if ((key === 'plex' || ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'seerr'].includes(key)) && step.id === 'plex-external') return true
     return false

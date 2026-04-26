@@ -371,6 +371,9 @@ def _render_service(
     if svc.key == "tailscale":
         return _render_tailscale(request)
 
+    if svc.key == "gluetun":
+        return _render_gluetun(request)
+
     if svc.key == "tinyauth":
         return _render_tinyauth(request)
 
@@ -655,6 +658,31 @@ def _render_tailscale(request: StackRequest) -> dict[str, Any]:
             "TS_USERSPACE": "false",
             "TS_EXTRA_ARGS": "${TS_EXTRA_ARGS:-}",
         },
+    }
+
+
+def _render_gluetun(request: StackRequest) -> dict[str, Any]:
+    """Gluetun egress VPN gateway.
+
+    Starts as a ProtonVPN-ready provider using .env placeholders. Follow-up
+    work will attach selected apps to this container's network namespace.
+    """
+    return {
+        "image": "qmcgaw/gluetun:latest",
+        "container_name": "gluetun",
+        "restart": "unless-stopped",
+        "cap_add": ["NET_ADMIN"],
+        "devices": ["/dev/net/tun:/dev/net/tun"],
+        "networks": [STACK_NETWORK],
+        "environment": {
+            "VPN_SERVICE_PROVIDER": "protonvpn",
+            "VPN_TYPE": "openvpn",
+            "OPENVPN_USER": request.protonvpn_user or "${PROTONVPN_USER}",
+            "OPENVPN_PASSWORD": request.protonvpn_password or "${PROTONVPN_PASSWORD}",
+            "SERVER_COUNTRIES": request.protonvpn_countries or "${PROTONVPN_COUNTRIES:-United States}",
+            "TZ": request.timezone,
+        },
+        "volumes": [f"{request.config_root}/gluetun:/gluetun"],
     }
 
 
