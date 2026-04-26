@@ -355,7 +355,7 @@
             </div>
           </div>
 
-          <div class="service-grid">
+          <div class="service-grid" :style="{ '--tile-min-width': tileMinWidth + 'px' }">
             <button
               v-for="svc in filteredServices"
               :key="svc.key"
@@ -412,11 +412,14 @@
             <div
               v-for="c in filteredContainers"
               :key="c.id"
-              :class="['instance-card', { selected: selectedContainerId === c.id }]"
+              :class="['instance-card', instanceCardState(c), { selected: selectedContainerId === c.id }]"
               @click="selectContainer(c.id)"
             >
               <div class="instance-top">
                 <span class="instance-dot" :class="containerDotClass(c)"></span>
+                <span class="instance-icon" :class="{ link: !!containerUrls[c.id] }">
+                  {{ containerIcon(c.name) }}
+                </span>
                 <button
                   v-if="containerUrls[c.id]"
                   class="instance-name has-link"
@@ -782,6 +785,11 @@ const filteredServices = computed(() => {
   return [...filtered].sort((a, b) => a.display_name.localeCompare(b.display_name))
 })
 
+const tileMinWidth = computed(() => {
+  const longest = flatServices.value.reduce((max, svc) => Math.max(max, svc.display_name.length), 0)
+  return Math.max(160, longest * 8 + 48)
+})
+
 const selectedServices = computed(() =>
   Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
 )
@@ -803,7 +811,11 @@ const filteredContainers = computed(() => {
   const q = containerSearch.value.toLowerCase().trim()
   return containers.value
     .filter(c => showStoppedContainers.value || c.state === 'running')
-    .filter(c => !q || c.name.toLowerCase().includes(q) || c.image.toLowerCase().includes(q))
+    .filter(c => {
+      if (!q) return true
+      const cleanName = formatContainerName(c.name).toLowerCase()
+      return c.name.toLowerCase().includes(q) || cleanName.includes(q) || c.image.toLowerCase().includes(q)
+    })
     .sort((a, b) => {
       if (a.state === 'running' && b.state !== 'running') return -1
       if (a.state !== 'running' && b.state === 'running') return 1
@@ -826,7 +838,23 @@ function tileClass(key)   {
 function svcPillStyle(key) { const c = catColors(svcByKey.value[key]?.category); return { background: c.bg, color: c.text, borderColor: c.border } }
 function svcName(key)      { return svcByKey.value[key]?.display_name || key }
 
-function formatContainerName(n) { return n.replace(/^\//, '') }
+function formatContainerName(n) {
+  const clean = n.replace(/^\//, '')
+  const base = clean.split('.')[0]
+  const svc = svcByKey.value[base]
+  if (svc?.display_name) return svc.display_name
+  return clean
+    .replace(/[-_]/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function containerIcon(name) {
+  const clean = name.replace(/^\//, '')
+  const base = clean.split('.')[0]
+  return ICONS[base] || '📦'
+}
 function shortImage(img) {
   return img.split('/').slice(-2).join('/').split(':')[0]
 }
@@ -859,6 +887,12 @@ function containerDotClass(c) {
   if (c.state === 'restarting' || c.health === 'starting' || c.state === 'paused') return 'dot-warn'
   if (c.state === 'running') return 'dot-ok'
   return 'dot-off'
+}
+function instanceCardState(c) {
+  if (c.health === 'unhealthy' || c.state === 'dead') return 'instance-err'
+  if (c.state === 'restarting' || c.health === 'starting' || c.state === 'paused') return 'instance-warn'
+  if (c.state === 'running') return 'instance-ok'
+  return 'instance-off'
 }
 function containerMeta(c, verbose = false) {
   const parts = [containerStatusLabel(c)]
@@ -1463,9 +1497,13 @@ onUnmounted(() => {
 }
 .instance-card:hover { background: var(--bg-1); border-color: var(--border-strong); }
 .instance-card.selected {
+  box-shadow: var(--shadow-1);
   border-color: var(--accent);
-  background: var(--accent-subtle);
 }
+.instance-card.instance-ok { border-color: rgba(22,163,74,0.25); background: rgba(22,163,74,0.05); }
+.instance-card.instance-warn { border-color: rgba(217,119,6,0.25); background: rgba(217,119,6,0.05); }
+.instance-card.instance-err { border-color: rgba(220,38,38,0.35); background: rgba(220,38,38,0.06); }
+.instance-card.instance-off { border-color: var(--border); }
 .instance-top {
   display: flex;
   align-items: center;
@@ -1481,8 +1519,13 @@ onUnmounted(() => {
   border-radius: 50%;
   font-size: 11px;
 }
+.instance-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.instance-icon.link { color: var(--purple); }
 .instance-name {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--fg-0);
   overflow: hidden;
@@ -1495,6 +1538,7 @@ onUnmounted(() => {
   cursor: default;
   font-family: inherit;
   line-height: 1.2;
+  text-transform: uppercase;
   appearance: none;
 }
 .instance-name.has-link {
@@ -1509,6 +1553,8 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--fg-2);
   margin: 2px 0 6px;
+  min-height: 14px;
+  font-variant-numeric: tabular-nums;
 }
 .instance-actions {
   display: flex;
@@ -1605,7 +1651,7 @@ onUnmounted(() => {
 /* ── Service grid — compact fixed-column layout ──────────────────────────── */
 .service-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(var(--tile-min-width, 180px), 1fr));
   gap: 4px;
   margin-bottom: var(--space-2);
 }
