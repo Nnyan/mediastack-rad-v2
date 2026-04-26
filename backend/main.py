@@ -17,8 +17,10 @@ each boot.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
+import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -538,6 +540,85 @@ async def traefik_routers():
             return r.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Traefik unreachable: {e}")
+
+
+def _extract_host_rule(rule: str | None) -> str:
+    m = re.search(r"Host\(`([^`]+)`\)", rule or "")
+    return m.group(1) if m else ""
+
+
+def _cert_covers_host(host: str, names: list[str]) -> bool:
+    for name in names:
+        if name == host:
+            return True
+        if name.startswith("*.") and host.endswith(name[1:]):
+            return True
+    return False
+
+
+def _acme_domains() -> list[str]:
+    acme = config.traefik_dir / "acme.json"
+    if not acme.exists():
+        return []
+    try:
+        data = json.loads(acme.read_text() or "{}")
+    except Exception:
+        return []
+    names: list[str] = []
+    for resolver in data.values():
+        for cert in (resolver or {}).get("Certificates", []) or []:
+            domain = cert.get("domain") or {}
+            main = domain.get("main")
+            if main:
+                names.append(main)
+            names.extend(domain.get("sans") or [])
+    return names
+
+
+@app.get("/api/traefik/route-status")
+async def traefik_route_status() -> dict:
+    """Return enriched route status for the Traefik table."""
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get("http://traefik:8081/api/http/routers")
+            routers = r.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Traefik unreachable: {e}")
+
+    cert_domains = _acme_domains()
+    cloudflared = docker_client.get_container_safe("cloudflared")
+    tunnel_state = "running" if cloudflared and cloudflared.status == "running" else ("stopped" if cloudflared else "missing")
+
+    routes = []
+    for router in routers:
+        if router.get("name", "").endswith("@internal"):
+            continue
+        host = _extract_host_rule(router.get("rule"))
+        addresses: list[str] = []
+        dns_status = "unknown"
+        if host:
+            try:
+                addresses = sorted({item[4][0] for item in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)})
+                dns_status = "resolves" if addresses else "missing"
+            except socket.gaierror:
+                dns_status = "missing"
+            except Exception:
+                dns_status = "unknown"
+        tls_config = "configured" if router.get("tls") else "off"
+        cert_status = "covered" if host and _cert_covers_host(host, cert_domains) else ("missing" if host and cert_domains else "unknown")
+        routes.append({
+            "name": router.get("name"),
+            "host": host,
+            "service": router.get("service"),
+            "router_status": router.get("status"),
+            "tls_config": tls_config,
+            "cert_status": cert_status,
+            "dns_status": dns_status,
+            "dns_addresses": addresses,
+            "tunnel_status": "unknown" if tunnel_state == "running" else tunnel_state,
+            "tunnel_detail": "Cloudflare public hostname mapping requires Zero Trust API access" if tunnel_state == "running" else f"cloudflared {tunnel_state}",
+        })
+    return {"cert_domains": cert_domains, "cloudflared": tunnel_state, "routes": routes}
 
 
 @app.post("/api/custom-app/parse")
