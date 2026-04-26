@@ -17,6 +17,7 @@ each boot.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -274,6 +275,76 @@ async def api_logs(name: str, tail: int = 200) -> PlainTextResponse:
         raise HTTPException(404, f"No container named {name}")
     logs = c.logs(tail=tail, timestamps=True).decode("utf-8", errors="replace")
     return PlainTextResponse(logs)
+
+
+@app.get("/api/vpn/status")
+async def api_vpn_status() -> dict:
+    """Return VPN ingress/egress status for the VPN dashboard."""
+    tailscale = {"present": False, "status": "missing", "issues": []}
+    c = docker_client.get_container_safe("tailscale")
+    if c:
+        env = {}
+        for entry in (c.attrs.get("Config", {}).get("Env", []) or []):
+            if "=" in entry:
+                k, _, v = entry.partition("=")
+                env[k] = "***" if k == "TS_AUTHKEY" else v
+        host_cfg = c.attrs.get("HostConfig", {}) or {}
+        cap_add = host_cfg.get("CapAdd") or []
+        devices = host_cfg.get("Devices") or []
+        has_tun = any("/dev/net/tun" in str(d.get("PathOnHost", "")) for d in devices)
+        tailscale.update({
+            "present": True,
+            "status": c.status,
+            "kernel_mode": env.get("TS_USERSPACE", "false").lower() == "false",
+            "has_net_admin": "NET_ADMIN" in cap_add,
+            "has_net_raw": "NET_RAW" in cap_add,
+            "has_tun_device": has_tun,
+            "hostname": env.get("TS_HOSTNAME", ""),
+            "configured_routes": [r.strip() for r in env.get("TS_ROUTES", "").split(",") if r.strip()],
+            "tailscale_ips": [],
+            "backend_state": "unknown",
+            "online": None,
+            "peer_count": 0,
+            "active_routes": [],
+        })
+        if c.status == "running":
+            try:
+                result = c.exec_run("tailscale status --json", demux=False)
+                output = getattr(result, "output", b"") or b""
+                if getattr(result, "exit_code", 1) == 0:
+                    data = json.loads(output.decode("utf-8", errors="replace") or "{}")
+                    self_state = data.get("Self") or {}
+                    tailscale.update({
+                        "backend_state": data.get("BackendState") or "unknown",
+                        "online": self_state.get("Online"),
+                        "tailscale_ips": self_state.get("TailscaleIPs") or [],
+                        "peer_count": len(data.get("Peer") or {}),
+                        "active_routes": self_state.get("PrimaryRoutes") or self_state.get("AllowedIPs") or [],
+                    })
+                else:
+                    tailscale["issues"].append("tailscale status failed")
+            except Exception as e:
+                tailscale["issues"].append(f"status check failed: {e}")
+
+    vpn_containers = []
+    for name in ("protonvpn", "gluetun", "wireguard", "openvpn"):
+        vc = docker_client.get_container_safe(name)
+        if vc:
+            vpn_containers.append({
+                "name": vc.name,
+                "status": vc.status,
+                "image": vc.image.tags[0] if vc.image.tags else vc.image.short_id,
+            })
+
+    return {
+        "tailscale": tailscale,
+        "egress_vpn": {
+            "present": bool(vpn_containers),
+            "status": "running" if any(v["status"] == "running" for v in vpn_containers) else ("stopped" if vpn_containers else "not_configured"),
+            "providers": vpn_containers,
+            "routed_apps": [],
+        },
+    }
 
 
 # ---- Catalog & stack builder ----------------------------------------------

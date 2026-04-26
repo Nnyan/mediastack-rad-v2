@@ -97,6 +97,7 @@ const pendingCount = computed(() =>
 const navItems = computed(() => [
   { to: '/stack-builder', label: 'Stack Builder', icon: '⊞' },
   { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
+  { to: '/vpn',           label: 'VPN',           icon: '◇' },
   { to: '/settings',      label: 'Settings',      icon: '⚙',
     badge: errorCount.value || null, badgeColor: 'var(--err)' },
   { to: '/todo',          label: 'To-Do',         icon: '☑',
