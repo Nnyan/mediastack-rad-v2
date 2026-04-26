@@ -287,7 +287,7 @@ async def _build() -> list[ChecklistItem]:
             detail="Check logs with: docker logs tailscale",
             done=ts_running,
             category="essential",
-            action_url="/containers",
+            action_url="/stack-builder",
         ))
         items.append(ChecklistItem(
             id="tailscale.authkey",
@@ -344,7 +344,7 @@ async def _build() -> list[ChecklistItem]:
                 ),
                 done=not plex_has_traefik,
                 category="essential",
-                action_url="/health",
+                action_url="/settings",
             ))
 
         items.append(ChecklistItem(
@@ -366,7 +366,7 @@ async def _build() -> list[ChecklistItem]:
             detail="Bazarr → Settings → Providers. Use http://sonarr:8989 and http://radarr:7878.",
             done=False,
             category="recommended",
-            action_url="/containers",
+            action_url="/stack-builder",
         ))
 
     if "prowlarr" in services:
@@ -376,7 +376,7 @@ async def _build() -> list[ChecklistItem]:
             detail="Prowlarr → Settings → Apps. Add Sonarr, Radarr, etc.",
             done=False,
             category="recommended",
-            action_url="/containers",
+            action_url="/stack-builder",
         ))
 
     if "seerr" in services:
@@ -402,7 +402,7 @@ async def _build() -> list[ChecklistItem]:
             detail="Tinyauth must be running for Tailscale/WAN access to be gated.",
             done=ta_running,
             category="essential",
-            action_url="/containers",
+            action_url="/stack-builder",
         ))
 
         # 2. APPURL set (v5 renamed SECRET -> TINYAUTH_APPURL, uses SQLite sessions)
@@ -445,7 +445,7 @@ async def _build() -> list[ChecklistItem]:
                 ),
                 done=False,
                 category="essential",
-                action_url="/containers",
+                action_url="/stack-builder",
             ))
 
         # 5. Test from Tailscale
