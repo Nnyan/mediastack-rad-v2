@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.6.0] - 2026-04-26
+
+See commit history for changes.
+
 ## [2.5.0] - 2026-04-25
 
 See commit history for changes.
