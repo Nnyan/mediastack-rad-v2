@@ -462,7 +462,7 @@
                 port <strong>{{ c.port }}</strong> already used by
                 <code>{{ c.conflict_with }}</code>
               </span>
-              <button class="port-conflict-accept" @click="acceptPortSuggestion(c)">
+              <button class="cfg-inline-btn cfg-inline-btn-warn ml-auto" @click="acceptPortSuggestion(c)">
                 Use {{ c.suggested_port }}
               </button>
             </div>
@@ -589,21 +589,21 @@
         <div class="output-label">{{ deployOk ? 'Deploy output' : 'Deploy errors' }}</div>
         <pre class="output">{{ deployOutput }}</pre>
       </div>
-      <div v-if="deployConflicts.length" class="conflict-banner">
-        <div class="conflict-banner-head">
-          <span class="conflict-icon">⚠</span>
-          <span class="conflict-title">{{ deployConflicts.length }} container conflict(s)</span>
+        <div v-if="deployConflicts.length" class="conflict-banner">
+          <div class="conflict-banner-head">
+            <span class="conflict-icon">⚠</span>
+            <span class="conflict-title">{{ deployConflicts.length }} container conflict(s)</span>
+          </div>
+          <div class="conflict-names">
+            <span v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</span>
+          </div>
+          <div class="conflict-actions">
+            <span class="conflict-warn">Removing these containers will allow the deploy to proceed.</span>
+            <button class="cfg-inline-btn cfg-inline-btn-warn" :disabled="deploying" @click="purgeAndRetry">
+              {{ deploying ? 'Purging…' : 'Remove conflicts & retry' }}
+            </button>
+          </div>
         </div>
-        <div class="conflict-names">
-          <span v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</span>
-        </div>
-        <div class="conflict-actions">
-          <span class="conflict-warn">Removing these containers will allow the deploy to proceed.</span>
-          <button class="conflict-btn" :disabled="deploying" @click="purgeAndRetry">
-            {{ deploying ? 'Purging…' : 'Remove conflicts & retry' }}
-          </button>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -2140,7 +2140,7 @@ onUnmounted(() => {
   background: var(--accent-subtle);
   color: var(--accent);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 8px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
@@ -2153,6 +2153,23 @@ onUnmounted(() => {
 .cfg-inline-btn:hover {
   border-color: var(--accent);
   background: var(--accent);
+  color: #fff;
+}
+
+.cfg-inline-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cfg-inline-btn-warn {
+  border-color: rgba(217, 119, 6, 0.55);
+  background: rgba(217, 119, 6, 0.14);
+  color: var(--warn);
+}
+
+.cfg-inline-btn-warn:hover {
+  border-color: var(--warn);
+  background: var(--warn);
   color: #fff;
 }
 .toggle-row-group {
@@ -2193,6 +2210,16 @@ onUnmounted(() => {
 
   .toggle-row {
     padding: 7px 8px;
+  }
+
+  .port-conflict-row {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .port-conflict-detail {
+    min-width: 150px;
+    font-size: 11.5px;
   }
 }
 input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; cursor: default; border-style: dashed; }
@@ -2351,29 +2378,20 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .port-conflict-title { font-size: 12px; font-weight: 600; color: var(--warn); }
 .port-conflict-checking { font-size: 11px; color: var(--fg-2); font-style: italic; }
 .port-conflict-row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
   padding: 6px 12px;
 }
 .port-conflict-svc {
-  font-size: 12px; font-weight: 600; color: var(--fg-0); min-width: 90px;
+  font-size: 12px; font-weight: 600; color: var(--fg-0); min-width: 72px;
 }
 .port-conflict-detail {
-  font-size: 12px; color: var(--fg-1); flex: 1;
+  font-size: 12px; color: var(--fg-1); flex: 1; min-width: 180px;
 }
 .port-conflict-detail code {
   font-family: var(--font-mono); font-size: 11.5px;
   background: var(--bg-1); border: 1px solid var(--border);
   border-radius: 4px; padding: 1px 5px; color: var(--fg-0);
 }
-.port-conflict-accept {
-  font-size: 11px; font-weight: 600; font-family: var(--font-sans);
-  padding: 4px 10px; border-radius: 6px;
-  border: 1.5px solid var(--accent); background: transparent;
-  color: var(--accent); cursor: pointer; white-space: nowrap;
-  transition: all 0.13s; margin-left: auto;
-}
-.port-conflict-accept:hover { background: var(--accent-subtle); }
-
 /* Container name conflict banner (deploy-time) */
 .conflict-banner {
   margin-top: var(--space-3);
@@ -2405,13 +2423,6 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
   border-top: 1px solid rgba(217,119,6,0.15);
 }
 .conflict-warn { font-size: 11.5px; color: var(--warn); font-weight: 500; }
-.conflict-btn {
-  font-size: 12px; font-weight: 700; font-family: var(--font-sans);
-  padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
-  background: var(--warn); color: #fff; transition: opacity 0.13s;
-  white-space: nowrap;
-}
-.conflict-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Sticky bottom bar ──────────────────────────────────────────────────── */
 
