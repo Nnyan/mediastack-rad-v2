@@ -2113,12 +2113,22 @@ onUnmounted(() => {
 .cfg-body input,
 .cfg-body select,
 .cfg-body textarea { width: 100%; box-sizing: border-box; padding: 2px 6px; font-size: 10px; }
+.cfg-body input,
+.cfg-body select,
+.cfg-body textarea {
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  min-height: 24px;
+}
 .cfg-field-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toggle-row-group {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding-top: 4px;
+  align-items: stretch;
 }
 .toggle-row {
   display: flex;
@@ -2127,9 +2137,15 @@ onUnmounted(() => {
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg-0);
+  background: var(--bg-1);
   min-width: 0;
   color: var(--fg-1);
+  width: 100%;
+  transition: border-color 0.13s, background 0.13s;
+}
+
+.toggle-row:hover {
+  border-color: var(--accent);
 }
 
 .toggle-row input {
@@ -2149,7 +2165,7 @@ onUnmounted(() => {
 
 @media (max-width: 660px) {
   .toggle-row-group {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .toggle-row {
