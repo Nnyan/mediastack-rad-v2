@@ -33,8 +33,8 @@
           <div class="wide"><span>Active Routes</span><strong>{{ list(ts.active_routes) }}</strong></div>
         </div>
 
-        <div v-if="tailscaleReasons.length" class="issues">
-          <div v-for="issue in tailscaleReasons" :key="issue">{{ issue }}</div>
+        <div v-if="tailscaleExtraReasons.length" class="issues">
+          <div v-for="issue in tailscaleExtraReasons" :key="issue">{{ issue }}</div>
         </div>
       </section>
 
@@ -121,6 +121,7 @@ const tailscaleReasons = computed(() => {
   return reasons
 })
 const tailscalePrimaryReason = computed(() => tailscaleReasons.value[0] || 'Tailscale checks are healthy.')
+const tailscaleExtraReasons = computed(() => tailscaleReasons.value.slice(1))
 const tunnelLabel = computed(() => (ts.value.tailscale_ips || []).length ? 'connected' : 'not connected')
 const tunLabel = computed(() => ts.value.has_net_admin && ts.value.has_net_raw && ts.value.has_tun_device ? 'ready' : 'missing')
 const egressState = computed(() => eg.value.status === 'running' ? 'ok' : eg.value.present ? 'warn' : 'off')

@@ -74,7 +74,7 @@
                 </div>
                 <div class="required-progress">{{ completedConfigSteps }}/{{ configSteps.length }}</div>
               </div>
-              <div class="required-step-tabs">
+              <div v-if="configSteps.length > 1" class="required-step-tabs">
                 <button
                   v-for="step in configSteps"
                   :key="step.id"
@@ -919,7 +919,7 @@ const configSteps = computed(() => {
   if (pick.tailscale) {
     steps.push({
       id: 'tailscale', label: 'Tailscale', icon: '🔗',
-      note: 'Required for private VPN access and subnet routing.',
+      note: 'Auth key is the only manual input here. NET_ADMIN/NET_RAW and /dev/net/tun are applied automatically when Tailscale is selected.',
       fields: [{
         key: 'tailscale_auth_key', envKey: 'TS_AUTHKEY', label: 'Auth key', secret: true,
         placeholder: 'tskey-auth-... reusable, non-ephemeral',
