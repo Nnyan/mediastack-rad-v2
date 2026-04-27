@@ -40,24 +40,19 @@
           >
             <div class="task-main">
               <div class="task-title">{{ item.title }}</div>
-              <a
-                v-if="item.action_url && openTask !== item.id"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
-              <span class="task-chevron" :class="{ open: openTask === item.id }">›</span>
+              <div class="task-controls">
+                <a
+                  v-if="item.action_url"
+                  :href="item.action_url"
+                  :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
+                  class="task-action"
+                  @click.stop
+                >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
+                <span class="task-chevron" :class="{ open: openTask === item.id }">›</span>
+              </div>
             </div>
             <div v-if="openTask === item.id" class="task-detail">
               {{ item.detail }}
-              <a
-                v-if="item.action_url"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action task-action-inline"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
             </div>
           </div>
         </div>
@@ -180,6 +175,12 @@ onUnmounted(() => {
   padding: var(--space-2) var(--space-3);
 }
 .task-title { font-weight: 500; font-size: 13px; flex: 1; }
+.task-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .task-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; }
 .task-chevron.open { transform: rotate(90deg); }
 .task-detail {
@@ -204,7 +205,6 @@ onUnmounted(() => {
   text-decoration: none;
 }
 .task-action:hover { background: var(--bg-2); }
-.task-action-inline { align-self: flex-start; }
 
 .spinner {
   display: inline-block;
