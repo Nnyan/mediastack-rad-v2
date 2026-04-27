@@ -2110,18 +2110,52 @@ onUnmounted(() => {
 
 
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
-.cfg-body input   { padding: 2px 6px; font-size: 10px; }
-.cfg-body select  { padding: 3px 6px; font-size: 10px; }
+.cfg-body input,
+.cfg-body select,
+.cfg-body textarea { width: 100%; box-sizing: border-box; padding: 2px 6px; font-size: 10px; }
 .cfg-field-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toggle-row-group {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   padding-top: 4px;
 }
-.toggle-row { display: flex; align-items: center; gap: 6px; font-size: 9.8px; color: var(--fg-1); }
-.toggle-row input { width: 11px; height: 11px; }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0);
+  min-width: 0;
+  color: var(--fg-1);
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle-row span {
+  font-size: 10px;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+@media (max-width: 660px) {
+  .toggle-row-group {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .toggle-row {
+    padding: 7px 8px;
+  }
+}
 input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; cursor: default; border-style: dashed; }
 .cfg-body input.missing { border-color: var(--warn); background: var(--warn-bg); }
 
