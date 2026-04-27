@@ -208,7 +208,7 @@ onUnmounted(() => {
 
 <style scoped>
 .section-title {
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -292,7 +292,8 @@ onUnmounted(() => {
   padding: 4px 8px;
   font-size: 12px;
 }
-.routes-card { margin-top: 0; }
+.routes-card { margin-top: 0; padding: 8px 10px; margin-bottom: 0; }
+.routes-card .mb-3 { margin-bottom: 6px; }
 
 @media (max-width: 640px) {
   .status-grid { flex-wrap: wrap; }

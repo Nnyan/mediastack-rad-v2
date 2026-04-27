@@ -278,6 +278,112 @@ async def api_logs(name: str, tail: int = 200) -> PlainTextResponse:
     return PlainTextResponse(logs)
 
 
+@app.get("/api/vpn/status")
+async def api_vpn_status() -> dict:
+    """Return VPN ingress/egress status for the VPN dashboard."""
+    tailscale = {"present": False, "status": "missing", "issues": []}
+    c = docker_client.get_container_safe("tailscale")
+    if c:
+        env = {}
+        for entry in (c.attrs.get("Config", {}).get("Env", []) or []):
+            if "=" in entry:
+                k, _, v = entry.partition("=")
+                env[k] = "***" if k == "TS_AUTHKEY" else v
+        host_cfg = c.attrs.get("HostConfig", {}) or {}
+        cap_add = host_cfg.get("CapAdd") or []
+        devices = host_cfg.get("Devices") or []
+        has_tun = any("/dev/net/tun" in str(d.get("PathOnHost", "")) for d in devices)
+        tailscale.update({
+            "present": True,
+            "status": c.status,
+            "kernel_mode": env.get("TS_USERSPACE", "false").lower() == "false",
+            "has_net_admin": "NET_ADMIN" in cap_add,
+            "has_net_raw": "NET_RAW" in cap_add,
+            "has_tun_device": has_tun,
+            "hostname": env.get("TS_HOSTNAME", ""),
+            "configured_routes": [r.strip() for r in env.get("TS_ROUTES", "").split(",") if r.strip()],
+            "tailscale_ips": [],
+            "backend_state": "unknown",
+            "online": None,
+            "peer_count": 0,
+            "active_routes": [],
+        })
+        if c.status == "running":
+            try:
+                result = c.exec_run("tailscale status --json", demux=False)
+                output = getattr(result, "output", b"") or b""
+                if getattr(result, "exit_code", 1) == 0:
+                    data = json.loads(output.decode("utf-8", errors="replace") or "{}")
+                    self_state = data.get("Self") or {}
+                    tailscale.update({
+                        "backend_state": data.get("BackendState") or "unknown",
+                        "online": self_state.get("Online"),
+                        "tailscale_ips": self_state.get("TailscaleIPs") or [],
+                        "peer_count": len(data.get("Peer") or {}),
+                        "active_routes": self_state.get("PrimaryRoutes") or self_state.get("AllowedIPs") or [],
+                    })
+                else:
+                    tailscale["issues"].append("tailscale status failed")
+            except Exception as e:
+                tailscale["issues"].append(f"status check failed: {e}")
+
+    vpn_containers = []
+    for name in ("protonvpn", "gluetun", "wireguard", "openvpn"):
+        vc = docker_client.get_container_safe(name)
+        if vc:
+            vpn_containers.append({
+                "name": vc.name,
+                "status": vc.status,
+                "image": vc.image.tags[0] if vc.image.tags else vc.image.short_id,
+            })
+
+    routed_apps = []
+    routing_issues = []
+    gluetun = docker_client.get_container_safe("gluetun")
+    gluetun_id = gluetun.id if gluetun else ""
+    try:
+        all_containers = docker_client.client().containers.list(all=True)
+    except Exception:
+        all_containers = []
+    vpn_names = {"gluetun", "protonvpn", "wireguard", "openvpn", "tailscale", "cloudflared", "traefik", "mediastack-rad"}
+    for app in all_containers:
+        if app.name in vpn_names:
+            continue
+        host_cfg = app.attrs.get("HostConfig", {}) or {}
+        cfg = app.attrs.get("Config", {}) or {}
+        labels = cfg.get("Labels", {}) or {}
+        env = {}
+        for entry in (cfg.get("Env", []) or []):
+            if "=" in entry:
+                k, _, v = entry.partition("=")
+                env[k] = v
+        expected = (
+            labels.get("mediastack.rad.egress_vpn") == "gluetun"
+            or labels.get("rad.egress_vpn") == "gluetun"
+            or env.get("RAD_EGRESS_VPN") == "gluetun"
+        )
+        network_mode = str(host_cfg.get("NetworkMode") or "")
+        actual = network_mode in {"service:gluetun", "container:gluetun", f"container:{gluetun_id}"}
+        if expected or actual:
+            row = {"name": app.name, "status": app.status, "expected": expected, "actual": actual, "network_mode": network_mode}
+            routed_apps.append(row)
+            if expected and not actual:
+                routing_issues.append(f"{app.name} is marked for Gluetun but is not using Gluetun network mode")
+            if actual and (not gluetun or gluetun.status != "running"):
+                routing_issues.append(f"{app.name} uses Gluetun but Gluetun is not running")
+
+    return {
+        "tailscale": tailscale,
+        "egress_vpn": {
+            "present": bool(vpn_containers),
+            "status": "running" if any(v["status"] == "running" for v in vpn_containers) else ("stopped" if vpn_containers else "not_configured"),
+            "providers": vpn_containers,
+            "routed_apps": routed_apps,
+            "routing_issues": routing_issues,
+        },
+    }
+
+
 # ---- Catalog & stack builder ----------------------------------------------
 
 
@@ -776,6 +882,27 @@ _SECRET_DEFS: list[dict] = [
         "link": "https://login.tailscale.com/admin/settings/keys",
     },
     {
+        "key": "PROTONVPN_USER",
+        "label": "ProtonVPN Username",
+        "hint": "OpenVPN/IKEv2 username from ProtonVPN account settings — used by Gluetun",
+        "service": "gluetun",
+        "link": "https://account.protonvpn.com/account-password",
+    },
+    {
+        "key": "PROTONVPN_PASSWORD",
+        "label": "ProtonVPN Password",
+        "hint": "OpenVPN/IKEv2 password from ProtonVPN account settings — used by Gluetun",
+        "service": "gluetun",
+        "link": "https://account.protonvpn.com/account-password",
+    },
+    {
+        "key": "PROTONVPN_COUNTRIES",
+        "label": "ProtonVPN Countries",
+        "hint": "Optional Gluetun SERVER_COUNTRIES value, e.g. United States",
+        "service": "gluetun",
+        "link": None,
+    },
+    {
         "key": "PLEX_CLAIM",
         "label": "Plex Claim Token",
         "hint": "From plex.tv/claim — links this server to your account on first start (4 min expiry)",
@@ -892,6 +1019,7 @@ _ALLOWED_ENV_KEYS: set[str] = {
 } | {
     "PUID", "PGID", "TZ",
     "TS_AUTHKEY", "TS_ROUTES", "TS_HOSTNAME",
+    "PROTONVPN_USER", "PROTONVPN_PASSWORD", "PROTONVPN_COUNTRIES",
     "TINYAUTH_LAN_SUBNET",
     "PLEX_TOKEN",
 }

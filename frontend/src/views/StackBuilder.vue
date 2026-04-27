@@ -3,16 +3,9 @@
 
     <!-- ── Header ──────────────────────────────────────────────────────── -->
     <div class="builder-header">
-      <div>
-        <h1 class="page-title">Stack Builder</h1>
-        <div class="header-sub">
-          <span>{{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected</span>
-          <span v-if="req.domain" class="header-sub-sep">·</span>
-          <span v-if="req.domain">{{ req.domain }}</span>
-        </div>
-      </div>
+      <h1 class="page-title">Stack Builder</h1>
       <div class="header-actions">
-        <div class="search-wrap">
+        <div class="search-wrap header-search">
           <span class="search-icon">🔍</span>
           <input v-model="search" placeholder="Search services…" class="search-input" />
         </div>
@@ -66,56 +59,16 @@
                 <input v-model.number="req.pgid" type="number" />
               </label>
             </div>
-            <div v-if="configSteps.length" class="required-config-box">
-              <div class="required-config-head">
-                <div>
-                  <div class="required-title">Required setup</div>
-                  <div class="required-sub">Complete each selected app before deploy.</div>
-                </div>
-                <div class="required-progress">{{ completedConfigSteps }}/{{ configSteps.length }}</div>
-              </div>
-              <div class="required-step-tabs">
-                <button
-                  v-for="step in configSteps"
-                  :key="step.id"
-                  :class="['required-step-tab', { active: activeConfigStep?.id === step.id, done: stepComplete(step) }]"
-                  @click="activeConfigStepId = step.id"
-                >{{ step.label }}</button>
-              </div>
-              <div v-if="activeConfigStep" class="required-step-card">
-                <div class="required-step-title">
-                  <span>{{ activeConfigStep.icon }}</span>
-                  <span>{{ activeConfigStep.label }}</span>
-                  <span v-if="stepComplete(activeConfigStep)" class="required-ok">ready</span>
-                </div>
-                <div class="required-step-note">{{ activeConfigStep.note }}</div>
-                <div class="required-fields">
-                  <label v-for="field in activeConfigStep.fields" :key="field.key" class="cfg-field span2">
-                    <span class="cfg-label">
-                      {{ field.label }}
-                      <a v-if="field.link" :href="field.link" target="_blank" class="cfg-link">Open ↗</a>
-                    </span>
-                    <input
-                      v-model="req[field.key]"
-                      :type="field.secret ? 'password' : 'text'"
-                      :placeholder="savedConfigField(field.key) ? 'Saved in .env' : field.placeholder"
-                      :readonly="isFieldFromLive(field.key)"
-                      :class="{ 'cfg-readonly': isFieldFromLive(field.key), missing: !fieldSatisfied(field) }"
-                    />
-                    <span class="cfg-hint">{{ savedConfigField(field.key) ? `${field.envKey} already saved in .env` : field.hint }}</span>
-                  </label>
-                </div>
-              </div>
-            </div>
           </div>
           </div>
 
           <!-- Cloudflare — only when traefik or cloudflared is selected -->
                     <template v-if="pick['traefik'] || pick['cloudflared']">
           <div class="cfg-section" :class="{ open: expanded.cloudflare }">
-          <div class="cfg-head" @click="toggleCfg('cloudflare')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('cloudflare') }" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
             <span class="cfg-title">Cloudflare</span>
+            <span v-if="sectionNeedsSetup('cloudflare')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
             <div class="cfg-grid">
@@ -143,9 +96,10 @@
           <!-- Tailscale — only when tailscale is selected -->
                     <template v-if="pick['tailscale']">
           <div class="cfg-section" :class="{ open: expanded.tailscale }">
-          <div class="cfg-head" @click="toggleCfg('tailscale')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tailscale') }" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
             <span class="cfg-title">Tailscale</span>
+            <span v-if="sectionNeedsSetup('tailscale')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.tailscale" class="cfg-body">
             <div class="cfg-grid">
@@ -175,9 +129,10 @@
           <!-- Tinyauth — only when tinyauth is selected -->
                     <template v-if="pick['tinyauth']">
           <div class="cfg-section" :class="{ open: expanded.tinyauth }">
-          <div class="cfg-head" @click="toggleCfg('tinyauth')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tinyauth') }" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
             <span class="cfg-title">Tinyauth</span>
+            <span v-if="sectionNeedsSetup('tinyauth')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.tinyauth" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
@@ -220,9 +175,10 @@
           <!-- Plex — only when plex is selected -->
           <template v-if="pick['plex']">
           <div class="cfg-section" :class="{ open: expanded.plex }">
-          <div class="cfg-head" @click="toggleCfg('plex')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('plex') }" @click="toggleCfg('plex')">
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">Plex</span>
+            <span v-if="sectionNeedsSetup('plex')" class="cfg-required-badge">Required setup</span>
             <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'new server' : 'existing server' }}</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
@@ -346,39 +302,6 @@
           </div>
           </div>
 
-          <!-- Per-service extra env vars — shown when any service is selected -->
-          <div v-if="selectedServices.length" class="cfg-section" :class="{ open: expanded.extraenv }">
-          <div class="cfg-head" @click="toggleCfg('extraenv')">
-            <span class="cfg-icon">🔧</span>
-            <span class="cfg-title">Variables</span>
-          </div>
-          <div v-if="expanded.extraenv" class="cfg-body">
-            <p class="cfg-hint" style="margin: 6px 0 10px; font-style: normal; font-size: 11px;">
-              Add arbitrary environment variables to any selected service.
-              These are merged last and override catalog defaults.
-            </p>
-            <div v-for="key in selectedServices" :key="key" class="extraenv-service">
-              <div class="extraenv-service-head" @click="toggleExtraEnv(key)">
-                <span class="extraenv-icon">{{ svcByKey[key]?.icon || '📦' }}</span>
-                <span class="extraenv-name">{{ svcName(key) }}</span>
-                <span v-if="(extraEnvRows[key]||[]).filter(r=>r.k).length"
-                  class="extraenv-count">{{ (extraEnvRows[key]||[]).filter(r=>r.k).length }} var{{ (extraEnvRows[key]||[]).filter(r=>r.k).length !== 1 ? 's' : '' }}</span>
-                <span class="extraenv-chevron" :class="{ open: extraEnvOpen[key] }">›</span>
-              </div>
-              <div v-if="extraEnvOpen[key]" class="extraenv-rows">
-                <div v-for="(row, idx) in (extraEnvRows[key] ||= [])" :key="idx" class="extraenv-row">
-                  <input v-model="row.k" placeholder="VAR_NAME" class="extraenv-key" @keydown.tab.prevent="addEnvRow(key)" />
-                  <span class="extraenv-eq">=</span>
-                  <input v-model="row.v" placeholder="value" class="extraenv-val" />
-                  <button class="extraenv-rm" @click="removeEnvRow(key, idx)">✕</button>
-                </div>
-                <button class="extraenv-add" @click="addEnvRow(key)">+ Add variable</button>
-              </div>
-            </div>
-          </div>
-          </div>
-
-
         </div>
       </div><!-- /config-panel -->
 
@@ -438,14 +361,14 @@
               <h3 class="instances-title">Running Instances</h3>
             </div>
             <div class="instances-controls">
-              <div class="search-wrap instances-search">
-                <span class="search-icon">🔍</span>
-                <input v-model="containerSearch" placeholder="Search containers…" class="search-input" />
-              </div>
               <label class="toggle-stopped">
                 <input type="checkbox" v-model="showStoppedContainers" />
                 <span>Show stopped</span>
               </label>
+              <div class="search-wrap instances-search">
+                <span class="search-icon">🔍</span>
+                <input v-model="containerSearch" placeholder="Search containers…" class="search-input" />
+              </div>
             </div>
           </div>
 
@@ -587,14 +510,12 @@ const activeFilter = ref('')
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
+  tinyauth: false, plex: false, custom: false, deploy: true,
 })
 const plexMode     = ref('local')
 const addTab       = ref('compose')
 const addInput     = ref('')
 const portOverrides  = reactive({})   // { service_key: override_port }
-const extraEnvOpen   = reactive({})   // { service_key: bool } — expand env panel
-const extraEnvRows   = reactive({})   // { service_key: [{k:'',v:''},...] }
 const portConflicts  = ref([])        // [{service, port, conflict_with, suggested_port}]
 const portsChecking  = ref(false)
 const addParsing   = ref(false)
@@ -635,6 +556,7 @@ const defaults = {
   plex_server_name: '', plex_claim: '',
   plex_url: '', plex_token: '',
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
+  protonvpn_user: '', protonvpn_password: '', protonvpn_countries: 'United States',
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
 }
@@ -653,7 +575,7 @@ const req = reactive({ ...defaults, ...stored })
 // Sensitive fields that must never be persisted to localStorage.
 const SENSITIVE_FIELDS = new Set([
   'cloudflare_token', 'cloudflare_tunnel_token',
-  'tailscale_auth_key', 'tinyauth_users', 'plex_token', 'plex_claim',
+  'tailscale_auth_key', 'protonvpn_user', 'protonvpn_password', 'tinyauth_users', 'plex_token', 'plex_claim',
 ])
 
 function sanitizeForStorage(v) {
@@ -690,14 +612,14 @@ const SHORT_DESCS = {
   qbittorrent: 'BitTorrent client', sabnzbd: 'Usenet downloader', nzbget: 'Usenet (lite)',
   seerr: 'Request manager (Plex/Jellyfin/Emby)',
   traefik: 'Reverse proxy & HTTPS', tinyauth: 'Auth gateway',
-  tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel',
+  tailscale: 'Private VPN mesh', cloudflared: 'Public tunnel', gluetun: 'Egress VPN gateway',
 }
 
 const ICONS = {
   plex: '🎬', jellyfin: '🎞️', sonarr: '📺', radarr: '🎥', lidarr: '🎵',
   readarr: '📚', bazarr: '💬', prowlarr: '🔍', qbittorrent: '⬇️',
   sabnzbd: '📰', nzbget: '📥', seerr: '🙋',
-  traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️',
+  traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️', gluetun: '🛡️',
 }
 
 // Set for O(1) lookup instead of Array.includes()
@@ -706,12 +628,11 @@ const ICONS = {
 const liveServices = ref(new Set())
 const liveEnv = ref({})  // { container_name: { KEY: VALUE } }
 const secretStatus = ref({}) // { ENV_KEY: true } from Settings → Secrets, values never exposed
-const activeConfigStepId = ref('')
-
 const ENV_TO_FIELD = {
   PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
   CF_DNS_API_TOKEN: 'cloudflare_token', TUNNEL_TOKEN: 'cloudflare_tunnel_token',
   TS_AUTHKEY: 'tailscale_auth_key', TS_ROUTES: 'tailscale_routes', TS_HOSTNAME: 'tailscale_hostname',
+  PROTONVPN_USER: 'protonvpn_user', PROTONVPN_PASSWORD: 'protonvpn_password', PROTONVPN_COUNTRIES: 'protonvpn_countries',
   TINYAUTH_AUTH_USERS: 'tinyauth_users', TINYAUTH_APPURL: 'tinyauth_app_url',
   PLEX_CLAIM: 'plex_claim', PLEX_TOKEN: 'plex_token',
 }
@@ -811,7 +732,8 @@ function savedConfigField(field) {
   const cfg = step?.fields.find(f => f.key === field)
   if (!cfg?.envKey) return false
   if (secretStatus.value[cfg.envKey]) return true
-  if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
+    if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
+  if (cfg.envKey === 'PROTONVPN_COUNTRIES') return !!secretStatus.value.PROTONVPN_COUNTRIES
   const liveVal = _getLiveEnvValue(field)
   return !!(liveVal && liveVal !== '***')
 }
@@ -828,8 +750,8 @@ function stepComplete(step) {
 function ensureRequiredConfig() {
   const missing = configSteps.value.find(step => !stepComplete(step))
   if (!missing) return true
-  expanded.core = true
-  activeConfigStepId.value = missing.id
+  const section = missing.section || (missing.id === 'plex-external' ? 'plex' : missing.id)
+  if (section && Object.prototype.hasOwnProperty.call(expanded, section)) expanded[section] = true
   showToast(`Complete ${missing.label} setup before deploy`, 'warn', 7000)
   return false
 }
@@ -891,7 +813,7 @@ const configSteps = computed(() => {
   const steps = []
   if (webSelected.value || pick.traefik) {
     steps.push({
-      id: 'traefik', label: 'Traefik', icon: '🔀',
+      id: 'traefik', section: 'cloudflare', label: 'Traefik', icon: '🔀',
       note: 'Required for HTTPS certificates through Cloudflare DNS-01.',
       fields: [{
         key: 'cloudflare_token', envKey: 'CF_DNS_API_TOKEN', label: 'Cloudflare DNS API token', secret: true,
@@ -903,7 +825,7 @@ const configSteps = computed(() => {
   }
   if (pick.cloudflared) {
     steps.push({
-      id: 'cloudflared', label: 'Cloudflare Tunnel', icon: '☁️',
+      id: 'cloudflared', section: 'cloudflare', label: 'Cloudflare Tunnel', icon: '☁️',
       note: 'Required for public tunnel access without router port forwarding.',
       fields: [{
         key: 'cloudflare_tunnel_token', envKey: 'CLOUDFLARED_TOKEN', label: 'Tunnel token', secret: true,
@@ -915,8 +837,8 @@ const configSteps = computed(() => {
   }
   if (pick.tailscale) {
     steps.push({
-      id: 'tailscale', label: 'Tailscale', icon: '🔗',
-      note: 'Required for private VPN access and subnet routing.',
+      id: 'tailscale', section: 'tailscale', label: 'Tailscale', icon: '🔗',
+      note: 'Auth key is the only manual input here. NET_ADMIN/NET_RAW and /dev/net/tun are applied automatically when Tailscale is selected.',
       fields: [{
         key: 'tailscale_auth_key', envKey: 'TS_AUTHKEY', label: 'Auth key', secret: true,
         placeholder: 'tskey-auth-... reusable, non-ephemeral',
@@ -925,9 +847,34 @@ const configSteps = computed(() => {
       }],
     })
   }
+  if (pick.gluetun) {
+    steps.push({
+      id: 'gluetun', section: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
+      note: 'Required for ProtonVPN-backed egress routing. Apps marked for VPN must share this gateway.',
+      fields: [
+        {
+          key: 'protonvpn_user', envKey: 'PROTONVPN_USER', label: 'ProtonVPN username', secret: true,
+          placeholder: 'OpenVPN/IKEv2 username',
+          hint: 'Find this in ProtonVPN account settings.',
+          link: 'https://account.protonvpn.com/account-password',
+        },
+        {
+          key: 'protonvpn_password', envKey: 'PROTONVPN_PASSWORD', label: 'ProtonVPN password', secret: true,
+          placeholder: 'OpenVPN/IKEv2 password',
+          hint: 'Find this in ProtonVPN account settings.',
+          link: 'https://account.protonvpn.com/account-password',
+        },
+        {
+          key: 'protonvpn_countries', envKey: 'PROTONVPN_COUNTRIES', label: 'Countries', secret: false,
+          placeholder: 'United States',
+          hint: 'Optional Gluetun SERVER_COUNTRIES value.',
+        },
+      ],
+    })
+  }
   if (pick.tinyauth) {
     steps.push({
-      id: 'tinyauth', label: 'Tinyauth', icon: '🔒',
+      id: 'tinyauth', section: 'tinyauth', label: 'Tinyauth', icon: '🔒',
       note: 'Required before protected routes can authenticate users.',
       fields: [
         {
@@ -945,7 +892,7 @@ const configSteps = computed(() => {
   }
   if (plexMode.value === 'external' && (pick.sonarr || pick.radarr || pick.prowlarr || pick.bazarr || pick.seerr)) {
     steps.push({
-      id: 'plex-external', label: 'Existing Plex', icon: '🎬',
+      id: 'plex-external', section: 'plex', label: 'Existing Plex', icon: '🎬',
       note: 'Required when selected apps need to connect to an existing Plex server.',
       fields: [
         {
@@ -963,11 +910,11 @@ const configSteps = computed(() => {
   return steps
 })
 
-const activeConfigStep = computed(() =>
-  configSteps.value.find(step => step.id === activeConfigStepId.value) || configSteps.value.find(step => !stepComplete(step)) || configSteps.value[0] || null
-)
-
-const completedConfigSteps = computed(() => configSteps.value.filter(stepComplete).length)
+function sectionNeedsSetup(section) {
+  const related = configSteps.value.filter(step => step.section === section)
+  if (!related.length) return false
+  return related.some(step => !stepComplete(step))
+}
 
 const containerUrls = computed(() => {
   const map = {}
@@ -1020,6 +967,7 @@ function serviceConfigState(key) {
     if (key === 'traefik' && step.id === 'traefik') return true
     if (key === 'cloudflared' && step.id === 'cloudflared') return true
     if (key === 'tailscale' && step.id === 'tailscale') return true
+    if (key === 'gluetun' && step.id === 'gluetun') return true
     if (key === 'tinyauth' && step.id === 'tinyauth') return true
     if ((key === 'plex' || ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'seerr'].includes(key)) && step.id === 'plex-external') return true
     return false
@@ -1383,14 +1331,6 @@ async function loadCatalog() {
 }
 
 function buildRequest() {
-  const envForService = (key) => {
-    const rows = (extraEnvRows[key] || []).filter(r => r.k && r.k.trim())
-    if (!rows.length) return {}
-    const obj = {}
-    for (const r of rows) obj[r.k.trim()] = r.v ?? ''
-    return obj
-  }
-
   return {
     domain:                    req.domain,
     timezone:                  req.timezone,
@@ -1415,7 +1355,7 @@ function buildRequest() {
     services:                  selectedServices.value.map(k => ({
       key: k, enabled: true,
       port_override: portOverrides[k] || undefined,
-      extra_env:     envForService(k),
+      extra_env:     {},
     })),
     custom_yaml:               customYaml.value || undefined,
   }
@@ -1538,14 +1478,6 @@ watch(() => ({ ...pick }), (cur, prev) => {
 watch(addInput, () => { addResult.value = null })
 watch(addTab,   () => { addResult.value = null; addInput.value = ''; addFileName.value = '' })
 watch(selectedServices, schedulePortCheck)
-watch(configSteps, steps => {
-  if (!steps.length) {
-    activeConfigStepId.value = ''
-  } else if (!steps.some(step => step.id === activeConfigStepId.value)) {
-    activeConfigStepId.value = steps.find(step => !stepComplete(step))?.id || steps[0].id
-  }
-}, { immediate: true })
-
 let runningPollTimer = null
 
 onMounted(() => {
@@ -1575,7 +1507,7 @@ onUnmounted(() => {
 .builder-layout {
   display: flex;
   flex-direction: row;
-  gap: 24px;
+  gap: 6px;
   align-items: flex-start;
 }
 .config-panel {
@@ -1587,34 +1519,37 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 6px;
 }
 
 @media (max-width: 960px) {
   .builder-layout { flex-direction: column; }
   .config-panel { flex: none; width: 100%; }
+  .builder-header { flex-wrap: wrap; }
+  .header-actions { width: 100%; }
+  .header-search { flex: 1 1 100%; min-width: 0; }
   .tile-header, .instances-header { flex-direction: column; align-items: stretch; }
   .instances-controls { flex-wrap: wrap; }
   .tile-search, .instances-search { flex: 1 1 100%; max-width: none; }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
-.builder-header { margin-bottom: var(--space-1); display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.builder-header { margin-bottom: 6px; display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.builder-header .page-title { margin: 0; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
-.header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
-.header-sub-sep { opacity: 0.5; }
+.header-search { flex: 0 0 240px; min-width: 240px; }
 .btn-review     { font-size: 13px; font-weight: 600; font-family: var(--font-sans); padding: 6px 12px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
 .btn-review:hover:not(:disabled) { background: var(--accent-subtle); }
 .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
 .search-wrap { position: relative; flex: 1; min-width: 140px; }
-.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; }
 .search-input {
   width: 100%;
-  padding: 7px 10px 7px 30px;
+  padding: 4px 10px 4px 30px;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   background: var(--bg-0);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1629,40 +1564,43 @@ onUnmounted(() => {
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3);
+  margin-bottom: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
+.tile-card { gap: var(--space-2); }
+
 .tile-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
 }
-.tile-card .service-grid { margin-top: var(--space-1); }
+.tile-card .service-grid { margin-top: 0; }
 .tile-title {
   font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
-  margin: 0 0 4px;
+  margin: 0;
 }
-.tile-search { max-width: 240px; flex: 0 0 220px; }
+.tile-search { max-width: 220px; flex: 0 0 200px; }
 
 .instances-card { gap: var(--space-2); }
 .instances-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
 }
 .instances-title {
   font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
-  margin: 0 0 4px;
+  margin: 0;
 }
 .instances-controls {
   display: flex;
@@ -1670,8 +1608,6 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 .instances-search { max-width: 220px; flex: 0 0 200px; }
-.instances-search .search-input { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
-.instances-search .search-icon { font-size: 11px; }
 .toggle-stopped {
   display: flex;
   align-items: center;
@@ -1930,9 +1866,24 @@ onUnmounted(() => {
 .cfg-section.open { box-shadow: var(--shadow-1); }
 .cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; user-select: none; }
 .cfg-head:hover   { background: var(--bg-2); }
+.cfg-head-required { background: var(--warn-bg); border-bottom: 1px solid var(--warn-dim); }
+.cfg-head-required:hover { background: var(--warn-bg); }
 .cfg-icon         { font-size: 13px; }
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 /* cfg-badge removed */
+.cfg-required-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--warn);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-dim);
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
 .cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); white-space: nowrap; flex-shrink: 0; }
 .cfg-head-pinned  { cursor: default; }
 .cfg-head-pinned:hover { background: var(--bg-1); }
@@ -1975,35 +1926,6 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
-
-.required-config-box {
-  margin-top: 8px;
-  padding: 7px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--warn-dim);
-  background: var(--warn-bg);
-}
-.required-config-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.required-title { font-size: 11.5px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.05em; }
-.required-sub { font-size: 9.5px; color: var(--fg-2); }
-.required-progress { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--warn); white-space: nowrap; }
-.required-step-tabs { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
-.required-step-tab {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border-color: rgba(217,119,6,0.35);
-  color: var(--warn);
-  background: var(--bg-1);
-}
-.required-step-tab.active { background: var(--warn); border-color: var(--warn); color: #fff; }
-.required-step-tab.done { color: var(--ok); border-color: rgba(22,163,74,0.35); background: var(--ok-bg); }
-.required-step-tab.done.active { background: var(--ok); color: #fff; }
-.required-step-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
-.required-step-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
-.required-step-note { font-size: 9.5px; color: var(--fg-2); line-height: 1.3; margin-bottom: 5px; }
-.required-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.required-ok { margin-left: auto; font-size: 9px; text-transform: uppercase; color: var(--ok); }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
 .cfg-note-purple   { background: var(--accent-subtle); color: var(--fg-1); border: 1px solid var(--accent-dim); }
@@ -2193,27 +2115,6 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .ml-auto       { margin-left: auto; }
 
 /* ── Extra env vars ──────────────────────────────────────────────────────── */
-.extraenv-service { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 6px; }
-.extraenv-service:first-child { border-top: none; margin-top: 0; }
-.extraenv-service-head { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 3px 2px; border-radius: 5px; user-select: none; }
-.extraenv-service-head:hover { background: var(--bg-0); }
-.extraenv-icon  { font-size: 12px; }
-.extraenv-name  { font-size: 12px; font-weight: 600; color: var(--fg-0); flex: 1; }
-.extraenv-count { font-size: 9.5px; font-weight: 700; color: var(--accent); background: var(--accent-subtle); border: 1px solid var(--accent-dim); padding: 1px 6px; border-radius: 20px; }
-.extraenv-chevron { font-size: 13px; color: var(--fg-2); transition: transform 0.13s; display: inline-block; }
-.extraenv-chevron.open { transform: rotate(90deg); }
-.extraenv-rows { margin-top: 6px; display: flex; flex-direction: column; gap: 5px; }
-.extraenv-row  { display: flex; align-items: center; gap: 5px; }
-.extraenv-key  { font-family: var(--font-mono); font-size: 11.5px; flex: 0 0 160px; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; }
-.extraenv-key:focus { border-color: var(--accent); }
-.extraenv-eq   { font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); flex-shrink: 0; }
-.extraenv-val  { font-family: var(--font-mono); font-size: 11.5px; flex: 1; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; min-width: 0; }
-.extraenv-val:focus { border-color: var(--accent); }
-.extraenv-rm   { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; padding: 0 3px; flex-shrink: 0; }
-.extraenv-rm:hover { color: var(--err); }
-.extraenv-add  { font-size: 11.5px; font-weight: 600; font-family: var(--font-sans); color: var(--accent); background: none; border: 1.5px dashed var(--accent-dim); border-radius: 5px; padding: 3px 10px; cursor: pointer; margin-top: 2px; transition: all 0.13s; }
-.extraenv-add:hover { background: var(--accent-subtle); }
-
 /* ── Narrow screens: stack vertically ───────────────────────────────────── */
 @media (max-width: 767px) {
   .builder-layout {

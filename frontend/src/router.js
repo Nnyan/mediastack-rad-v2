@@ -6,6 +6,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import StackBuilder from './views/StackBuilder.vue'
 import Todo from './views/Todo.vue'
 import Traefik from './views/Traefik.vue'
+import Vpn from './views/Vpn.vue'
 import Settings from './views/Settings.vue'
 
 const routes = [
@@ -13,6 +14,7 @@ const routes = [
   { path: '/stack-builder',name: 'stack-builder', component: StackBuilder },
   { path: '/todo',         name: 'todo',           component: Todo },
   { path: '/traefik',      name: 'traefik',        component: Traefik },
+  { path: '/vpn',          name: 'vpn',            component: Vpn },
   { path: '/settings',     name: 'settings',       component: Settings },
 ]
 

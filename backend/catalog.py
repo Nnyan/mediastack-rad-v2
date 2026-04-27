@@ -254,6 +254,23 @@ CATALOG: dict[str, ServiceDef] = {
         command="tunnel --no-autoupdate run",
         env={"TUNNEL_TOKEN": "${CLOUDFLARED_TOKEN}"},
     ),
+    "gluetun": ServiceDef(
+        key="gluetun",
+        display_name="Gluetun VPN",
+        description="Egress VPN gateway for selected apps, including ProtonVPN",
+        image="qmcgaw/gluetun:latest",
+        category="infra",
+        skip_traefik=True,
+        config_volumes=["/gluetun"],
+        env={
+            "VPN_SERVICE_PROVIDER": "protonvpn",
+            "VPN_TYPE": "openvpn",
+            "OPENVPN_USER": "${PROTONVPN_USER}",
+            "OPENVPN_PASSWORD": "${PROTONVPN_PASSWORD}",
+            "SERVER_COUNTRIES": "${PROTONVPN_COUNTRIES:-United States}",
+            "TZ": "${TZ:-America/Los_Angeles}",
+        },
+    ),
 }
 
 

@@ -40,24 +40,19 @@
           >
             <div class="task-main">
               <div class="task-title">{{ item.title }}</div>
-              <a
-                v-if="item.action_url && openTask !== item.id"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
-              <span class="task-chevron" :class="{ open: openTask === item.id }">›</span>
+              <div class="task-controls">
+                <a
+                  v-if="item.action_url"
+                  :href="item.action_url"
+                  :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
+                  class="task-action"
+                  @click.stop
+                >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
+                <span class="task-chevron" :class="{ open: openTask === item.id }">›</span>
+              </div>
             </div>
             <div v-if="openTask === item.id" class="task-detail">
               {{ item.detail }}
-              <a
-                v-if="item.action_url"
-                :href="item.action_url"
-                :target="item.action_url.startsWith('http') ? '_blank' : '_self'"
-                class="task-action task-action-inline"
-                @click.stop
-              >{{ item.action_url.startsWith('http') ? 'Open ↗' : 'Go →' }}</a>
             </div>
           </div>
         </div>
@@ -141,8 +136,8 @@ onUnmounted(() => {
 .done-icon { font-size: 48px; color: var(--ok); margin-bottom: var(--space-3); }
 .done-title { font-size: 20px; font-weight: 600; margin-bottom: var(--space-2); }
 
-.task-sections { display: flex; flex-direction: column; gap: var(--space-3); }
-.task-section { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
+.task-sections { display: flex; flex-direction: column; gap: 6px; }
+.task-section { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 8px 10px 10px; }
 .task-section-label {
   display: flex;
   align-items: center;
@@ -152,7 +147,7 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--fg-2);
-  margin-bottom: var(--space-2);
+  margin-bottom: 6px;
 }
 .section-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-2); }
 .section-dot.essential   { background: var(--err); }
@@ -180,6 +175,12 @@ onUnmounted(() => {
   padding: var(--space-2) var(--space-3);
 }
 .task-title { font-weight: 500; font-size: 13px; flex: 1; }
+.task-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .task-chevron { font-size: 14px; color: var(--fg-2); flex-shrink: 0; transition: transform 0.13s; display: inline-block; }
 .task-chevron.open { transform: rotate(90deg); }
 .task-detail {
@@ -204,7 +205,6 @@ onUnmounted(() => {
   text-decoration: none;
 }
 .task-action:hover { background: var(--bg-2); }
-.task-action-inline { align-self: flex-start; }
 
 .spinner {
   display: inline-block;

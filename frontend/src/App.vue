@@ -33,7 +33,7 @@
             {{ info.stopped }} stopped
           </div>
           <div class="chip chip-muted">
-            {{ info.cpus }}C · {{ gb(info.memory_bytes) }}GB
+            {{ usageChipLabel }}
           </div>
         </div>
 
@@ -74,6 +74,8 @@ const checklist  = ref([])
 const toast      = ref(null)
 const navigating = ref(false)
 const isDark     = ref(localStorage.getItem('rad-theme') === 'dark')
+const liveCpuPercent = ref(null)
+const liveMemUsedBytes = ref(null)
 
 if (isDark.value) document.documentElement.dataset.theme = 'dark'
 
@@ -97,11 +99,19 @@ const pendingCount = computed(() =>
 const navItems = computed(() => [
   { to: '/stack-builder', label: 'Stack Builder', icon: '⊞' },
   { to: '/traefik',       label: 'Traefik',       icon: '⇄' },
+  { to: '/vpn',           label: 'VPN',           icon: '◇' },
   { to: '/settings',      label: 'Settings',      icon: '⚙',
     badge: errorCount.value || null, badgeColor: 'var(--err)' },
   { to: '/todo',          label: 'To-Do',         icon: '☑',
     badge: pendingCount.value || null, badgeColor: 'var(--orange)' },
 ])
+
+const usageChipLabel = computed(() => {
+  if (typeof liveCpuPercent.value === 'number' && typeof liveMemUsedBytes.value === 'number') {
+    return `CPU ${liveCpuPercent.value.toFixed(1)}% · RAM ${gb(liveMemUsedBytes.value)}/${gb(info.value.memory_bytes)}GB`
+  }
+  return `${info.value.cpus || 0}C · ${gb(info.value.memory_bytes)}GB`
+})
 
 function showToast(message, type = 'ok', ms = 3500) {
   toast.value = { message, type }
@@ -123,6 +133,31 @@ function toggleTheme() {
 function gb(bytes) { return bytes ? (bytes / 1073741824).toFixed(1) : '0' }
 
 let pollTimer = null
+let statsWs = null
+let statsWsActive = false
+
+function openStatsWebSocket() {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  statsWs = new WebSocket(`${proto}//${window.location.host}/ws/stats`)
+  statsWs.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data)
+      if (msg.type !== 'stats' || !Array.isArray(msg.containers)) return
+      const cpuRaw = msg.containers.reduce((sum, row) => sum + (Number(row.cpu_percent) || 0), 0)
+      const memUsed = msg.containers.reduce((sum, row) => sum + (Number(row.mem_usage_bytes) || 0), 0)
+      const cores = Number(info.value.cpus) || 0
+      const cpuHostPct = cores > 0 ? (cpuRaw / cores) : cpuRaw
+      liveCpuPercent.value = Math.max(0, Math.min(100, cpuHostPct))
+      liveMemUsedBytes.value = Math.max(0, memUsed)
+    } catch {
+      // ignore malformed websocket payloads
+    }
+  }
+  statsWs.onclose = () => {
+    if (statsWsActive) setTimeout(openStatsWebSocket, 2000)
+  }
+}
+
 async function refresh() {
   try {
     const [i, h, c] = await Promise.allSettled([
@@ -139,9 +174,16 @@ async function refresh() {
   }
 }
 
-onMounted(() => { refresh(); pollTimer = setInterval(refresh, 15000) })
+onMounted(() => {
+  refresh()
+  pollTimer = setInterval(refresh, 15000)
+  statsWsActive = true
+  openStatsWebSocket()
+})
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  statsWsActive = false
+  if (statsWs) statsWs.close()
   unsubAfterEach()  // remove the afterEach navigation guard
 })
 </script>
