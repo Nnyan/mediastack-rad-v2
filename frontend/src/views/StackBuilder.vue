@@ -166,7 +166,7 @@
                     <label class="cfg-field span2">
                       <span class="cfg-label">WireGuard config file</span>
                       <div class="cfg-field-actions">
-                        <button type="button" class="cfg-inline-btn parse-confirm" @click="gluetunConfigInput?.click()">Upload .conf</button>
+                        <button type="button" class="cfg-inline-btn" @click="gluetunConfigInput?.click()">Upload .conf</button>
                         <span class="cfg-hint">{{ gluetunConfigFileName || 'No file selected' }}</span>
                       </div>
                       <span class="cfg-hint">Saved as /gluetun/wireguard/wg0.conf and can replace manual key/address entries.</span>
