@@ -139,7 +139,7 @@
                   <label class="cfg-field">
                     <span class="cfg-label">Mode</span>
                     <select v-model="req.vpn_type">
-                      <option value="wireguard">WireGuard (default)</option>
+                      <option value="wireguard">WireGuard</option>
                       <option value="openvpn">OpenVPN</option>
                     </select>
                   </label>
@@ -149,36 +149,37 @@
                       <a href="https://github.com/qdm12/gluetun-wiki" target="_blank" class="cfg-link">Provider docs ↗</a>
                     </span>
                     <input v-model="req.vpn_service_provider" placeholder="ivpn, mullvad, airvpn" :readonly="isFieldFromLive('vpn_service_provider')" :class="{ 'cfg-readonly': isFieldFromLive('vpn_service_provider') }" />
-                    <span class="cfg-hint">Used by Gluetun for both WireGuard and OpenVPN routes.</span>
+                    <span class="cfg-hint">Provider key used in both VPN modes.</span>
                   </label>
 
                   <template v-if="req.vpn_type === 'wireguard'">
                     <label class="cfg-field">
                       <span class="cfg-label">WireGuard private key</span>
                       <input v-model="req.wireguard_private_key" type="password" placeholder="wOEI9..." :readonly="isFieldFromLive('wireguard_private_key')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_private_key') }" />
-                      <span class="cfg-hint">Required unless a WireGuard config file is provided.</span>
+                      <span class="cfg-hint">Required unless a WireGuard config file is used.</span>
                     </label>
                     <label class="cfg-field">
                       <span class="cfg-label">WireGuard addresses</span>
                       <input v-model="req.wireguard_addresses" placeholder="10.64.222.21/32" :readonly="isFieldFromLive('wireguard_addresses')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_addresses') }" />
-                      <span class="cfg-hint">Required unless a WireGuard config file is provided.</span>
+                      <span class="cfg-hint">Required unless a WireGuard config file is used.</span>
                     </label>
                     <label class="cfg-field span2">
-                      <span class="cfg-label">WireGuard config file (optional)</span>
+                      <span class="cfg-label">WireGuard config file</span>
                       <div class="cfg-field-actions">
                         <button type="button" class="parse-confirm" @click="gluetunConfigInput?.click()">Upload .conf</button>
                         <span class="cfg-hint">{{ gluetunConfigFileName || 'No file selected' }}</span>
                       </div>
-                      <span class="cfg-hint">Uploaded file is stored as /gluetun/wireguard/wg0.conf and can replace manual key/address entries.</span>
+                      <span class="cfg-hint">Saved as /gluetun/wireguard/wg0.conf and can replace manual key/address entries.</span>
                     </label>
                     <label class="cfg-field">
-                      <span class="cfg-label">WireGuard config text (optional)</span>
+                      <span class="cfg-label">WireGuard config text</span>
                       <textarea
                         v-model="req.wireguard_config"
                         placeholder="[Interface]..."
-                        class="compose-textarea"
-                        rows="4"
+                        class="compose-textarea gluetun-config-textarea"
+                        rows="3"
                       ></textarea>
+                      <span class="cfg-hint">Paste full text or use Upload .conf.</span>
                     </label>
                   </template>
 
@@ -186,29 +187,29 @@
                     <label class="cfg-field">
                       <span class="cfg-label">OpenVPN user</span>
                       <input v-model="req.openvpn_user" type="password" placeholder="OpenVPN username" :readonly="isFieldFromLive('openvpn_user')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_user') }" />
-                      <span class="cfg-hint">Required for OpenVPN mode.</span>
+                      <span class="cfg-hint">Required in OpenVPN mode.</span>
                     </label>
                     <label class="cfg-field">
                       <span class="cfg-label">OpenVPN password</span>
                       <input v-model="req.openvpn_password" type="password" placeholder="OpenVPN password" :readonly="isFieldFromLive('openvpn_password')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_password') }" />
-                      <span class="cfg-hint">Required for OpenVPN mode.</span>
+                      <span class="cfg-hint">Required in OpenVPN mode.</span>
                     </label>
                   </template>
 
                   <label class="cfg-field">
                     <span class="cfg-label">Server countries</span>
-                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional for OpenVPN'" :readonly="isFieldFromLive('server_countries')" :class="{ 'cfg-readonly': isFieldFromLive('server_countries') }" />
-                    <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required for WireGuard unless the uploaded config provides routing values.' : 'Optional Gluetun country filter for OpenVPN or config-based WireGuard setups.' }}</span>
+                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional'" :readonly="isFieldFromLive('server_countries')" :class="{ 'cfg-readonly': isFieldFromLive('server_countries') }" />
+                    <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required if no WireGuard config is used.' : 'Optional country filter.' }}</span>
                   </label>
                   <label class="cfg-field">
-                    <span class="cfg-label">Server region (optional)</span>
+                    <span class="cfg-label">Server region</span>
                     <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldFromLive('server_region')" :class="{ 'cfg-readonly': isFieldFromLive('server_region') }" />
-                    <span class="cfg-hint">Optional region filter for Gluetun.</span>
+                    <span class="cfg-hint">Optional region filter.</span>
                   </label>
                   <label class="cfg-field">
-                    <span class="cfg-label">Server cities (optional)</span>
+                    <span class="cfg-label">Server cities</span>
                     <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldFromLive('server_cities')" :class="{ 'cfg-readonly': isFieldFromLive('server_cities') }" />
-                    <span class="cfg-hint">Optional city filter for Gluetun.</span>
+                    <span class="cfg-hint">Optional city filter.</span>
                   </label>
                   <label class="cfg-field span2">
                     <span class="cfg-label">Optional Gluetun switches</span>
@@ -988,17 +989,17 @@ const configSteps = computed(() => {
     const hasWireguardConfig = Boolean((req.wireguard_config || '').trim())
     steps.push({
       id: 'gluetun', section: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
-      note: 'Choose WireGuard (default) or OpenVPN and fill only that mode’s credentials.',
+      note: 'Choose WireGuard or OpenVPN and fill only that mode’s credentials.',
       fields: [
         {
           key: 'vpn_service_provider', envKey: 'VPN_SERVICE_PROVIDER', label: 'VPN service provider', secret: false,
           placeholder: 'ivpn, mullvad, airvpn',
-          hint: 'Keyword used by Gluetun for both WireGuard and OpenVPN.',
+          hint: 'Provider key used for both VPN modes.',
         },
         {
           key: 'vpn_type', envKey: 'VPN_TYPE', label: 'VPN mode', secret: false,
           placeholder: 'wireguard',
-          hint: 'WireGuard is default; OpenVPN mode uses OpenVPN credentials.',
+          hint: 'WireGuard or OpenVPN mode.',
           required: false,
         },
         {
@@ -1007,7 +1008,7 @@ const configSteps = computed(() => {
           label: req.vpn_type === 'openvpn' ? 'OpenVPN username' : 'WireGuard private key',
           secret: true,
           placeholder: req.vpn_type === 'openvpn' ? 'OpenVPN username' : 'wOEI9...',
-          hint: req.vpn_type === 'openvpn' ? 'Required for OpenVPN mode.' : 'Required for WireGuard mode unless a WireGuard config file is used.',
+          hint: req.vpn_type === 'openvpn' ? 'Required in OpenVPN mode.' : 'Required in WireGuard mode unless config text/file is used.',
           required: req.vpn_type === 'openvpn' ? true : !hasWireguardConfig,
         },
         {
@@ -1016,25 +1017,25 @@ const configSteps = computed(() => {
           label: req.vpn_type === 'openvpn' ? 'OpenVPN password' : 'WireGuard addresses',
           secret: req.vpn_type === 'openvpn',
           placeholder: req.vpn_type === 'openvpn' ? 'OpenVPN password' : '10.64.222.21/32',
-          hint: req.vpn_type === 'openvpn' ? 'Required for OpenVPN mode.' : 'Required for WireGuard mode unless a WireGuard config file is used.',
+          hint: req.vpn_type === 'openvpn' ? 'Required in OpenVPN mode.' : 'Required in WireGuard mode unless config text/file is used.',
           required: req.vpn_type === 'openvpn' ? true : !hasWireguardConfig,
         },
         {
           key: 'server_countries', envKey: 'SERVER_COUNTRIES', label: 'Server countries', secret: false,
           placeholder: req.vpn_type === 'openvpn' ? '' : 'United States',
-          hint: 'Optional Gluetun SERVER_COUNTRIES filter.',
+          hint: req.vpn_type === 'wireguard' ? 'Required if no WireGuard config is provided.' : 'Optional country filter.',
           required: req.vpn_type === 'wireguard' ? !hasWireguardConfig : false,
         },
         {
           key: 'server_region', envKey: 'SERVER_REGION', label: 'Server region', secret: false,
           placeholder: 'us-east',
-          hint: 'Optional Gluetun region filter.',
+          hint: 'Optional region filter.',
           required: false,
         },
         {
           key: 'server_cities', envKey: 'SERVER_CITIES', label: 'Server cities', secret: false,
           placeholder: 'New York,London',
-          hint: 'Optional Gluetun city filter.',
+          hint: 'Optional city filter.',
           required: false,
         },
       ],
@@ -2118,6 +2119,8 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .cfg-link         { font-size: 11px; color: var(--accent); margin-left: auto; text-decoration: none; }
 .cfg-link:hover   { text-decoration: underline; }
 
+.cfg-field-actions .cfg-hint { max-width: 100%; word-break: break-all; }
+
 /* Generate buttons inside label rows */
 .gen-btn {
   font-size: 10px; font-weight: 600; font-family: var(--font-sans);
@@ -2139,7 +2142,7 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .gen-pw-value  { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); background: var(--bg-1); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); word-break: break-all; width: 100%; box-sizing: border-box; }
 .gen-pw-dismiss { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; }
 .gen-pw-dismiss:hover { color: var(--fg-0); }
-.cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: normal; overflow-wrap: anywhere; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
@@ -2169,6 +2172,7 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .custom-hint   { margin: 0 0 8px; }
 .custom-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .compose-textarea { font-family: var(--font-mono); font-size: 11.5px; width: 100%; height: 160px; resize: vertical; background: #0e0f14; color: #e8eaf5; border: 1.5px solid #252a3d; border-radius: 7px; padding: 10px 12px; outline: none; box-sizing: border-box; line-height: 1.6; }
+.gluetun-config-textarea { height: 72px; min-height: 72px; resize: vertical; }
 .url-input     { font-family: var(--font-mono); font-size: 12px; width: 100%; background: var(--bg-1); border: 1.5px solid var(--border); border-radius: 6px; padding: 8px 10px; outline: none; color: var(--fg-0); }
 .file-drop     { border: 2px dashed var(--border); border-radius: 9px; padding: 28px 20px; text-align: center; background: var(--bg-0); cursor: pointer; margin-top: 8px; }
 .file-drop-icon  { font-size: 26px; margin-bottom: 6px; }

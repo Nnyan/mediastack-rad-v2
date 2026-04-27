@@ -114,6 +114,37 @@ def _traefik_yaml_has_cf() -> bool:
     return False
 
 
+def _tinyauth_has_lan_bypass(services: dict) -> bool:
+    """Return True when all exposed web services include a LAN router variant.
+
+    This mirrors the generator's two-router model (`<name>-lan` and `<name>`)
+    and is used to avoid checklist tasks that cannot be auto-validated in
+    the frontend.
+    """
+    if "tinyauth" not in services:
+        return True
+
+    skip_names = {"tinyauth", "traefik", "cloudflared", "tailscale", "mediastack-rad"}
+
+    for svc_name, svc in services.items():
+        if svc_name in skip_names or not isinstance(svc, dict):
+            continue
+
+        labels = svc.get("labels") or {}
+        if not isinstance(labels, dict):
+            continue
+
+        has_plain_router = f"traefik.http.routers.{svc_name}.rule" in labels
+        has_lan_router = f"traefik.http.routers.{svc_name}-lan.rule" in labels
+
+        # Ignore services not exposed through Traefik; we only validate routers
+        # that are expected to be in the Web path for Tinyauth-protected routes.
+        if has_plain_router and not has_lan_router:
+            return False
+
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -448,27 +479,15 @@ async def _build() -> list[ChecklistItem]:
                 action_url="/stack-builder",
             ))
 
-        # 5. Test from Tailscale
         items.append(ChecklistItem(
-            id="tinyauth.test_tailscale",
-            title="Verify Tinyauth gates Tailscale access",
+            id="tinyauth.lan_router",
+            title="Verify LAN-bypass routers are configured",
             detail=(
-                "From a Tailscale-enrolled device (not on LAN), visit one of your "
-                "service URLs. You should be redirected to the Tinyauth login page."
+                "When Tinyauth is enabled, services should have both `<service>` and "
+                "`<service>-lan` Traefik routers so LAN devices bypass auth. "
+                "This is enforced by the generator on deploy for protected services."
             ),
-            done=False,
-            category="recommended",
-        ))
-
-        # 6. Test LAN bypass
-        items.append(ChecklistItem(
-            id="tinyauth.test_lan",
-            title="Verify LAN access bypasses Tinyauth",
-            detail=(
-                "From your local network (10.0.0.0/22), visit the same URL. "
-                "You should NOT see the Tinyauth login — the service loads directly."
-            ),
-            done=False,
+            done=_tinyauth_has_lan_bypass(services),
             category="recommended",
         ))
 
