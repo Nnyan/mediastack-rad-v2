@@ -5,7 +5,7 @@ and keeps frontend/backend in sync when models change.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -84,10 +84,20 @@ class StackRequest(BaseModel):
     tailscale_auth_key: str | None = None   # TS_AUTHKEY — reusable key from admin console
     tailscale_routes: str | None = None     # TS_ROUTES — subnet CIDR to advertise
     tailscale_hostname: str = "mediastack"  # how node appears in Tailscale admin
-    # Egress VPN / Gluetun — starts with ProtonVPN support
-    protonvpn_user: str | None = None
-    protonvpn_password: str | None = None
-    protonvpn_countries: str | None = None
+    # Egress VPN / Gluetun — generic WireGuard/OpenVPN configuration
+    vpn_service_provider: str | None = None
+    vpn_type: Literal["wireguard", "openvpn"] = "wireguard"
+    wireguard_private_key: str | None = None
+    wireguard_addresses: str | None = None
+    openvpn_user: str | None = None
+    openvpn_password: str | None = None
+    wireguard_config: str | None = None
+    server_countries: str | None = None
+    server_region: str | None = None
+    server_cities: str | None = None
+    secure_core_only: bool | None = None
+    stream_only: bool | None = None
+    port_forward_only: bool | None = None
     # Tinyauth — Traefik ForwardAuth for Tailscale / non-LAN access
     tinyauth_enabled: bool = False
     # v5 env vars — SECRET removed (v5 uses SQLite sessions, no cookie secret)

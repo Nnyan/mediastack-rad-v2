@@ -25,6 +25,26 @@ curl -fsSL https://raw.githubusercontent.com/nnyan/mediastack-rad-v2/main/instal
 
 Then open `http://<your-server-ip>:8090`.
 
+## Opencode workflow (local)
+
+`MODEL_BY_TASK.md` documents a model-by-task policy for Opencode. A small wrapper
+command is available as `octask`.
+
+```bash
+chmod +x ./octask
+octask quick "Fix a small typo"
+octask standard "Refactor form validation"
+octask critical "Adjust deploy-blocking authentication flow"
+```
+
+`octask` defaults to the standard tier when no tier is provided:
+
+```bash
+octask "Generate a patch for the requested task"
+```
+
+If your shell path does not include the repo, run with `./` from the repo root.
+
 The installer:
 1. Verifies prerequisites (Docker, Compose plugin)
 2. Creates the stack directory at `/home/stack/mediacenter`

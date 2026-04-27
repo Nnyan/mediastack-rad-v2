@@ -144,29 +144,120 @@ def validate_request(request: StackRequest) -> StackValidation:
         ))
 
     # Gluetun credentials required
-    existing_vpn_user = env_values.get("PROTONVPN_USER", "")
-    has_saved_vpn_user = bool(existing_vpn_user and existing_vpn_user != "${PROTONVPN_USER}")
-    existing_vpn_password = env_values.get("PROTONVPN_PASSWORD", "")
-    has_saved_vpn_password = bool(
-        existing_vpn_password and existing_vpn_password != "${PROTONVPN_PASSWORD}"
+    vpn_type = (request.vpn_type or "wireguard").strip().lower()
+
+    if vpn_type not in {"wireguard", "openvpn"}:
+        errors.append(ValidationIssue(
+            service="gluetun",
+            field="vpn_type",
+            severity="error",
+            message="vpn_type must be either 'wireguard' or 'openvpn'.",
+        ))
+
+    existing_provider = env_values.get("VPN_SERVICE_PROVIDER", "")
+    has_saved_provider = bool(existing_provider and existing_provider != "${VPN_SERVICE_PROVIDER}")
+
+    has_legacy_protonvpn = bool(
+        env_values.get("PROTONVPN_USER", "")
+        or env_values.get("PROTONVPN_PASSWORD", "")
+        or env_values.get("PROTONVPN_COUNTRIES", "")
     )
+
+    existing_wireguard_private_key = env_values.get("WIREGUARD_PRIVATE_KEY", "")
+    has_saved_wireguard_private_key = bool(
+        existing_wireguard_private_key and existing_wireguard_private_key != "${WIREGUARD_PRIVATE_KEY}"
+    )
+    existing_wireguard_addresses = env_values.get("WIREGUARD_ADDRESSES", "")
+    has_saved_wireguard_addresses = bool(
+        existing_wireguard_addresses and existing_wireguard_addresses != "${WIREGUARD_ADDRESSES}"
+    )
+
+    existing_openvpn_user = (
+        env_values.get("OPENVPN_USER", "")
+        or env_values.get("PROTONVPN_USER", "")
+    )
+    has_saved_openvpn_user = bool(
+        existing_openvpn_user and existing_openvpn_user not in {"${OPENVPN_USER}", "${PROTONVPN_USER}"}
+    )
+
+    existing_openvpn_password = (
+        env_values.get("OPENVPN_PASSWORD", "")
+        or env_values.get("PROTONVPN_PASSWORD", "")
+    )
+    has_saved_openvpn_password = bool(
+        existing_openvpn_password
+        and existing_openvpn_password not in {"${OPENVPN_PASSWORD}", "${PROTONVPN_PASSWORD}"}
+    )
+
+    existing_server_countries = env_values.get("SERVER_COUNTRIES", "") or env_values.get("PROTONVPN_COUNTRIES", "")
+    has_saved_server_countries = bool(
+        existing_server_countries
+        and existing_server_countries not in {"${SERVER_COUNTRIES}", "${PROTONVPN_COUNTRIES}"}
+    )
+
+    has_wireguard_config = bool(request.wireguard_config and request.wireguard_config.strip())
+
     if "gluetun" in enabled_keys:
-        if not request.protonvpn_user and not has_saved_vpn_user:
+        if not request.vpn_service_provider and not has_saved_provider and not (
+            has_legacy_protonvpn and vpn_type == "openvpn"
+        ):
             errors.append(ValidationIssue(
                 service="gluetun",
-                field="protonvpn_user",
+                field="vpn_service_provider",
                 severity="error",
-                message="PROTONVPN_USER is required when Gluetun is selected."
-                        " Provide your ProtonVPN OpenVPN/IKEv2 username.",
+                message="VPN_SERVICE_PROVIDER is required when Gluetun is selected."
+                        " Set your provider name (for example, ivpn, mullvad, airvpn).",
             ))
-        if not request.protonvpn_password and not has_saved_vpn_password:
-            errors.append(ValidationIssue(
-                service="gluetun",
-                field="protonvpn_password",
-                severity="error",
-                message="PROTONVPN_PASSWORD is required when Gluetun is selected."
-                        " Provide your ProtonVPN OpenVPN/IKEv2 password.",
-            ))
+
+        if vpn_type == "wireguard":
+            if has_wireguard_config:
+                # Optional WireGuard config file can supply private key / addresses.
+                pass
+            else:
+                if not request.wireguard_private_key and not has_saved_wireguard_private_key:
+                    errors.append(ValidationIssue(
+                        service="gluetun",
+                        field="wireguard_private_key",
+                        severity="error",
+                        message="WIREGUARD_PRIVATE_KEY is required for WireGuard Gluetun setups "
+                                "unless a WireGuard config file is supplied."
+                                " Add it in the Stack Builder Gluetun section or in stack .env.",
+                    ))
+                if not request.wireguard_addresses and not has_saved_wireguard_addresses:
+                    errors.append(ValidationIssue(
+                        service="gluetun",
+                        field="wireguard_addresses",
+                        severity="error",
+                        message="WIREGUARD_ADDRESSES is required for WireGuard Gluetun setups "
+                                "unless a WireGuard config file is supplied."
+                                " Example: 10.64.222.21/32.",
+                    ))
+                if not request.server_countries and not has_saved_server_countries:
+                    errors.append(ValidationIssue(
+                        service="gluetun",
+                        field="server_countries",
+                        severity="error",
+                        message="SERVER_COUNTRIES is required for WireGuard Gluetun setups "
+                                "unless a WireGuard config file is supplied."
+                                " Example: United States or United States,Canada.",
+                    ))
+        elif vpn_type == "openvpn":
+            if not request.openvpn_user and not has_saved_openvpn_user:
+                errors.append(ValidationIssue(
+                    service="gluetun",
+                    field="openvpn_user",
+                    severity="error",
+                    message="OPENVPN_USER is required for OpenVPN Gluetun setups."
+                            " Add it in the Stack Builder Gluetun section or in stack .env.",
+                ))
+            if not request.openvpn_password and not has_saved_openvpn_password:
+                errors.append(ValidationIssue(
+                    service="gluetun",
+                    field="openvpn_password",
+                    severity="error",
+                    message="OPENVPN_PASSWORD is required for OpenVPN Gluetun setups."
+                            " Add it in the Stack Builder Gluetun section or in stack .env.",
+                ))
 
     # Tinyauth required fields
     if "tinyauth" in enabled_keys or request.tinyauth_enabled:
@@ -335,6 +426,8 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
 
     text = generate(request)
 
+    _write_wireguard_conf_file(request)
+
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text(text)
 
@@ -358,6 +451,28 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
 
     logger.info("Wrote compose file: %s (%d bytes)", target, len(text))
     return target
+
+
+def _write_wireguard_conf_file(request: StackRequest) -> None:
+    """Persist optional user-supplied WireGuard configuration.
+
+    Gluetun can load a full `.conf` from:
+      /gluetun/wireguard/wg0.conf
+    by bind-mounting the stack config_root into /gluetun.
+    """
+    if (request.vpn_type or "wireguard").strip().lower() != "wireguard":
+        return
+
+    if not request.wireguard_config:
+        return
+
+    conf_text = request.wireguard_config.strip()
+    if not conf_text:
+        return
+
+    conf_path = Path(request.config_root) / "gluetun" / "wireguard" / "wg0.conf"
+    conf_path.parent.mkdir(parents=True, exist_ok=True)
+    conf_path.write_text(conf_text + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -689,9 +804,49 @@ def _render_tailscale(request: StackRequest) -> dict[str, Any]:
 def _render_gluetun(request: StackRequest) -> dict[str, Any]:
     """Gluetun egress VPN gateway.
 
-    Starts as a ProtonVPN-ready provider using .env placeholders. Follow-up
-    work will attach selected apps to this container's network namespace.
+    Supports both WireGuard and OpenVPN modes; WireGuard is the default.
     """
+    vpn_type = (request.vpn_type or "wireguard").strip().lower()
+    env: dict[str, str] = {
+        "VPN_SERVICE_PROVIDER": request.vpn_service_provider or "${VPN_SERVICE_PROVIDER}",
+        "VPN_TYPE": vpn_type,
+        "TZ": request.timezone,
+    }
+
+    if vpn_type == "openvpn":
+        env.update({
+            "OPENVPN_USER": request.openvpn_user or "${OPENVPN_USER}",
+            "OPENVPN_PASSWORD": request.openvpn_password or "${OPENVPN_PASSWORD}",
+        })
+    else:
+        has_wireguard_config = bool(request.wireguard_config and request.wireguard_config.strip())
+
+        if request.wireguard_private_key:
+            env["WIREGUARD_PRIVATE_KEY"] = request.wireguard_private_key
+        elif not has_wireguard_config:
+            env["WIREGUARD_PRIVATE_KEY"] = "${WIREGUARD_PRIVATE_KEY}"
+
+        if request.wireguard_addresses:
+            env["WIREGUARD_ADDRESSES"] = request.wireguard_addresses
+        elif not has_wireguard_config:
+            env["WIREGUARD_ADDRESSES"] = "${WIREGUARD_ADDRESSES}"
+
+    if request.server_countries:
+        env["SERVER_COUNTRIES"] = request.server_countries
+    elif vpn_type != "openvpn":
+        env["SERVER_COUNTRIES"] = "${SERVER_COUNTRIES}"
+
+    if request.server_region:
+        env["SERVER_REGION"] = request.server_region
+    if request.server_cities:
+        env["SERVER_CITIES"] = request.server_cities
+    if request.secure_core_only:
+        env["SECURE_CORE_ONLY"] = "on"
+    if request.stream_only:
+        env["STREAM_ONLY"] = "on"
+    if request.port_forward_only:
+        env["PORT_FORWARD_ONLY"] = "on"
+
     return {
         "image": "qmcgaw/gluetun:latest",
         "container_name": "gluetun",
@@ -699,14 +854,7 @@ def _render_gluetun(request: StackRequest) -> dict[str, Any]:
         "cap_add": ["NET_ADMIN"],
         "devices": ["/dev/net/tun:/dev/net/tun"],
         "networks": [STACK_NETWORK],
-        "environment": {
-            "VPN_SERVICE_PROVIDER": "protonvpn",
-            "VPN_TYPE": "openvpn",
-            "OPENVPN_USER": request.protonvpn_user or "${PROTONVPN_USER}",
-            "OPENVPN_PASSWORD": request.protonvpn_password or "${PROTONVPN_PASSWORD}",
-            "SERVER_COUNTRIES": request.protonvpn_countries or "${PROTONVPN_COUNTRIES:-United States}",
-            "TZ": request.timezone,
-        },
+        "environment": env,
         "volumes": [f"{request.config_root}/gluetun:/gluetun"],
     }
 

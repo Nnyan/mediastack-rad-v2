@@ -212,6 +212,7 @@ async def api_containers_env(names: str = "") -> dict[str, dict[str, str]]:
     MASK_KEYS = {
         "CF_DNS_API_TOKEN", "CLOUDFLARED_TOKEN", "TUNNEL_TOKEN",
         "TS_AUTHKEY", "TINYAUTH_AUTH_USERS", "PLEX_CLAIM", "PLEX_TOKEN",
+        "OPENVPN_USER", "OPENVPN_PASSWORD", "WIREGUARD_PRIVATE_KEY",
     }
     result: dict[str, dict[str, str]] = {}
     if not names:
@@ -882,25 +883,72 @@ _SECRET_DEFS: list[dict] = [
         "link": "https://login.tailscale.com/admin/settings/keys",
     },
     {
-        "key": "PROTONVPN_USER",
-        "label": "ProtonVPN Username",
-        "hint": "OpenVPN/IKEv2 username from ProtonVPN account settings — used by Gluetun",
+        "key": "VPN_SERVICE_PROVIDER",
+        "label": "Gluetun Provider",
+        "hint": "Provider key (e.g. ivpn, airvpn, custom). Required for Gluetun.",
         "service": "gluetun",
-        "link": "https://account.protonvpn.com/account-password",
+        "link": "https://github.com/qdm12/gluetun-wiki",
     },
     {
-        "key": "PROTONVPN_PASSWORD",
-        "label": "ProtonVPN Password",
-        "hint": "OpenVPN/IKEv2 password from ProtonVPN account settings — used by Gluetun",
+        "key": "WIREGUARD_PRIVATE_KEY",
+        "label": "WireGuard Private Key",
+        "hint": "Required for WireGuard setups. Leave empty for OpenVPN mode.",
         "service": "gluetun",
-        "link": "https://account.protonvpn.com/account-password",
     },
     {
-        "key": "PROTONVPN_COUNTRIES",
-        "label": "ProtonVPN Countries",
-        "hint": "Optional Gluetun SERVER_COUNTRIES value, e.g. United States",
+        "key": "WIREGUARD_ADDRESSES",
+        "label": "WireGuard Addresses",
+        "hint": "Required for WireGuard setups. Example: 10.64.222.21/32.",
+        "service": "gluetun",
+    },
+    {
+        "key": "OPENVPN_USER",
+        "label": "OpenVPN User",
+        "hint": "Required for OpenVPN setups.",
         "service": "gluetun",
         "link": None,
+    },
+    {
+        "key": "OPENVPN_PASSWORD",
+        "label": "OpenVPN Password",
+        "hint": "Required for OpenVPN setups.",
+        "service": "gluetun",
+    },
+    {
+        "key": "SERVER_COUNTRIES",
+        "label": "Gluetun server countries",
+        "hint": "WireGuard mode requires server country selection; required unless using OpenVPN only.",
+        "service": "gluetun",
+    },
+    {
+        "key": "SERVER_REGION",
+        "label": "Gluetun server regions",
+        "hint": "Optional comma-separated server regions for Gluetun filtering.",
+        "service": "gluetun",
+    },
+    {
+        "key": "SERVER_CITIES",
+        "label": "Gluetun server cities",
+        "hint": "Optional comma-separated server cities for Gluetun filtering.",
+        "service": "gluetun",
+    },
+    {
+        "key": "SECURE_CORE_ONLY",
+        "label": "Gluetun secure-core-only",
+        "hint": "Optional Gluetun filter switch: 'on' when enabled.",
+        "service": "gluetun",
+    },
+    {
+        "key": "STREAM_ONLY",
+        "label": "Gluetun stream-only",
+        "hint": "Optional Gluetun filter switch: 'on' when enabled.",
+        "service": "gluetun",
+    },
+    {
+        "key": "PORT_FORWARD_ONLY",
+        "label": "Gluetun port-forward-only",
+        "hint": "Optional Gluetun filter switch: 'on' when enabled.",
+        "service": "gluetun",
     },
     {
         "key": "PLEX_CLAIM",
@@ -1019,7 +1067,9 @@ _ALLOWED_ENV_KEYS: set[str] = {
 } | {
     "PUID", "PGID", "TZ",
     "TS_AUTHKEY", "TS_ROUTES", "TS_HOSTNAME",
-    "PROTONVPN_USER", "PROTONVPN_PASSWORD", "PROTONVPN_COUNTRIES",
+    "VPN_SERVICE_PROVIDER", "VPN_TYPE", "WIREGUARD_PRIVATE_KEY", "WIREGUARD_ADDRESSES",
+    "OPENVPN_USER", "OPENVPN_PASSWORD", "SERVER_COUNTRIES", "SERVER_REGION",
+    "SERVER_CITIES", "SECURE_CORE_ONLY", "STREAM_ONLY", "PORT_FORWARD_ONLY",
     "TINYAUTH_LAN_SUBNET",
     "PLEX_TOKEN",
 }

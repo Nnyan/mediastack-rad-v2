@@ -137,27 +137,107 @@
               <div v-if="expanded.gluetun" class="cfg-body">
                 <div class="cfg-grid">
                   <label class="cfg-field">
+                    <span class="cfg-label">Mode</span>
+                    <select v-model="req.vpn_type">
+                      <option value="wireguard">WireGuard (default)</option>
+                      <option value="openvpn">OpenVPN</option>
+                    </select>
+                  </label>
+                  <label class="cfg-field">
                     <span class="cfg-label">
-                      ProtonVPN username
-                      <a href="https://account.protonvpn.com/account-password" target="_blank" class="cfg-link">ProtonVPN account ↗</a>
+                      VPN service provider
+                      <a href="https://github.com/qdm12/gluetun-wiki" target="_blank" class="cfg-link">Provider docs ↗</a>
                     </span>
-                    <input v-model="req.protonvpn_user" type="password" placeholder="OpenVPN/IKEv2 username" :readonly="isFieldFromLive('protonvpn_user')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_user') }" />
-                    <span class="cfg-hint">Set this if you use Gluetun as an OpenVPN/IKEv2 egress gateway.</span>
+                    <input v-model="req.vpn_service_provider" placeholder="ivpn, mullvad, airvpn" :readonly="isFieldFromLive('vpn_service_provider')" :class="{ 'cfg-readonly': isFieldFromLive('vpn_service_provider') }" />
+                    <span class="cfg-hint">Used by Gluetun for both WireGuard and OpenVPN routes.</span>
+                  </label>
+
+                  <template v-if="req.vpn_type === 'wireguard'">
+                    <label class="cfg-field">
+                      <span class="cfg-label">WireGuard private key</span>
+                      <input v-model="req.wireguard_private_key" type="password" placeholder="wOEI9..." :readonly="isFieldFromLive('wireguard_private_key')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_private_key') }" />
+                      <span class="cfg-hint">Required unless a WireGuard config file is provided.</span>
+                    </label>
+                    <label class="cfg-field">
+                      <span class="cfg-label">WireGuard addresses</span>
+                      <input v-model="req.wireguard_addresses" placeholder="10.64.222.21/32" :readonly="isFieldFromLive('wireguard_addresses')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_addresses') }" />
+                      <span class="cfg-hint">Required unless a WireGuard config file is provided.</span>
+                    </label>
+                    <label class="cfg-field span2">
+                      <span class="cfg-label">WireGuard config file (optional)</span>
+                      <div class="cfg-field-actions">
+                        <button type="button" class="parse-confirm" @click="gluetunConfigInput?.click()">Upload .conf</button>
+                        <span class="cfg-hint">{{ gluetunConfigFileName || 'No file selected' }}</span>
+                      </div>
+                      <span class="cfg-hint">Uploaded file is stored as /gluetun/wireguard/wg0.conf and can replace manual key/address entries.</span>
+                    </label>
+                    <label class="cfg-field">
+                      <span class="cfg-label">WireGuard config text (optional)</span>
+                      <textarea
+                        v-model="req.wireguard_config"
+                        placeholder="[Interface]..."
+                        class="compose-textarea"
+                        rows="4"
+                      ></textarea>
+                    </label>
+                  </template>
+
+                  <template v-else>
+                    <label class="cfg-field">
+                      <span class="cfg-label">OpenVPN user</span>
+                      <input v-model="req.openvpn_user" type="password" placeholder="OpenVPN username" :readonly="isFieldFromLive('openvpn_user')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_user') }" />
+                      <span class="cfg-hint">Required for OpenVPN mode.</span>
+                    </label>
+                    <label class="cfg-field">
+                      <span class="cfg-label">OpenVPN password</span>
+                      <input v-model="req.openvpn_password" type="password" placeholder="OpenVPN password" :readonly="isFieldFromLive('openvpn_password')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_password') }" />
+                      <span class="cfg-hint">Required for OpenVPN mode.</span>
+                    </label>
+                  </template>
+
+                  <label class="cfg-field">
+                    <span class="cfg-label">Server countries</span>
+                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional for OpenVPN'" :readonly="isFieldFromLive('server_countries')" :class="{ 'cfg-readonly': isFieldFromLive('server_countries') }" />
+                    <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required for WireGuard unless the uploaded config provides routing values.' : 'Optional Gluetun country filter for OpenVPN or config-based WireGuard setups.' }}</span>
                   </label>
                   <label class="cfg-field">
-                    <span class="cfg-label">ProtonVPN password</span>
-                    <input v-model="req.protonvpn_password" type="password" placeholder="OpenVPN/IKEv2 password" :readonly="isFieldFromLive('protonvpn_password')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_password') }" />
-                    <span class="cfg-hint">Password is required for Gluetun authentication.</span>
+                    <span class="cfg-label">Server region (optional)</span>
+                    <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldFromLive('server_region')" :class="{ 'cfg-readonly': isFieldFromLive('server_region') }" />
+                    <span class="cfg-hint">Optional region filter for Gluetun.</span>
                   </label>
                   <label class="cfg-field">
-                    <span class="cfg-label">Countries</span>
-                    <input v-model="req.protonvpn_countries" placeholder="United States" :readonly="isFieldFromLive('protonvpn_countries')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_countries') }" />
-                    <span class="cfg-hint">Optional Gluetun SERVER_COUNTRIES value (comma separated accepted).</span>
+                    <span class="cfg-label">Server cities (optional)</span>
+                    <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldFromLive('server_cities')" :class="{ 'cfg-readonly': isFieldFromLive('server_cities') }" />
+                    <span class="cfg-hint">Optional city filter for Gluetun.</span>
+                  </label>
+                  <label class="cfg-field span2">
+                    <span class="cfg-label">Optional Gluetun switches</span>
+                    <div class="toggle-row-group">
+                      <label class="toggle-row">
+                        <input type="checkbox" v-model="req.secure_core_only" />
+                        <span>Secure-core only</span>
+                      </label>
+                      <label class="toggle-row">
+                        <input type="checkbox" v-model="req.stream_only" />
+                        <span>Stream only</span>
+                      </label>
+                      <label class="toggle-row">
+                        <input type="checkbox" v-model="req.port_forward_only" />
+                        <span>Port-forward only</span>
+                      </label>
+                    </div>
                   </label>
                 </div>
               </div>
             </div>
           </template>
+          <input
+            ref="gluetunConfigInput"
+            type="file"
+            accept=".conf,.txt"
+            style="display:none"
+            @change="onGluetunConfigUpload"
+          />
 
           <!-- Tinyauth — only when tinyauth is selected -->
           <template v-if="pick['tinyauth']">
@@ -556,6 +636,8 @@ const addParsing   = ref(false)
 const addResult    = ref(null)   // { yaml, services } from backend
 const addFileName  = ref('')     // name of uploaded file
 const fileInput    = ref(null)   // template ref for hidden <input type="file">
+const gluetunConfigInput = ref(null) // template ref for hidden WireGuard config file picker
+const gluetunConfigFileName = ref('')
 const customYaml   = ref('')     // confirmed YAML to include in deploy
 const previewText  = ref('')
 const previewLoading = ref(false)
@@ -590,7 +672,11 @@ const defaults = {
   plex_server_name: '', plex_claim: '',
   plex_url: '', plex_token: '',
   tailscale_auth_key: '', tailscale_routes: '', tailscale_hostname: 'mediastack',
-  protonvpn_user: '', protonvpn_password: '', protonvpn_countries: 'United States',
+  vpn_service_provider: '', vpn_type: 'wireguard',
+  wireguard_private_key: '', wireguard_addresses: '', wireguard_config: '',
+  openvpn_user: '', openvpn_password: '',
+  server_countries: 'United States', server_region: '', server_cities: '',
+  secure_core_only: false, stream_only: false, port_forward_only: false,
   tinyauth_users: '', tinyauth_app_url: '',
   lan_subnet: '10.0.0.0/22',
 }
@@ -603,13 +689,20 @@ if (!_stored || Object.keys(_stored).length === 0) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(_stored))
   }
 }
+const legacy = _stored || {}
+if (!legacy.vpn_service_provider && !legacy.vpn_type) {
+  if (legacy.protonvpn_user && !legacy.openvpn_user) legacy.openvpn_user = legacy.protonvpn_user
+  if (legacy.protonvpn_password && !legacy.openvpn_password) legacy.openvpn_password = legacy.protonvpn_password
+  if (legacy.protonvpn_countries && !legacy.server_countries) legacy.server_countries = legacy.protonvpn_countries
+}
 const stored = _stored || {}
 const req = reactive({ ...defaults, ...stored })
 
 // Sensitive fields that must never be persisted to localStorage.
 const SENSITIVE_FIELDS = new Set([
   'cloudflare_token', 'cloudflare_tunnel_token',
-  'tailscale_auth_key', 'protonvpn_user', 'protonvpn_password', 'tinyauth_users', 'plex_token', 'plex_claim',
+  'tailscale_auth_key', 'openvpn_user', 'openvpn_password', 'wireguard_private_key', 'wireguard_config',
+  'tinyauth_users', 'plex_token', 'plex_claim',
 ])
 
 function sanitizeForStorage(v) {
@@ -666,7 +759,12 @@ const ENV_TO_FIELD = {
   PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
   CF_DNS_API_TOKEN: 'cloudflare_token', TUNNEL_TOKEN: 'cloudflare_tunnel_token',
   TS_AUTHKEY: 'tailscale_auth_key', TS_ROUTES: 'tailscale_routes', TS_HOSTNAME: 'tailscale_hostname',
-  PROTONVPN_USER: 'protonvpn_user', PROTONVPN_PASSWORD: 'protonvpn_password', PROTONVPN_COUNTRIES: 'protonvpn_countries',
+  VPN_SERVICE_PROVIDER: 'vpn_service_provider', VPN_TYPE: 'vpn_type',
+  WIREGUARD_PRIVATE_KEY: 'wireguard_private_key', WIREGUARD_ADDRESSES: 'wireguard_addresses',
+  OPENVPN_USER: 'openvpn_user', OPENVPN_PASSWORD: 'openvpn_password',
+  SERVER_COUNTRIES: 'server_countries', SERVER_REGION: 'server_region', SERVER_CITIES: 'server_cities',
+  SECURE_CORE_ONLY: 'secure_core_only', STREAM_ONLY: 'stream_only', PORT_FORWARD_ONLY: 'port_forward_only',
+  PROTONVPN_USER: 'openvpn_user', PROTONVPN_PASSWORD: 'openvpn_password', PROTONVPN_COUNTRIES: 'server_countries',
   TINYAUTH_AUTH_USERS: 'tinyauth_users', TINYAUTH_APPURL: 'tinyauth_app_url',
   PLEX_CLAIM: 'plex_claim', PLEX_TOKEN: 'plex_token',
 }
@@ -702,16 +800,20 @@ async function loadSecretStatus() {
 }
 
 function _prefillFromLiveEnv(envData) {
-  const core = envData.traefik || envData.sonarr || envData.radarr || envData.plex || {}
+  const core = envData.gluetun || envData.traefik || envData.sonarr || envData.radarr || envData.plex || {}
   for (const [envKey, field] of Object.entries(ENV_TO_FIELD)) {
     const val = core[envKey] ?? envData.tailscale?.[envKey] ?? envData.tinyauth?.[envKey] ?? envData.cloudflared?.[envKey] ?? envData.plex?.[envKey]
     if (val !== undefined && val !== '***') {
       const current = req[field]
-      const isEmpty = current === '' || current === undefined || current === null || (typeof current === 'number' && current === defaults[field])
+      const isEmpty = current === '' || current === undefined || current === null ||
+        (typeof current === 'number' && current === defaults[field]) ||
+        (typeof current === 'boolean' && current === false)
       if (isEmpty) {
         if (field === 'puid' || field === 'pgid') {
           const num = parseInt(val, 10)
           if (num) req[field] = num
+        } else if (typeof current === 'boolean') {
+          req[field] = ['1', 'true', 'on', 'yes'].includes(String(val).toLowerCase())
         } else if (!current) {
           req[field] = val
         }
@@ -767,12 +869,13 @@ function savedConfigField(field) {
   if (!cfg?.envKey) return false
   if (secretStatus.value[cfg.envKey]) return true
     if (cfg.envKey === 'CLOUDFLARED_TOKEN' && secretStatus.value.TUNNEL_TOKEN) return true
-  if (cfg.envKey === 'PROTONVPN_COUNTRIES') return !!secretStatus.value.PROTONVPN_COUNTRIES
+  if (cfg.envKey === 'SERVER_COUNTRIES') return !!secretStatus.value.SERVER_COUNTRIES
   const liveVal = _getLiveEnvValue(field)
   return !!(liveVal && liveVal !== '***')
 }
 
 function fieldSatisfied(field) {
+  if (field.required === false) return true
   const val = req[field.key]
   return savedConfigField(field.key) || !!(typeof val === 'string' ? val.trim() : val)
 }
@@ -882,26 +985,57 @@ const configSteps = computed(() => {
     })
   }
   if (pick.gluetun) {
+    const hasWireguardConfig = Boolean((req.wireguard_config || '').trim())
     steps.push({
       id: 'gluetun', section: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
-      note: 'Required for ProtonVPN-backed egress routing. Apps marked for VPN must share this gateway.',
+      note: 'Choose WireGuard (default) or OpenVPN and fill only that mode’s credentials.',
       fields: [
         {
-          key: 'protonvpn_user', envKey: 'PROTONVPN_USER', label: 'ProtonVPN username', secret: true,
-          placeholder: 'OpenVPN/IKEv2 username',
-          hint: 'Find this in ProtonVPN account settings.',
-          link: 'https://account.protonvpn.com/account-password',
+          key: 'vpn_service_provider', envKey: 'VPN_SERVICE_PROVIDER', label: 'VPN service provider', secret: false,
+          placeholder: 'ivpn, mullvad, airvpn',
+          hint: 'Keyword used by Gluetun for both WireGuard and OpenVPN.',
         },
         {
-          key: 'protonvpn_password', envKey: 'PROTONVPN_PASSWORD', label: 'ProtonVPN password', secret: true,
-          placeholder: 'OpenVPN/IKEv2 password',
-          hint: 'Find this in ProtonVPN account settings.',
-          link: 'https://account.protonvpn.com/account-password',
+          key: 'vpn_type', envKey: 'VPN_TYPE', label: 'VPN mode', secret: false,
+          placeholder: 'wireguard',
+          hint: 'WireGuard is default; OpenVPN mode uses OpenVPN credentials.',
+          required: false,
         },
         {
-          key: 'protonvpn_countries', envKey: 'PROTONVPN_COUNTRIES', label: 'Countries', secret: false,
-          placeholder: 'United States',
-          hint: 'Optional Gluetun SERVER_COUNTRIES value.',
+          key: req.vpn_type === 'openvpn' ? 'openvpn_user' : 'wireguard_private_key',
+          envKey: req.vpn_type === 'openvpn' ? 'OPENVPN_USER' : 'WIREGUARD_PRIVATE_KEY',
+          label: req.vpn_type === 'openvpn' ? 'OpenVPN username' : 'WireGuard private key',
+          secret: true,
+          placeholder: req.vpn_type === 'openvpn' ? 'OpenVPN username' : 'wOEI9...',
+          hint: req.vpn_type === 'openvpn' ? 'Required for OpenVPN mode.' : 'Required for WireGuard mode unless a WireGuard config file is used.',
+          required: req.vpn_type === 'openvpn' ? true : !hasWireguardConfig,
+        },
+        {
+          key: req.vpn_type === 'openvpn' ? 'openvpn_password' : 'wireguard_addresses',
+          envKey: req.vpn_type === 'openvpn' ? 'OPENVPN_PASSWORD' : 'WIREGUARD_ADDRESSES',
+          label: req.vpn_type === 'openvpn' ? 'OpenVPN password' : 'WireGuard addresses',
+          secret: req.vpn_type === 'openvpn',
+          placeholder: req.vpn_type === 'openvpn' ? 'OpenVPN password' : '10.64.222.21/32',
+          hint: req.vpn_type === 'openvpn' ? 'Required for OpenVPN mode.' : 'Required for WireGuard mode unless a WireGuard config file is used.',
+          required: req.vpn_type === 'openvpn' ? true : !hasWireguardConfig,
+        },
+        {
+          key: 'server_countries', envKey: 'SERVER_COUNTRIES', label: 'Server countries', secret: false,
+          placeholder: req.vpn_type === 'openvpn' ? '' : 'United States',
+          hint: 'Optional Gluetun SERVER_COUNTRIES filter.',
+          required: req.vpn_type === 'wireguard' ? !hasWireguardConfig : false,
+        },
+        {
+          key: 'server_region', envKey: 'SERVER_REGION', label: 'Server region', secret: false,
+          placeholder: 'us-east',
+          hint: 'Optional Gluetun region filter.',
+          required: false,
+        },
+        {
+          key: 'server_cities', envKey: 'SERVER_CITIES', label: 'Server cities', secret: false,
+          placeholder: 'New York,London',
+          hint: 'Optional Gluetun city filter.',
+          required: false,
         },
       ],
     })
@@ -1304,6 +1438,29 @@ function readFile(file) {
   reader.readAsText(file)
 }
 
+function onGluetunConfigUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (!/\.(conf|txt)$/i.test(file.name)) {
+    showToast('Upload .conf or .txt', 'warn')
+    e.target.value = ''
+    return
+  }
+  gluetunConfigFileName.value = file.name
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = typeof reader.result === 'string' ? reader.result : ''
+    req.wireguard_config = text
+    req.vpn_type = 'wireguard'
+    showToast(`Loaded ${file.name} for WireGuard config`, 'ok', 3500)
+  }
+  reader.onerror = () => {
+    showToast('Failed to read WireGuard config file', 'err')
+  }
+  reader.readAsText(file)
+  e.target.value = ''
+}
+
 function onFilePick(e) {
   const file = e.target.files?.[0]
   if (file) readFile(file)
@@ -1382,6 +1539,19 @@ function buildRequest() {
     tailscale_auth_key:        req.tailscale_auth_key,
     tailscale_routes:          req.tailscale_routes,
     tailscale_hostname:        req.tailscale_hostname,
+    vpn_service_provider:      req.vpn_service_provider,
+    vpn_type:                  req.vpn_type || 'wireguard',
+    wireguard_private_key:      req.wireguard_private_key || undefined,
+    wireguard_addresses:       req.wireguard_addresses || undefined,
+    wireguard_config:          req.vpn_type === 'wireguard' ? ((req.wireguard_config || '').trim() || undefined) : undefined,
+    openvpn_user:              req.openvpn_user || undefined,
+    openvpn_password:          req.openvpn_password || undefined,
+    server_countries:          req.server_countries || undefined,
+    server_region:             req.server_region || undefined,
+    server_cities:             req.server_cities || undefined,
+    secure_core_only:          req.secure_core_only || false,
+    stream_only:               req.stream_only || false,
+    port_forward_only:         req.port_forward_only || false,
     tinyauth_enabled:          !!pick['tinyauth'],
     tinyauth_users:            req.tinyauth_users,
     tinyauth_app_url:          req.tinyauth_app_url,
@@ -1926,6 +2096,17 @@ onUnmounted(() => {
 
 .cfg-body         { padding: 2px 12px 8px; border-top: 1px solid var(--border); }
 .cfg-body input   { padding: 2px 6px; font-size: 10px; }
+.cfg-body select  { padding: 3px 6px; font-size: 10px; }
+.cfg-field-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toggle-row-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.toggle-row { display: flex; align-items: center; gap: 6px; font-size: 9.8px; color: var(--fg-1); }
+.toggle-row input { width: 11px; height: 11px; }
 input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; cursor: default; border-style: dashed; }
 .cfg-body input.missing { border-color: var(--warn); background: var(--warn-bg); }
 

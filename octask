@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+FAST_MODEL="${FAST_MODEL:-openrouter/anthropic/claude-3-5-haiku}"
+STANDARD_MODEL="${STANDARD_MODEL:-openrouter/anthropic/claude-sonnet-4}"
+PREMIUM_MODEL="${PREMIUM_MODEL:-openrouter/anthropic/claude-opus-4}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  octask [quick|standard|critical] "<prompt>"
+
+Examples:
+  octask quick "Fix typo in docs"
+  octask standard "Refactor compose validator checks"
+  octask critical "Resolve deployment-blocking authentication bug"
+  octask "Use default standard model"
+
+Model mapping:
+  quick, fast, edit, minor -> FAST_MODEL
+  standard, default, normal -> STANDARD_MODEL
+  critical, complex, release   -> PREMIUM_MODEL
+EOF
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+TIER="$1"
+case "${TIER}" in
+  quick|fast|edit|minor)
+    MODEL="$FAST_MODEL"
+    shift
+    ;;
+  standard|normal|default)
+    MODEL="$STANDARD_MODEL"
+    shift
+    ;;
+  critical|complex|release)
+    MODEL="$PREMIUM_MODEL"
+    shift
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    MODEL="$STANDARD_MODEL"
+    ;;
+esac
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+PROMPT="$*"
+opencode run --model "$MODEL" "$PROMPT"
