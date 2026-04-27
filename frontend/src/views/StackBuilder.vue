@@ -145,8 +145,8 @@
                   </label>
                   <label class="cfg-field">
                     <span class="cfg-label">
-                      VPN service provider
-                      <a href="https://github.com/qdm12/gluetun-wiki" target="_blank" class="cfg-link">Provider docs ↗</a>
+                      Provider
+                      <a href="https://github.com/qdm12/gluetun-wiki" target="_blank" class="cfg-link">Docs ↗</a>
                     </span>
                     <input v-model="req.vpn_service_provider" placeholder="ivpn, mullvad, airvpn" :readonly="isFieldPreset('vpn_service_provider')" :class="{ 'cfg-readonly': isFieldPreset('vpn_service_provider') }" />
                      <span class="cfg-hint">Provider key used in both VPN modes.<span v-if="fieldPresetHint('vpn_service_provider')" class="cfg-hint-saved"> {{ fieldPresetHint('vpn_service_provider') }}</span></span>
