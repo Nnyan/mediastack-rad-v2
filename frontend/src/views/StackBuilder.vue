@@ -66,56 +66,16 @@
                 <input v-model.number="req.pgid" type="number" />
               </label>
             </div>
-            <div v-if="configSteps.length" class="required-config-box">
-              <div class="required-config-head">
-                <div>
-                  <div class="required-title">Required setup</div>
-                  <div class="required-sub">Complete each selected app before deploy.</div>
-                </div>
-                <div class="required-progress">{{ completedConfigSteps }}/{{ configSteps.length }}</div>
-              </div>
-              <div v-if="configSteps.length > 1" class="required-step-tabs">
-                <button
-                  v-for="step in configSteps"
-                  :key="step.id"
-                  :class="['required-step-tab', { active: activeConfigStep?.id === step.id, done: stepComplete(step) }]"
-                  @click="activeConfigStepId = step.id"
-                >{{ step.label }}</button>
-              </div>
-              <div v-if="activeConfigStep" class="required-step-card">
-                <div class="required-step-title">
-                  <span>{{ activeConfigStep.icon }}</span>
-                  <span>{{ activeConfigStep.label }}</span>
-                  <span v-if="stepComplete(activeConfigStep)" class="required-ok">ready</span>
-                </div>
-                <div class="required-step-note">{{ activeConfigStep.note }}</div>
-                <div class="required-fields">
-                  <label v-for="field in activeConfigStep.fields" :key="field.key" class="cfg-field span2">
-                    <span class="cfg-label">
-                      {{ field.label }}
-                      <a v-if="field.link" :href="field.link" target="_blank" class="cfg-link">Open ↗</a>
-                    </span>
-                    <input
-                      v-model="req[field.key]"
-                      :type="field.secret ? 'password' : 'text'"
-                      :placeholder="savedConfigField(field.key) ? 'Saved in .env' : field.placeholder"
-                      :readonly="isFieldFromLive(field.key)"
-                      :class="{ 'cfg-readonly': isFieldFromLive(field.key), missing: !fieldSatisfied(field) }"
-                    />
-                    <span class="cfg-hint">{{ savedConfigField(field.key) ? `${field.envKey} already saved in .env` : field.hint }}</span>
-                  </label>
-                </div>
-              </div>
-            </div>
           </div>
           </div>
 
           <!-- Cloudflare — only when traefik or cloudflared is selected -->
                     <template v-if="pick['traefik'] || pick['cloudflared']">
           <div class="cfg-section" :class="{ open: expanded.cloudflare }">
-          <div class="cfg-head" @click="toggleCfg('cloudflare')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('cloudflare') }" @click="toggleCfg('cloudflare')">
             <span class="cfg-icon">☁️</span>
             <span class="cfg-title">Cloudflare</span>
+            <span v-if="sectionNeedsSetup('cloudflare')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.cloudflare" class="cfg-body">
             <div class="cfg-grid">
@@ -143,9 +103,10 @@
           <!-- Tailscale — only when tailscale is selected -->
                     <template v-if="pick['tailscale']">
           <div class="cfg-section" :class="{ open: expanded.tailscale }">
-          <div class="cfg-head" @click="toggleCfg('tailscale')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tailscale') }" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
             <span class="cfg-title">Tailscale</span>
+            <span v-if="sectionNeedsSetup('tailscale')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.tailscale" class="cfg-body">
             <div class="cfg-grid">
@@ -175,9 +136,10 @@
           <!-- Tinyauth — only when tinyauth is selected -->
                     <template v-if="pick['tinyauth']">
           <div class="cfg-section" :class="{ open: expanded.tinyauth }">
-          <div class="cfg-head" @click="toggleCfg('tinyauth')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tinyauth') }" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
             <span class="cfg-title">Tinyauth</span>
+            <span v-if="sectionNeedsSetup('tinyauth')" class="cfg-required-badge">Required setup</span>
           </div>
           <div v-if="expanded.tinyauth" class="cfg-body">
             <div class="cfg-note cfg-note-purple">
@@ -220,9 +182,10 @@
           <!-- Plex — only when plex is selected -->
           <template v-if="pick['plex']">
           <div class="cfg-section" :class="{ open: expanded.plex }">
-          <div class="cfg-head" @click="toggleCfg('plex')">
+          <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('plex') }" @click="toggleCfg('plex')">
             <span class="cfg-icon">🎬</span>
             <span class="cfg-title">Plex</span>
+            <span v-if="sectionNeedsSetup('plex')" class="cfg-required-badge">Required setup</span>
             <span class="cfg-badge-mode">{{ plexMode === 'local' ? 'new server' : 'existing server' }}</span>
           </div>
           <div v-if="expanded.plex" class="cfg-body">
@@ -707,8 +670,6 @@ const ICONS = {
 const liveServices = ref(new Set())
 const liveEnv = ref({})  // { container_name: { KEY: VALUE } }
 const secretStatus = ref({}) // { ENV_KEY: true } from Settings → Secrets, values never exposed
-const activeConfigStepId = ref('')
-
 const ENV_TO_FIELD = {
   PUID: 'puid', PGID: 'pgid', TZ: 'timezone',
   CF_DNS_API_TOKEN: 'cloudflare_token', TUNNEL_TOKEN: 'cloudflare_tunnel_token',
@@ -831,8 +792,8 @@ function stepComplete(step) {
 function ensureRequiredConfig() {
   const missing = configSteps.value.find(step => !stepComplete(step))
   if (!missing) return true
-  expanded.core = true
-  activeConfigStepId.value = missing.id
+  const section = missing.section || (missing.id === 'plex-external' ? 'plex' : missing.id)
+  if (section && Object.prototype.hasOwnProperty.call(expanded, section)) expanded[section] = true
   showToast(`Complete ${missing.label} setup before deploy`, 'warn', 7000)
   return false
 }
@@ -894,7 +855,7 @@ const configSteps = computed(() => {
   const steps = []
   if (webSelected.value || pick.traefik) {
     steps.push({
-      id: 'traefik', label: 'Traefik', icon: '🔀',
+      id: 'traefik', section: 'cloudflare', label: 'Traefik', icon: '🔀',
       note: 'Required for HTTPS certificates through Cloudflare DNS-01.',
       fields: [{
         key: 'cloudflare_token', envKey: 'CF_DNS_API_TOKEN', label: 'Cloudflare DNS API token', secret: true,
@@ -906,7 +867,7 @@ const configSteps = computed(() => {
   }
   if (pick.cloudflared) {
     steps.push({
-      id: 'cloudflared', label: 'Cloudflare Tunnel', icon: '☁️',
+      id: 'cloudflared', section: 'cloudflare', label: 'Cloudflare Tunnel', icon: '☁️',
       note: 'Required for public tunnel access without router port forwarding.',
       fields: [{
         key: 'cloudflare_tunnel_token', envKey: 'CLOUDFLARED_TOKEN', label: 'Tunnel token', secret: true,
@@ -918,7 +879,7 @@ const configSteps = computed(() => {
   }
   if (pick.tailscale) {
     steps.push({
-      id: 'tailscale', label: 'Tailscale', icon: '🔗',
+      id: 'tailscale', section: 'tailscale', label: 'Tailscale', icon: '🔗',
       note: 'Auth key is the only manual input here. NET_ADMIN/NET_RAW and /dev/net/tun are applied automatically when Tailscale is selected.',
       fields: [{
         key: 'tailscale_auth_key', envKey: 'TS_AUTHKEY', label: 'Auth key', secret: true,
@@ -930,7 +891,7 @@ const configSteps = computed(() => {
   }
   if (pick.gluetun) {
     steps.push({
-      id: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
+      id: 'gluetun', section: 'gluetun', label: 'Gluetun VPN', icon: '🛡️',
       note: 'Required for ProtonVPN-backed egress routing. Apps marked for VPN must share this gateway.',
       fields: [
         {
@@ -955,7 +916,7 @@ const configSteps = computed(() => {
   }
   if (pick.tinyauth) {
     steps.push({
-      id: 'tinyauth', label: 'Tinyauth', icon: '🔒',
+      id: 'tinyauth', section: 'tinyauth', label: 'Tinyauth', icon: '🔒',
       note: 'Required before protected routes can authenticate users.',
       fields: [
         {
@@ -973,7 +934,7 @@ const configSteps = computed(() => {
   }
   if (plexMode.value === 'external' && (pick.sonarr || pick.radarr || pick.prowlarr || pick.bazarr || pick.seerr)) {
     steps.push({
-      id: 'plex-external', label: 'Existing Plex', icon: '🎬',
+      id: 'plex-external', section: 'plex', label: 'Existing Plex', icon: '🎬',
       note: 'Required when selected apps need to connect to an existing Plex server.',
       fields: [
         {
@@ -991,11 +952,11 @@ const configSteps = computed(() => {
   return steps
 })
 
-const activeConfigStep = computed(() =>
-  configSteps.value.find(step => step.id === activeConfigStepId.value) || configSteps.value.find(step => !stepComplete(step)) || configSteps.value[0] || null
-)
-
-const completedConfigSteps = computed(() => configSteps.value.filter(stepComplete).length)
+function sectionNeedsSetup(section) {
+  const related = configSteps.value.filter(step => step.section === section)
+  if (!related.length) return false
+  return related.some(step => !stepComplete(step))
+}
 
 const containerUrls = computed(() => {
   const map = {}
@@ -1567,14 +1528,6 @@ watch(() => ({ ...pick }), (cur, prev) => {
 watch(addInput, () => { addResult.value = null })
 watch(addTab,   () => { addResult.value = null; addInput.value = ''; addFileName.value = '' })
 watch(selectedServices, schedulePortCheck)
-watch(configSteps, steps => {
-  if (!steps.length) {
-    activeConfigStepId.value = ''
-  } else if (!steps.some(step => step.id === activeConfigStepId.value)) {
-    activeConfigStepId.value = steps.find(step => !stepComplete(step))?.id || steps[0].id
-  }
-}, { immediate: true })
-
 let runningPollTimer = null
 
 onMounted(() => {
@@ -1959,9 +1912,24 @@ onUnmounted(() => {
 .cfg-section.open { box-shadow: var(--shadow-1); }
 .cfg-head         { display: flex; align-items: center; gap: 8px; padding: 6px 12px; user-select: none; }
 .cfg-head:hover   { background: var(--bg-2); }
+.cfg-head-required { background: var(--warn-bg); border-bottom: 1px solid var(--warn-dim); }
+.cfg-head-required:hover { background: var(--warn-bg); }
 .cfg-icon         { font-size: 13px; }
 .cfg-title        { font-size: 12.5px; font-weight: 600; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 /* cfg-badge removed */
+.cfg-required-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--warn);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-dim);
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
 .cfg-badge-mode   { font-size: 9px; font-weight: 600; color: var(--fg-2); background: var(--bg-2); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); white-space: nowrap; flex-shrink: 0; }
 .cfg-head-pinned  { cursor: default; }
 .cfg-head-pinned:hover { background: var(--bg-1); }
@@ -2004,35 +1972,6 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
-
-.required-config-box {
-  margin-top: 8px;
-  padding: 7px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--warn-dim);
-  background: var(--warn-bg);
-}
-.required-config-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.required-title { font-size: 11.5px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.05em; }
-.required-sub { font-size: 9.5px; color: var(--fg-2); }
-.required-progress { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--warn); white-space: nowrap; }
-.required-step-tabs { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
-.required-step-tab {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border-color: rgba(217,119,6,0.35);
-  color: var(--warn);
-  background: var(--bg-1);
-}
-.required-step-tab.active { background: var(--warn); border-color: var(--warn); color: #fff; }
-.required-step-tab.done { color: var(--ok); border-color: rgba(22,163,74,0.35); background: var(--ok-bg); }
-.required-step-tab.done.active { background: var(--ok); color: #fff; }
-.required-step-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
-.required-step-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
-.required-step-note { font-size: 9.5px; color: var(--fg-2); line-height: 1.3; margin-bottom: 5px; }
-.required-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.required-ok { margin-left: auto; font-size: 9px; text-transform: uppercase; color: var(--ok); }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
 .cfg-note-purple   { background: var(--accent-subtle); color: var(--fg-1); border: 1px solid var(--accent-dim); }
