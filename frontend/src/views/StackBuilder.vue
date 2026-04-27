@@ -361,14 +361,14 @@
               <h3 class="instances-title">Running Instances</h3>
             </div>
             <div class="instances-controls">
-              <div class="search-wrap instances-search">
-                <span class="search-icon">🔍</span>
-                <input v-model="containerSearch" placeholder="Search containers…" class="search-input" />
-              </div>
               <label class="toggle-stopped">
                 <input type="checkbox" v-model="showStoppedContainers" />
                 <span>Show stopped</span>
               </label>
+              <div class="search-wrap instances-search">
+                <span class="search-icon">🔍</span>
+                <input v-model="containerSearch" placeholder="Search containers…" class="search-input" />
+              </div>
             </div>
           </div>
 
@@ -1544,12 +1544,12 @@ onUnmounted(() => {
 
 /* ── Filter row ─────────────────────────────────────────────────────────── */
 .search-wrap { position: relative; flex: 1; min-width: 140px; }
-.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; }
 .search-input {
   width: 100%;
-  padding: 7px 10px 7px 30px;
+  padding: 4px 10px 4px 30px;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   background: var(--bg-0);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1574,9 +1574,9 @@ onUnmounted(() => {
 
 .tile-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
 }
 .tile-card .service-grid { margin-top: 0; }
 .tile-title {
@@ -1584,25 +1584,23 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
-  margin: 0 0 4px;
+  margin: 0;
 }
 .tile-search { max-width: 220px; flex: 0 0 200px; }
-.tile-search .search-input { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
-.tile-search .search-icon { font-size: 11px; }
 
 .instances-card { gap: var(--space-2); }
 .instances-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
 }
 .instances-title {
   font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
-  margin: 0 0 4px;
+  margin: 0;
 }
 .instances-controls {
   display: flex;
@@ -1610,8 +1608,6 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 .instances-search { max-width: 220px; flex: 0 0 200px; }
-.instances-search .search-input { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
-.instances-search .search-icon { font-size: 11px; }
 .toggle-stopped {
   display: flex;
   align-items: center;
