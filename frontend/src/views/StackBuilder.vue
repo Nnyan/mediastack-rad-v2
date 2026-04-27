@@ -94,7 +94,7 @@
           </template>
 
           <!-- Tailscale — only when tailscale is selected -->
-                    <template v-if="pick['tailscale']">
+          <template v-if="pick['tailscale']">
           <div class="cfg-section" :class="{ open: expanded.tailscale }">
           <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tailscale') }" @click="toggleCfg('tailscale')">
             <span class="cfg-icon">🔗</span>
@@ -122,12 +122,45 @@
                 <span class="cfg-hint">Docker network CIDR — gives enrolled devices direct container access</span>
               </label>
             </div>
-          </div>
+            </div>
           </div>
           </template>
 
+          <!-- Gluetun VPN — only when gluetun is selected -->
+          <template v-if="pick['gluetun']">
+            <div class="cfg-section" :class="{ open: expanded.gluetun }">
+              <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('gluetun') }" @click="toggleCfg('gluetun')">
+                <span class="cfg-icon">🛡️</span>
+                <span class="cfg-title">Gluetun VPN</span>
+                <span v-if="sectionNeedsSetup('gluetun')" class="cfg-required-badge">Required setup</span>
+              </div>
+              <div v-if="expanded.gluetun" class="cfg-body">
+                <div class="cfg-grid">
+                  <label class="cfg-field">
+                    <span class="cfg-label">
+                      ProtonVPN username
+                      <a href="https://account.protonvpn.com/account-password" target="_blank" class="cfg-link">ProtonVPN account ↗</a>
+                    </span>
+                    <input v-model="req.protonvpn_user" type="password" placeholder="OpenVPN/IKEv2 username" :readonly="isFieldFromLive('protonvpn_user')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_user') }" />
+                    <span class="cfg-hint">Set this if you use Gluetun as an OpenVPN/IKEv2 egress gateway.</span>
+                  </label>
+                  <label class="cfg-field">
+                    <span class="cfg-label">ProtonVPN password</span>
+                    <input v-model="req.protonvpn_password" type="password" placeholder="OpenVPN/IKEv2 password" :readonly="isFieldFromLive('protonvpn_password')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_password') }" />
+                    <span class="cfg-hint">Password is required for Gluetun authentication.</span>
+                  </label>
+                  <label class="cfg-field">
+                    <span class="cfg-label">Countries</span>
+                    <input v-model="req.protonvpn_countries" placeholder="United States" :readonly="isFieldFromLive('protonvpn_countries')" :class="{ 'cfg-readonly': isFieldFromLive('protonvpn_countries') }" />
+                    <span class="cfg-hint">Optional Gluetun SERVER_COUNTRIES value (comma separated accepted).</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- Tinyauth — only when tinyauth is selected -->
-                    <template v-if="pick['tinyauth']">
+          <template v-if="pick['tinyauth']">
           <div class="cfg-section" :class="{ open: expanded.tinyauth }">
           <div class="cfg-head" :class="{ 'cfg-head-required': sectionNeedsSetup('tinyauth') }" @click="toggleCfg('tinyauth')">
             <span class="cfg-icon">🔒</span>
@@ -510,7 +543,8 @@ const activeFilter = ref('')
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, deploy: true,
+  gluetun: false, tinyauth: false, plex: false,
+  custom: false, deploy: true,
 })
 const plexMode     = ref('local')
 const addTab       = ref('compose')
@@ -1185,7 +1219,7 @@ function confirmRemove(name) {
 
 // ── Actions ────────────────────────────────────────────────────────────────
 // Map service key → config section id (only services that have a config section)
-const SERVICE_SECTION = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
+const SERVICE_SECTION = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', gluetun: 'gluetun', tinyauth: 'tinyauth', plex: 'plex' }
 
 function toggle(key) {
   pick[key] = !pick[key]
@@ -1468,7 +1502,7 @@ async function deploy() {
 }
 
 // Auto-expand the config section when a service with one is first selected
-const SERVICE_CFG = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', tinyauth: 'tinyauth', plex: 'plex' }
+const SERVICE_CFG = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', gluetun: 'gluetun', tinyauth: 'tinyauth', plex: 'plex' }
 watch(() => ({ ...pick }), (cur, prev) => {
   for (const [svcKey, cfgId] of Object.entries(SERVICE_CFG)) {
     if (cur[svcKey] && !prev?.[svcKey]) expanded[cfgId] = true

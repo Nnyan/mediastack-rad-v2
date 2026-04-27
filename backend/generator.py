@@ -143,6 +143,31 @@ def validate_request(request: StackRequest) -> StackValidation:
                     "login.tailscale.com/admin/settings/keys.",
         ))
 
+    # Gluetun credentials required
+    existing_vpn_user = env_values.get("PROTONVPN_USER", "")
+    has_saved_vpn_user = bool(existing_vpn_user and existing_vpn_user != "${PROTONVPN_USER}")
+    existing_vpn_password = env_values.get("PROTONVPN_PASSWORD", "")
+    has_saved_vpn_password = bool(
+        existing_vpn_password and existing_vpn_password != "${PROTONVPN_PASSWORD}"
+    )
+    if "gluetun" in enabled_keys:
+        if not request.protonvpn_user and not has_saved_vpn_user:
+            errors.append(ValidationIssue(
+                service="gluetun",
+                field="protonvpn_user",
+                severity="error",
+                message="PROTONVPN_USER is required when Gluetun is selected."
+                        " Provide your ProtonVPN OpenVPN/IKEv2 username.",
+            ))
+        if not request.protonvpn_password and not has_saved_vpn_password:
+            errors.append(ValidationIssue(
+                service="gluetun",
+                field="protonvpn_password",
+                severity="error",
+                message="PROTONVPN_PASSWORD is required when Gluetun is selected."
+                        " Provide your ProtonVPN OpenVPN/IKEv2 password.",
+            ))
+
     # Tinyauth required fields
     if "tinyauth" in enabled_keys or request.tinyauth_enabled:
         for field, label, val in [
