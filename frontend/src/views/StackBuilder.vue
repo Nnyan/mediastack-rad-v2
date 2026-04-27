@@ -34,7 +34,7 @@
             <div class="cfg-grid">
               <label class="cfg-field span2">
                 <span class="cfg-label">Domain</span>
-                <input v-model="req.domain" placeholder="nyrdalyrt.com" :readonly="isFieldFromLive('domain')" :class="{ 'cfg-readonly': isFieldFromLive('domain') }" />
+                <input v-model="req.domain" placeholder="nyrdalyrt.com" :readonly="isFieldPreset('domain')" :class="{ 'cfg-readonly': isFieldPreset('domain') }" />
                 <span class="cfg-hint">Apps served as sonarr.{{ req.domain || 'example.com' }}</span>
               </label>
               <label class="cfg-field span2">
@@ -48,7 +48,7 @@
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Timezone</span>
-                <input v-model="req.timezone" placeholder="America/Los_Angeles" :readonly="isFieldFromLive('timezone')" :class="{ 'cfg-readonly': isFieldFromLive('timezone') }" />
+                <input v-model="req.timezone" placeholder="America/Los_Angeles" :readonly="isFieldPreset('timezone')" :class="{ 'cfg-readonly': isFieldPreset('timezone') }" />
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">PUID</span>
@@ -77,16 +77,16 @@
                   DNS API Token
                   <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" class="cfg-link">Create ↗</a>
                 </span>
-                <input v-model="req.cloudflare_token" type="password" placeholder="CF_DNS_API_TOKEN — Zone:DNS:Edit + Zone:Zone:Read" :readonly="isFieldFromLive('cloudflare_token')" :class="{ 'cfg-readonly': isFieldFromLive('cloudflare_token') }" />
-                <span class="cfg-hint">Required for DNS-01 HTTPS cert issuance via Traefik</span>
+                <input v-model="req.cloudflare_token" type="password" placeholder="CF_DNS_API_TOKEN — Zone:DNS:Edit + Zone:Zone:Read" :readonly="isFieldPreset('cloudflare_token')" :class="{ 'cfg-readonly': isFieldPreset('cloudflare_token') }" />
+                <span class="cfg-hint">Required for DNS-01 HTTPS cert issuance via Traefik<span v-if="fieldPresetHint('cloudflare_token')" class="cfg-hint-saved"> {{ fieldPresetHint('cloudflare_token') }}</span></span>
               </label>
               <label v-if="pick['cloudflared']" class="cfg-field span2">
                 <span class="cfg-label">
                   Tunnel Token
                   <a href="https://one.dash.cloudflare.com/" target="_blank" class="cfg-link">Zero Trust ↗</a>
                 </span>
-                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="CLOUDFLARED_TOKEN from Zero Trust → Tunnels" :readonly="isFieldFromLive('cloudflare_tunnel_token')" :class="{ 'cfg-readonly': isFieldFromLive('cloudflare_tunnel_token') }" />
-                <span class="cfg-hint">Authenticates the cloudflared daemon to your tunnel</span>
+                <input v-model="req.cloudflare_tunnel_token" type="password" placeholder="CLOUDFLARED_TOKEN from Zero Trust → Tunnels" :readonly="isFieldPreset('cloudflare_tunnel_token')" :class="{ 'cfg-readonly': isFieldPreset('cloudflare_tunnel_token') }" />
+                <span class="cfg-hint">Authenticates the cloudflared daemon to your tunnel<span v-if="fieldPresetHint('cloudflare_tunnel_token')" class="cfg-hint-saved"> {{ fieldPresetHint('cloudflare_tunnel_token') }}</span></span>
               </label>
             </div>
           </div>
@@ -108,18 +108,18 @@
                   Auth key
                   <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" class="cfg-link">Tailscale admin ↗</a>
                 </span>
-                <input v-model="req.tailscale_auth_key" type="password" placeholder="tskey-auth-… (reusable, non-ephemeral)" :readonly="isFieldFromLive('tailscale_auth_key')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_auth_key') }" />
-                <span class="cfg-hint">Generate a reusable, non-ephemeral key — ephemeral keys expire and drop the node.</span>
+                <input v-model="req.tailscale_auth_key" type="password" placeholder="tskey-auth-… (reusable, non-ephemeral)" :readonly="isFieldPreset('tailscale_auth_key')" :class="{ 'cfg-readonly': isFieldPreset('tailscale_auth_key') }" />
+                <span class="cfg-hint">Generate a reusable, non-ephemeral key — ephemeral keys expire and drop the node.<span v-if="fieldPresetHint('tailscale_auth_key')" class="cfg-hint-saved"> {{ fieldPresetHint('tailscale_auth_key') }}</span></span>
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Node hostname</span>
-                <input v-model="req.tailscale_hostname" placeholder="mediastack" :readonly="isFieldFromLive('tailscale_hostname')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_hostname') }" />
-                <span class="cfg-hint">How this server appears in your tailnet</span>
+                <input v-model="req.tailscale_hostname" placeholder="mediastack" :readonly="isFieldPreset('tailscale_hostname')" :class="{ 'cfg-readonly': isFieldPreset('tailscale_hostname') }" />
+                <span class="cfg-hint">How this server appears in your tailnet<span v-if="fieldPresetHint('tailscale_hostname')" class="cfg-hint-saved"> {{ fieldPresetHint('tailscale_hostname') }}</span></span>
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">Subnet routes</span>
-                <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" :readonly="isFieldFromLive('tailscale_routes')" :class="{ 'cfg-readonly': isFieldFromLive('tailscale_routes') }" />
-                <span class="cfg-hint">Docker network CIDR — gives enrolled devices direct container access</span>
+                <input v-model="req.tailscale_routes" placeholder="172.20.0.0/16" :readonly="isFieldPreset('tailscale_routes')" :class="{ 'cfg-readonly': isFieldPreset('tailscale_routes') }" />
+                <span class="cfg-hint">Docker network CIDR — gives enrolled devices direct container access<span v-if="fieldPresetHint('tailscale_routes')" class="cfg-hint-saved"> {{ fieldPresetHint('tailscale_routes') }}</span></span>
               </label>
             </div>
             </div>
@@ -148,20 +148,20 @@
                       VPN service provider
                       <a href="https://github.com/qdm12/gluetun-wiki" target="_blank" class="cfg-link">Provider docs ↗</a>
                     </span>
-                    <input v-model="req.vpn_service_provider" placeholder="ivpn, mullvad, airvpn" :readonly="isFieldFromLive('vpn_service_provider')" :class="{ 'cfg-readonly': isFieldFromLive('vpn_service_provider') }" />
-                    <span class="cfg-hint">Provider key used in both VPN modes.</span>
+                    <input v-model="req.vpn_service_provider" placeholder="ivpn, mullvad, airvpn" :readonly="isFieldPreset('vpn_service_provider')" :class="{ 'cfg-readonly': isFieldPreset('vpn_service_provider') }" />
+                     <span class="cfg-hint">Provider key used in both VPN modes.<span v-if="fieldPresetHint('vpn_service_provider')" class="cfg-hint-saved"> {{ fieldPresetHint('vpn_service_provider') }}</span></span>
                   </label>
 
                   <template v-if="req.vpn_type === 'wireguard'">
                     <label class="cfg-field">
                       <span class="cfg-label">WireGuard private key</span>
-                      <input v-model="req.wireguard_private_key" type="password" placeholder="wOEI9..." :readonly="isFieldFromLive('wireguard_private_key')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_private_key') }" />
-                      <span class="cfg-hint">Required unless a WireGuard config file is used.</span>
+                       <input v-model="req.wireguard_private_key" type="password" placeholder="wOEI9..." :readonly="isFieldPreset('wireguard_private_key')" :class="{ 'cfg-readonly': isFieldPreset('wireguard_private_key') }" />
+                       <span class="cfg-hint">Required unless a WireGuard config file is used.<span v-if="fieldPresetHint('wireguard_private_key')" class="cfg-hint-saved"> {{ fieldPresetHint('wireguard_private_key') }}</span></span>
                     </label>
                     <label class="cfg-field">
                       <span class="cfg-label">WireGuard addresses</span>
-                      <input v-model="req.wireguard_addresses" placeholder="10.64.222.21/32" :readonly="isFieldFromLive('wireguard_addresses')" :class="{ 'cfg-readonly': isFieldFromLive('wireguard_addresses') }" />
-                      <span class="cfg-hint">Required unless a WireGuard config file is used.</span>
+                       <input v-model="req.wireguard_addresses" placeholder="10.64.222.21/32" :readonly="isFieldPreset('wireguard_addresses')" :class="{ 'cfg-readonly': isFieldPreset('wireguard_addresses') }" />
+                       <span class="cfg-hint">Required unless a WireGuard config file is used.<span v-if="fieldPresetHint('wireguard_addresses')" class="cfg-hint-saved"> {{ fieldPresetHint('wireguard_addresses') }}</span></span>
                     </label>
                     <label class="cfg-field span2">
                       <span class="cfg-label">WireGuard config file</span>
@@ -186,30 +186,30 @@
                   <template v-else>
                     <label class="cfg-field">
                       <span class="cfg-label">OpenVPN user</span>
-                      <input v-model="req.openvpn_user" type="password" placeholder="OpenVPN username" :readonly="isFieldFromLive('openvpn_user')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_user') }" />
-                      <span class="cfg-hint">Required in OpenVPN mode.</span>
+                       <input v-model="req.openvpn_user" type="password" placeholder="OpenVPN username" :readonly="isFieldPreset('openvpn_user')" :class="{ 'cfg-readonly': isFieldPreset('openvpn_user') }" />
+                       <span class="cfg-hint">Required in OpenVPN mode.<span v-if="fieldPresetHint('openvpn_user')" class="cfg-hint-saved"> {{ fieldPresetHint('openvpn_user') }}</span></span>
                     </label>
                     <label class="cfg-field">
                       <span class="cfg-label">OpenVPN password</span>
-                      <input v-model="req.openvpn_password" type="password" placeholder="OpenVPN password" :readonly="isFieldFromLive('openvpn_password')" :class="{ 'cfg-readonly': isFieldFromLive('openvpn_password') }" />
-                      <span class="cfg-hint">Required in OpenVPN mode.</span>
+                       <input v-model="req.openvpn_password" type="password" placeholder="OpenVPN password" :readonly="isFieldPreset('openvpn_password')" :class="{ 'cfg-readonly': isFieldPreset('openvpn_password') }" />
+                       <span class="cfg-hint">Required in OpenVPN mode.<span v-if="fieldPresetHint('openvpn_password')" class="cfg-hint-saved"> {{ fieldPresetHint('openvpn_password') }}</span></span>
                     </label>
                   </template>
 
                   <label class="cfg-field">
                     <span class="cfg-label">Server countries</span>
-                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional'" :readonly="isFieldFromLive('server_countries')" :class="{ 'cfg-readonly': isFieldFromLive('server_countries') }" />
-                    <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required if no WireGuard config is used.' : 'Optional country filter.' }}</span>
+                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional'" :readonly="isFieldPreset('server_countries')" :class="{ 'cfg-readonly': isFieldPreset('server_countries') }" />
+                     <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required if no WireGuard config is used.' : 'Optional country filter.' }}<span v-if="fieldPresetHint('server_countries')" class="cfg-hint-saved"> {{ fieldPresetHint('server_countries') }}</span></span>
                   </label>
                   <label class="cfg-field">
                     <span class="cfg-label">Server region</span>
-                    <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldFromLive('server_region')" :class="{ 'cfg-readonly': isFieldFromLive('server_region') }" />
-                    <span class="cfg-hint">Optional region filter.</span>
+                    <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldPreset('server_region')" :class="{ 'cfg-readonly': isFieldPreset('server_region') }" />
+                     <span class="cfg-hint">Optional region filter.<span v-if="fieldPresetHint('server_region')" class="cfg-hint-saved"> {{ fieldPresetHint('server_region') }}</span></span>
                   </label>
                   <label class="cfg-field">
                     <span class="cfg-label">Server cities</span>
-                    <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldFromLive('server_cities')" :class="{ 'cfg-readonly': isFieldFromLive('server_cities') }" />
-                    <span class="cfg-hint">Optional city filter.</span>
+                    <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldPreset('server_cities')" :class="{ 'cfg-readonly': isFieldPreset('server_cities') }" />
+                     <span class="cfg-hint">Optional city filter.<span v-if="fieldPresetHint('server_cities')" class="cfg-hint-saved"> {{ fieldPresetHint('server_cities') }}</span></span>
                   </label>
                   <label class="cfg-field span2">
                     <span class="cfg-label">Optional Gluetun switches</span>
@@ -256,13 +256,13 @@
             <div class="cfg-grid">
               <label class="cfg-field">
                 <span class="cfg-label">LAN subnet</span>
-                <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" :readonly="isFieldFromLive('lan_subnet')" :class="{ 'cfg-readonly': isFieldFromLive('lan_subnet') }" />
-                <span class="cfg-hint">Devices in this CIDR bypass Tinyauth entirely</span>
+                <input v-model="req.lan_subnet" placeholder="10.0.0.0/22" :readonly="isFieldPreset('lan_subnet')" :class="{ 'cfg-readonly': isFieldPreset('lan_subnet') }" />
+                <span class="cfg-hint">Devices in this CIDR bypass Tinyauth entirely<span v-if="fieldPresetHint('lan_subnet')" class="cfg-hint-saved"> {{ fieldPresetHint('lan_subnet') }}</span></span>
               </label>
               <label class="cfg-field">
                 <span class="cfg-label">App URL</span>
-                <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" :readonly="isFieldFromLive('tinyauth_app_url')" :class="{ 'cfg-readonly': isFieldFromLive('tinyauth_app_url') }" />
-                <span class="cfg-hint">⚠ Must be added as a public hostname in your CF Tunnel → forward to http://tinyauth:3000</span>
+                <input v-model="req.tinyauth_app_url" placeholder="https://auth.nyrdalyrt.com" :readonly="isFieldPreset('tinyauth_app_url')" :class="{ 'cfg-readonly': isFieldPreset('tinyauth_app_url') }" />
+                <span class="cfg-hint">⚠ Must be added as a public hostname in your CF Tunnel → forward to http://tinyauth:3000<span v-if="fieldPresetHint('tinyauth_app_url')" class="cfg-hint-saved"> {{ fieldPresetHint('tinyauth_app_url') }}</span></span>
               </label>
 
               <label class="cfg-field span2">
@@ -270,8 +270,8 @@
                   Users
                   <button class="gen-btn" type="button" @click="generateCredentials">Generate admin</button>
                 </span>
-                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." :readonly="isFieldFromLive('tinyauth_users')" :class="{ 'cfg-readonly': isFieldFromLive('tinyauth_users') }" />
-                <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate admin or separate multiple users with commas</span>
+                <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." :readonly="isFieldPreset('tinyauth_users')" :class="{ 'cfg-readonly': isFieldPreset('tinyauth_users') }" />
+                <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate admin or separate multiple users with commas<span v-if="fieldPresetHint('tinyauth_users')" class="cfg-hint-saved"> {{ fieldPresetHint('tinyauth_users') }}</span></span>
               </label>
               <div v-if="generatedPassword" class="generated-password-box">
                 <span class="gen-pw-label">
@@ -322,8 +322,8 @@
                     X-Plex-Token
                     <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" class="cfg-link">How to find ↗</a>
                   </span>
-                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" :readonly="isFieldFromLive('plex_token')" :class="{ 'cfg-readonly': isFieldFromLive('plex_token') }" />
-                  <span class="cfg-hint">Your personal Plex auth token. Used by Sonarr, Radarr, Prowlarr and other apps to authenticate with this Plex server.</span>
+                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" :readonly="isFieldPreset('plex_token')" :class="{ 'cfg-readonly': isFieldPreset('plex_token') }" />
+                <span class="cfg-hint">Your personal Plex auth token. Used by Sonarr, Radarr, Prowlarr and other apps to authenticate with this Plex server.<span v-if="fieldPresetHint('plex_token')" class="cfg-hint-saved"> {{ fieldPresetHint('plex_token') }}</span></span>
                 </label>
               </div>
             </div>
@@ -344,8 +344,8 @@
                     X-Plex-Token
                     <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" class="cfg-link">How to find ↗</a>
                   </span>
-                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" />
-                  <span class="cfg-hint">Your personal Plex auth token. In Plex Web: Settings → Troubleshooting → Show → X-Plex-Token. Passed to Sonarr, Radarr, Prowlarr, Bazarr and Seerr.</span>
+                  <input v-model="req.plex_token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxx" :readonly="isFieldPreset('plex_token')" :class="{ 'cfg-readonly': isFieldPreset('plex_token') }" />
+                <span class="cfg-hint">Your personal Plex auth token. In Plex Web: Settings → Troubleshooting → Show → X-Plex-Token. Passed to Sonarr, Radarr, Prowlarr, Bazarr and Seerr.<span v-if="fieldPresetHint('plex_token')" class="cfg-hint-saved"> {{ fieldPresetHint('plex_token') }}</span></span>
                 </label>
               </div>
             </div>
@@ -873,6 +873,20 @@ function savedConfigField(field) {
   if (cfg.envKey === 'SERVER_COUNTRIES') return !!secretStatus.value.SERVER_COUNTRIES
   const liveVal = _getLiveEnvValue(field)
   return !!(liveVal && liveVal !== '***')
+}
+
+function fieldHasSavedValue(field) {
+  return savedConfigField(field)
+}
+
+function isFieldPreset(field) {
+  return isFieldFromLive(field) || fieldHasSavedValue(field)
+}
+
+function fieldPresetHint(field) {
+  if (isFieldFromLive(field)) return 'Using value from running stack.'
+  if (fieldHasSavedValue(field)) return 'Using value saved from previous install (.env) — open Settings to replace it.'
+  return ''
 }
 
 function fieldSatisfied(field) {
@@ -2144,6 +2158,7 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .gen-pw-dismiss:hover { color: var(--fg-0); }
 .cfg-hint         { font-size: 9px; color: var(--fg-2); line-height: 1.25; font-style: italic; white-space: normal; overflow-wrap: anywhere; }
 .cfg-hint code    { font-family: var(--font-mono); font-size: 9.5px; background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
+.cfg-hint-saved    { color: var(--warn); font-style: normal; display: inline-block; margin-left: 5px; }
 
 .cfg-note          { font-size: 10.5px; border-radius: 5px; padding: 4px 9px; line-height: 1.35; margin-top: 5px; }
 .cfg-note-purple   { background: var(--accent-subtle); color: var(--fg-1); border: 1px solid var(--accent-dim); }

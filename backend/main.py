@@ -36,7 +36,7 @@ from . import catalog as catalog_mod
 from . import checklist as checklist_mod
 from . import docker_client
 from . import generator as generator_mod
-from .models import SecretEntry, StackValidation
+from .models import SecretEntry, SecretValue, StackValidation
 from . import health as health_mod
 from . import websocket as ws_mod
 from .config import config
@@ -975,6 +975,25 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+def _unquote_env_value(value: str) -> str:
+    """Return an env value without surrounding quotes used by _write_env_file."""
+    if len(value) >= 2 and ((value[0] == value[-1] == '"') or (value[0] == value[-1] == "'")):
+        return value[1:-1]
+    return value
+
+
+def _mask_secret_value(value: str, min_chars: int = 4, max_chars: int = 24) -> str:
+    """Return a redacted preview string for display in the UI."""
+    if not value:
+        return ""
+    count = len(value)
+    if count < min_chars:
+        count = min_chars
+    if count > max_chars:
+        count = max_chars
+    return "*" * count
+
+
 def _quote_env_value(value: str) -> str:
     """Quote a .env value if it contains spaces, #, or other special chars."""
     if not value:
@@ -1045,15 +1064,36 @@ async def api_secrets_list() -> list[SecretEntry]:
         # Show if service is deployed or if key is already set (legacy)
         if defn["service"] not in deployed and not env.get(defn["key"]):
             continue
+        raw_value = env.get(defn["key"], "")
         entries.append(SecretEntry(
             key=defn["key"],
             label=defn["label"],
             hint=defn["hint"],
             service=defn["service"],
-            is_set=bool(env.get(defn["key"], "").strip()),
+            is_set=bool(raw_value.strip()),
+            masked_value=_mask_secret_value(_unquote_env_value(raw_value)) if raw_value.strip() else None,
             link=defn.get("link"),
         ))
     return entries
+
+
+@app.get("/api/settings/secrets/{key}")
+async def api_secret_value(key: str) -> SecretValue:
+    """Return a secret value for explicit reveal.
+
+    This endpoint only serves keys recognized by the settings model.
+    Values are loaded from the stack `.env` file and unquoted for safe input
+    rendering on the frontend.
+    """
+    if key not in _ALLOWED_ENV_KEYS:
+        raise HTTPException(400, "Unsupported secret key")
+
+    env = _read_env_file()
+    raw_value = env.get(key, "")
+    return SecretValue(
+        key=key,
+        value=_unquote_env_value(raw_value),
+    )
 
 
 @app.get("/api/settings/meta")

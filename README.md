@@ -112,6 +112,25 @@ docker compose -f /home/stack/msrad/docker-compose.yml up -d
 6. Click **Deploy Stack** to write the file and run `docker compose up -d`
 7. Follow the **Checklist** tab for remaining setup steps
 
+### Custom app routing
+
+Custom apps added in Stack Builder are merged as-is into the generated compose.
+To make them accessible through Traefik automatically, the generator now:
+
+- Adds Traefik labels automatically when `domain` is set
+- Uses the first declared port mapping to infer the container web port
+- Uses `container_name` (if present) for the public hostname; otherwise it uses
+  the service key
+- Applies the same Tinyauth two-router pattern as catalog services when Tinyauth is
+  enabled
+
+Example: a custom service named `mediastack` with `container_name: mediastack`
+and `ports: ["8090:8090"]` will get a router host `mediastack.<your-domain>`.
+
+If you need full control (advanced auth/rule/service/path behavior), add your
+own Traefik labels explicitly in the custom YAML. If any `traefik.*` label is
+present, the auto-labeler is skipped.
+
 ### Creating a Cloudflare API token
 
 1. Go to [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
@@ -135,9 +154,14 @@ Include `cloudflared` in your stack selection. After deploy, go to:
 [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → Networks → Tunnels → your tunnel → Public Hostnames
 
 Add a hostname for each service:
-- Subdomain: `sonarr`, Domain: `example.com`, Service: `http://sonarr:8989`
-- Subdomain: `radarr`, Domain: `example.com`, Service: `http://radarr:7878`
+- Subdomain: `sonarr`, Domain: `example.com`, Service: `https://<server-ip>:443`
+- Subdomain: `radarr`, Domain: `example.com`, Service: `https://<server-ip>:443`
+- In Tunnel settings, use **No TLS Verify = on** so Cloudflare trusts Traefik’s
+  cert chain and internal HTTPS forwarding.
 - (repeat for each service)
+
+This routes all traffic through Traefik so catalog auth (for example, Tinyauth)
+and HTTPS certificates stay in one place.
 
 Cloudflare creates the DNS records automatically. Your home IP stays private.
 

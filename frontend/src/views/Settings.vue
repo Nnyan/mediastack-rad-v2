@@ -2,20 +2,21 @@
   <div class="settings">
 
     <!-- ── Secrets ─────────────────────────────────────────────────────── -->
-    <div class="section-head">
-      <div>
-        <div class="title-line">
-          <h2 class="section-title">Secrets</h2>
-          <button class="env-path-link" @click="showEnvPath" :title="envPath || 'Loading .env path...'">
-            stored in <code>.env</code>
-          </button>
+      <div class="section-head">
+        <div>
+          <div class="title-line">
+            <h2 class="section-title">Secrets</h2>
+            <button class="env-path-link" @click="showEnvPath" :title="envPath || 'Loading .env path...'">
+              stored in <code>.env</code>
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="secrets-actions" v-if="secrets.length">
-        <button
-          class="primary"
-          :disabled="saving || !hasEdits"
-          @click="saveSecrets"
+        <p class="secret-help">Values are masked until you click the eye icon to load each secret for inspection.</p>
+        <div class="secrets-actions" v-if="secrets.length">
+          <button
+            class="primary"
+            :disabled="saving || !hasEdits"
+            @click="saveSecrets"
         >{{ saving ? 'Saving…' : 'Save secrets' }}</button>
         <span v-if="saveMsg" class="save-msg" :class="saveOk ? 'ok' : 'err'">
           {{ saveMsg }}
@@ -60,14 +61,23 @@
 
             <div class="secret-input-row">
               <input
-                v-model="edits[s.key]"
-                :type="revealed[s.key] ? 'text' : 'password'"
-                :placeholder="s.is_set ? '••••••••  (leave blank to keep current)' : 'Enter value…'"
+                :value="secretInputValue(s.key)"
+                :type="isRevealedSecret(s.key) ? 'text' : 'password'"
+                :placeholder="s.is_set ? `${secretMask(s)}  (leave blank to keep current)` : 'Enter value…'"
                 class="secret-input"
                 autocomplete="off"
+                @input="onSecretInput(s.key, $event)"
               />
-              <button class="eye-btn" @click="revealed[s.key] = !revealed[s.key]" :title="revealed[s.key] ? 'Hide' : 'Show'">
-                {{ revealed[s.key] ? '🙈' : '👁' }}
+              <button
+                type="button"
+                class="eye-btn"
+                :class="{ 'is-loading': isSecretLoading(s.key) }"
+                :disabled="isSecretLoading(s.key)"
+                :title="isSecretLoading(s.key) ? 'Loading…' : isRevealedSecret(s.key) ? 'Hide' : 'Show'"
+                @click="toggleSecretReveal(s)"
+              >
+                <span v-if="isSecretLoading(s.key)" class="spinner secret-spinner"></span>
+                <span v-else>{{ isRevealedSecret(s.key) ? '🙈' : '👁' }}</span>
               </button>
               <a v-if="s.link" :href="s.link" target="_blank" class="secret-link">↗</a>
             </div>
@@ -151,6 +161,8 @@ const secrets        = ref([])
 const secretsLoading = ref(true)
 const edits          = reactive({})
 const revealed       = reactive({})
+const secretValues   = reactive({})
+const secretLoading  = reactive({})
 const saving         = ref(false)
 const saveMsg        = ref('')
 const saveOk         = ref(true)
@@ -171,14 +183,88 @@ const secretGroups = computed(() => {
   return Object.values(map)
 })
 
+function secretMask(s) {
+  const key = s?.key
+  const fromBackend = s?.masked_value
+  if (typeof fromBackend === 'string' && fromBackend) return fromBackend
+  if (s?.is_set) return '••••'
+  return ''
+}
+
+function isRevealedSecret(key) {
+  return !!revealed[key]
+}
+
+function isSecretLoading(key) {
+  return !!secretLoading[key]
+}
+
+async function toggleSecretReveal(s) {
+  const key = s?.key
+  if (!key) return
+
+  if (revealed[key]) {
+    revealed[key] = false
+    if (edits[key] === secretValues[key]) {
+      edits[key] = ''
+    }
+    return
+  }
+
+  if (secretValues[key] === undefined) {
+    secretLoading[key] = true
+    try {
+      const r = await fetch(`/api/settings/secrets/${encodeURIComponent(key)}`)
+      if (!r.ok) {
+        const detail = await r.text()
+        throw new Error(detail || `HTTP ${r.status}`)
+      }
+      const data = await r.json()
+      secretValues[key] = data?.value || ''
+    } catch (e) {
+      showToast(`Could not load ${key}`, 'err')
+      console.error('Failed to load secret value:', e)
+      revealed[key] = false
+      return
+    } finally {
+      secretLoading[key] = false
+    }
+  }
+
+  revealed[key] = true
+}
+
+function secretInputValue(key) {
+  if (!key) return ''
+  if (isRevealedSecret(key) && (edits[key] === undefined || edits[key] === '')) {
+    return secretValues[key] || ''
+  }
+  return edits[key] || ''
+}
+
+function onSecretInput(key, evt) {
+  if (!key) return
+  edits[key] = evt?.target?.value || ''
+}
+
 const hasEdits = computed(() =>
   Object.values(edits).some(v => v && v.trim())
 )
 
 async function loadSecrets() {
-  try {
+    try {
     secrets.value = await fetch('/api/settings/secrets').then(r => r.json())
-  } catch (e) {
+      for (const s of secrets.value) {
+        revealed[s.key] = false
+        edits[s.key] = ''
+        secretLoading[s.key] = false
+        if (!s.is_set) {
+          secretValues[s.key] = ''
+        } else {
+          secretValues[s.key] = undefined
+        }
+      }
+    } catch (e) {
     console.error('Secrets load failed:', e)
   } finally {
     secretsLoading.value = false
@@ -409,6 +495,14 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   font-size: 14px; padding: 0 4px; border: none;
   background: none; cursor: pointer; flex-shrink: 0; line-height: 1;
 }
+.eye-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.secret-spinner {
+  width: 11px;
+  height: 11px;
+}
 .secret-link {
   font-size: 11px; font-weight: 600; color: var(--accent);
   text-decoration: none; flex-shrink: 0; padding: 3px 6px;
@@ -416,6 +510,12 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   background: var(--accent-subtle);
 }
 .secret-link:hover { background: var(--accent); color: #fff; }
+
+.secret-help {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fg-2);
+}
 
 .secrets-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
 .save-msg { font-size: 12px; font-weight: 500; }

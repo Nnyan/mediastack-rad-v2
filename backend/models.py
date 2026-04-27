@@ -202,3 +202,10 @@ class SecretEntry(BaseModel):
     service: str        # which service needs this, e.g. "cloudflared"
     is_set: bool        # True if the key has a non-empty value in .env
     link: str | None = None   # optional doc/dashboard URL
+    masked_value: str | None = None  # masked value preview, e.g. ********
+
+
+class SecretValue(BaseModel):
+    """A secret value returned for explicit reveal in the Settings panel."""
+    key: str
+    value: str
