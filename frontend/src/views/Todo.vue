@@ -141,8 +141,8 @@ onUnmounted(() => {
 .done-icon { font-size: 48px; color: var(--ok); margin-bottom: var(--space-3); }
 .done-title { font-size: 20px; font-weight: 600; margin-bottom: var(--space-2); }
 
-.task-sections { display: flex; flex-direction: column; gap: var(--space-3); }
-.task-section { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
+.task-sections { display: flex; flex-direction: column; gap: 6px; }
+.task-section { background: var(--bg-1); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 8px 10px 10px; }
 .task-section-label {
   display: flex;
   align-items: center;
@@ -152,7 +152,7 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--fg-2);
-  margin-bottom: var(--space-2);
+  margin-bottom: 6px;
 }
 .section-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-2); }
 .section-dot.essential   { background: var(--err); }

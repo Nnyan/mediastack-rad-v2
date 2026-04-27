@@ -1564,10 +1564,13 @@ onUnmounted(() => {
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3);
+  margin-bottom: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
+
+.tile-card { gap: var(--space-2); }
 
 .tile-header {
   display: flex;
@@ -1575,7 +1578,7 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: var(--space-3);
 }
-.tile-card .service-grid { margin-top: var(--space-1); }
+.tile-card .service-grid { margin-top: 0; }
 .tile-title {
   font-size: 12.5px;
   text-transform: uppercase;
@@ -1583,7 +1586,9 @@ onUnmounted(() => {
   color: var(--fg-2);
   margin: 0 0 4px;
 }
-.tile-search { max-width: 240px; flex: 0 0 220px; }
+.tile-search { max-width: 220px; flex: 0 0 200px; }
+.tile-search .search-input { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+.tile-search .search-icon { font-size: 11px; }
 
 .instances-card { gap: var(--space-2); }
 .instances-header {
