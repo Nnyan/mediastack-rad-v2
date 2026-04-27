@@ -400,6 +400,7 @@ def generate(request: StackRequest) -> str:
                     # Add the stack network so Traefik can route to it
                     svc_cfg.setdefault("networks", [STACK_NETWORK])
                     svc_cfg.setdefault("restart", "unless-stopped")
+                    _inject_custom_traefik(svc_name, svc_cfg, domain, request)
                     compose["services"][svc_name] = svc_cfg
         except yaml.YAMLError as e:
             raise ValueError(f"custom_yaml parse error: {e}")
@@ -489,6 +490,156 @@ def _has_web_service(request: StackRequest) -> bool:
         if svc and svc.web_port and not svc.skip_traefik:
             return True
     return False
+
+
+def _normalize_traefik_token(value: str, fallback: str = "service") -> str:
+    """Return a Traefik-safe token for label keys and router names."""
+    normalized = re.sub(r"[^a-z0-9-]", "-", value.lower()).strip("-")
+    return normalized or fallback
+
+
+def _parse_port_value(value: Any) -> int | None:
+    """Validate and normalize a port value from a compose-like mapping."""
+    try:
+        port = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def _infer_container_port(port_spec: Any) -> int | None:
+    """Infer the container-side port from one Docker `ports` entry."""
+    if isinstance(port_spec, int):
+        return _parse_port_value(port_spec)
+
+    if isinstance(port_spec, dict):
+        for key in ("target", "container_port"):
+            if key in port_spec:
+                parsed = _parse_port_value(port_spec[key])
+                if parsed is not None:
+                    return parsed
+        return None
+
+    if not isinstance(port_spec, str):
+        return None
+
+    value = port_spec.strip()
+    if not value:
+        return None
+
+    value = value.split("/", 1)[0].strip()
+    if ":" not in value and "-" in value:
+        return None
+    if ":" not in value:
+        return _parse_port_value(value)
+
+    # host:container and ip::: forms; container port is last after final colon
+    _, container_port = value.rsplit(":", 1)
+    return _parse_port_value(container_port)
+
+
+def _infer_custom_web_port(service_cfg: dict[str, Any]) -> int | None:
+    """Infer a web port for custom services from their ports list."""
+    ports = service_cfg.get("ports")
+    if not isinstance(ports, list):
+        return None
+
+    for port_spec in ports:
+        parsed = _infer_container_port(port_spec)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _labels_are_traefik_enabled(labels: Any) -> bool:
+    if labels is None:
+        return False
+    if isinstance(labels, dict):
+        return any(str(key).startswith("traefik.") for key in labels)
+    if not isinstance(labels, list):
+        return False
+    return any(isinstance(item, str) and item.startswith("traefik.") for item in labels)
+
+
+def _build_traefik_labels(
+    router: str,
+    domain: str,
+    resolver: str,
+    web_port: int | None,
+    request: "StackRequest | None" = None,
+    public_name: str | None = None,
+) -> list[str]:
+    if web_port is None:
+        return []
+
+    router = _normalize_traefik_token(router)
+    host_name = _normalize_traefik_token(public_name or router)
+    host = f"{host_name}.{domain}"
+
+    use_tinyauth = (
+        request is not None
+        and request.tinyauth_enabled
+        and _has_tinyauth(request)
+    )
+
+    base = [
+        "traefik.enable=true",
+        f"traefik.http.services.{router}.loadbalancer.server.port={web_port}",
+        f"traefik.http.routers.{router}.tls=true",
+        f"traefik.http.routers.{router}.tls.certresolver={resolver}",
+        f"traefik.http.routers.{router}.tls.domains[0].main={domain}",
+        f"traefik.http.routers.{router}.tls.domains[0].sans=*.{domain}",
+    ]
+
+    if not use_tinyauth:
+        return base + [
+            f"traefik.http.routers.{router}.rule=Host(`{host}`)",
+            f"traefik.http.routers.{router}.entrypoints=websecure",
+        ]
+
+    lan = (request.lan_subnet or "10.0.0.0/22").strip()
+    return base + [
+        f"traefik.http.routers.{router}-lan.rule=Host(`{host}`) && ClientIP(`{lan}`)",
+        f"traefik.http.routers.{router}-lan.entrypoints=websecure",
+        f"traefik.http.routers.{router}-lan.priority=10",
+        f"traefik.http.routers.{router}-lan.tls=true",
+        f"traefik.http.routers.{router}-lan.tls.certresolver={resolver}",
+        f"traefik.http.routers.{router}-lan.service={router}",
+        f"traefik.http.routers.{router}.rule=Host(`{host}`)",
+        f"traefik.http.routers.{router}.entrypoints=websecure",
+        f"traefik.http.routers.{router}.priority=5",
+        f"traefik.http.routers.{router}.middlewares=tinyauth-auth@docker",
+        f"traefik.http.routers.{router}.service={router}",
+    ]
+
+
+def _inject_custom_traefik(service_name: str, service_cfg: dict[str, Any], domain: str | None, request: StackRequest) -> None:
+    if not domain:
+        return
+    if _labels_are_traefik_enabled(service_cfg.get("labels")):
+        return
+
+    web_port = _infer_custom_web_port(service_cfg)
+    if not web_port:
+        return
+
+    public_name = str(service_cfg.get("container_name") or service_name)
+    labels = _build_traefik_labels(service_name, domain, request.cert_resolver, web_port, request, public_name=public_name)
+
+    existing = service_cfg.get("labels")
+    if existing is None:
+        service_cfg["labels"] = labels
+        return
+    if isinstance(existing, list):
+        existing.extend(labels)
+        return
+    if isinstance(existing, dict):
+        for item in labels:
+            key, _, value = item.partition("=")
+            existing[key] = value
+        return
+
+    service_cfg["labels"] = labels
 
 
 def _render_service(
@@ -635,50 +786,13 @@ def _traefik_labels(
     middleware cannot bypass this — the LAN router simply has no middleware
     at all, and the auth router has no IP allowlist bypass.
     """
-    host = f"{svc.key}.{domain}"
-    router = svc.key
-    use_tinyauth = (
-        request is not None
-        and request.tinyauth_enabled
-        and _has_tinyauth(request)
+    return _build_traefik_labels(
+        router=svc.key,
+        domain=domain,
+        resolver=resolver,
+        web_port=svc.web_port,
+        request=request,
     )
-
-    # Base labels shared by both router patterns
-    base = [
-        "traefik.enable=true",
-        # Service definition — same for both routers
-        f"traefik.http.services.{router}.loadbalancer.server.port={svc.web_port}",
-        # TLS/cert config on the primary router
-        f"traefik.http.routers.{router}.tls=true",
-        f"traefik.http.routers.{router}.tls.certresolver={resolver}",
-        f"traefik.http.routers.{router}.tls.domains[0].main={domain}",
-        f"traefik.http.routers.{router}.tls.domains[0].sans=*.{domain}",
-    ]
-
-    if not use_tinyauth:
-        # Simple single-router setup — no auth middleware
-        return base + [
-            f"traefik.http.routers.{router}.rule=Host(`{host}`)",
-            f"traefik.http.routers.{router}.entrypoints=websecure",
-        ]
-
-    # Two-router pattern for Option C
-    lan = (request.lan_subnet or "10.0.0.0/22").strip()
-    return base + [
-        # --- Router 1: LAN bypass (high priority, no middleware) ---
-        f"traefik.http.routers.{router}-lan.rule=Host(`{host}`) && ClientIP(`{lan}`)",
-        f"traefik.http.routers.{router}-lan.entrypoints=websecure",
-        f"traefik.http.routers.{router}-lan.priority=10",
-        f"traefik.http.routers.{router}-lan.tls=true",
-        f"traefik.http.routers.{router}-lan.tls.certresolver={resolver}",
-        f"traefik.http.routers.{router}-lan.service={router}",
-        # --- Router 2: Catch-all with Tinyauth (low priority) ---
-        f"traefik.http.routers.{router}.rule=Host(`{host}`)",
-        f"traefik.http.routers.{router}.entrypoints=websecure",
-        f"traefik.http.routers.{router}.priority=5",
-        f"traefik.http.routers.{router}.middlewares=tinyauth-auth@docker",
-        f"traefik.http.routers.{router}.service={router}",
-    ]
 
 
 def _has_tinyauth(request: "StackRequest") -> bool:
