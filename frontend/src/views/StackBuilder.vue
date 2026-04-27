@@ -309,39 +309,6 @@
           </div>
           </div>
 
-          <!-- Per-service extra env vars — shown when any service is selected -->
-          <div v-if="selectedServices.length" class="cfg-section" :class="{ open: expanded.extraenv }">
-          <div class="cfg-head" @click="toggleCfg('extraenv')">
-            <span class="cfg-icon">🔧</span>
-            <span class="cfg-title">Variables</span>
-          </div>
-          <div v-if="expanded.extraenv" class="cfg-body">
-            <p class="cfg-hint" style="margin: 6px 0 10px; font-style: normal; font-size: 11px;">
-              Add arbitrary environment variables to any selected service.
-              These are merged last and override catalog defaults.
-            </p>
-            <div v-for="key in selectedServices" :key="key" class="extraenv-service">
-              <div class="extraenv-service-head" @click="toggleExtraEnv(key)">
-                <span class="extraenv-icon">{{ svcByKey[key]?.icon || '📦' }}</span>
-                <span class="extraenv-name">{{ svcName(key) }}</span>
-                <span v-if="(extraEnvRows[key]||[]).filter(r=>r.k).length"
-                  class="extraenv-count">{{ (extraEnvRows[key]||[]).filter(r=>r.k).length }} var{{ (extraEnvRows[key]||[]).filter(r=>r.k).length !== 1 ? 's' : '' }}</span>
-                <span class="extraenv-chevron" :class="{ open: extraEnvOpen[key] }">›</span>
-              </div>
-              <div v-if="extraEnvOpen[key]" class="extraenv-rows">
-                <div v-for="(row, idx) in (extraEnvRows[key] ||= [])" :key="idx" class="extraenv-row">
-                  <input v-model="row.k" placeholder="VAR_NAME" class="extraenv-key" @keydown.tab.prevent="addEnvRow(key)" />
-                  <span class="extraenv-eq">=</span>
-                  <input v-model="row.v" placeholder="value" class="extraenv-val" />
-                  <button class="extraenv-rm" @click="removeEnvRow(key, idx)">✕</button>
-                </div>
-                <button class="extraenv-add" @click="addEnvRow(key)">+ Add variable</button>
-              </div>
-            </div>
-          </div>
-          </div>
-
-
         </div>
       </div><!-- /config-panel -->
 
@@ -550,14 +517,12 @@ const activeFilter = ref('')
 // because Vue 3 template compiler tracks plain property reads, not Set.has() calls.
 const expanded = reactive({
   core: true, cloudflare: false, tailscale: false,
-  tinyauth: false, plex: false, custom: false, extraenv: false, deploy: true,
+  tinyauth: false, plex: false, custom: false, deploy: true,
 })
 const plexMode     = ref('local')
 const addTab       = ref('compose')
 const addInput     = ref('')
 const portOverrides  = reactive({})   // { service_key: override_port }
-const extraEnvOpen   = reactive({})   // { service_key: bool } — expand env panel
-const extraEnvRows   = reactive({})   // { service_key: [{k:'',v:''},...] }
 const portConflicts  = ref([])        // [{service, port, conflict_with, suggested_port}]
 const portsChecking  = ref(false)
 const addParsing   = ref(false)
@@ -1373,14 +1338,6 @@ async function loadCatalog() {
 }
 
 function buildRequest() {
-  const envForService = (key) => {
-    const rows = (extraEnvRows[key] || []).filter(r => r.k && r.k.trim())
-    if (!rows.length) return {}
-    const obj = {}
-    for (const r of rows) obj[r.k.trim()] = r.v ?? ''
-    return obj
-  }
-
   return {
     domain:                    req.domain,
     timezone:                  req.timezone,
@@ -1405,7 +1362,7 @@ function buildRequest() {
     services:                  selectedServices.value.map(k => ({
       key: k, enabled: true,
       port_override: portOverrides[k] || undefined,
-      extra_env:     envForService(k),
+      extra_env:     {},
     })),
     custom_yaml:               customYaml.value || undefined,
   }
@@ -2161,27 +2118,6 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 .ml-auto       { margin-left: auto; }
 
 /* ── Extra env vars ──────────────────────────────────────────────────────── */
-.extraenv-service { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 6px; }
-.extraenv-service:first-child { border-top: none; margin-top: 0; }
-.extraenv-service-head { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 3px 2px; border-radius: 5px; user-select: none; }
-.extraenv-service-head:hover { background: var(--bg-0); }
-.extraenv-icon  { font-size: 12px; }
-.extraenv-name  { font-size: 12px; font-weight: 600; color: var(--fg-0); flex: 1; }
-.extraenv-count { font-size: 9.5px; font-weight: 700; color: var(--accent); background: var(--accent-subtle); border: 1px solid var(--accent-dim); padding: 1px 6px; border-radius: 20px; }
-.extraenv-chevron { font-size: 13px; color: var(--fg-2); transition: transform 0.13s; display: inline-block; }
-.extraenv-chevron.open { transform: rotate(90deg); }
-.extraenv-rows { margin-top: 6px; display: flex; flex-direction: column; gap: 5px; }
-.extraenv-row  { display: flex; align-items: center; gap: 5px; }
-.extraenv-key  { font-family: var(--font-mono); font-size: 11.5px; flex: 0 0 160px; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; }
-.extraenv-key:focus { border-color: var(--accent); }
-.extraenv-eq   { font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); flex-shrink: 0; }
-.extraenv-val  { font-family: var(--font-mono); font-size: 11.5px; flex: 1; padding: 4px 7px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--bg-0); color: var(--fg-0); outline: none; min-width: 0; }
-.extraenv-val:focus { border-color: var(--accent); }
-.extraenv-rm   { font-size: 10px; color: var(--fg-2); background: none; border: none; cursor: pointer; padding: 0 3px; flex-shrink: 0; }
-.extraenv-rm:hover { color: var(--err); }
-.extraenv-add  { font-size: 11.5px; font-weight: 600; font-family: var(--font-sans); color: var(--accent); background: none; border: 1.5px dashed var(--accent-dim); border-radius: 5px; padding: 3px 10px; cursor: pointer; margin-top: 2px; transition: all 0.13s; }
-.extraenv-add:hover { background: var(--accent-subtle); }
-
 /* ── Narrow screens: stack vertically ───────────────────────────────────── */
 @media (max-width: 767px) {
   .builder-layout {
