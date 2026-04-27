@@ -3,16 +3,9 @@
 
     <!-- ── Header ──────────────────────────────────────────────────────── -->
     <div class="builder-header">
-      <div>
-        <h1 class="page-title">Stack Builder</h1>
-        <div class="header-sub">
-          <span>{{ selectedServices.length }} service{{ selectedServices.length !== 1 ? 's' : '' }} selected</span>
-          <span v-if="req.domain" class="header-sub-sep">·</span>
-          <span v-if="req.domain">{{ req.domain }}</span>
-        </div>
-      </div>
+      <h1 class="page-title">Stack Builder</h1>
       <div class="header-actions">
-        <div class="search-wrap">
+        <div class="search-wrap header-search">
           <span class="search-icon">🔍</span>
           <input v-model="search" placeholder="Search services…" class="search-input" />
         </div>
@@ -1514,7 +1507,7 @@ onUnmounted(() => {
 .builder-layout {
   display: flex;
   flex-direction: row;
-  gap: 24px;
+  gap: 6px;
   align-items: flex-start;
 }
 .config-panel {
@@ -1526,22 +1519,25 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 6px;
 }
 
 @media (max-width: 960px) {
   .builder-layout { flex-direction: column; }
   .config-panel { flex: none; width: 100%; }
+  .builder-header { flex-wrap: wrap; }
+  .header-actions { width: 100%; }
+  .header-search { flex: 1 1 100%; min-width: 0; }
   .tile-header, .instances-header { flex-direction: column; align-items: stretch; }
   .instances-controls { flex-wrap: wrap; }
   .tile-search, .instances-search { flex: 1 1 100%; max-width: none; }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
-.builder-header { margin-bottom: var(--space-1); display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.builder-header { margin-bottom: 6px; display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.builder-header .page-title { margin: 0; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
-.header-sub     { font-size: 12px; color: var(--fg-2); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
-.header-sub-sep { opacity: 0.5; }
+.header-search { flex: 0 0 240px; min-width: 240px; }
 .btn-review     { font-size: 13px; font-weight: 600; font-family: var(--font-sans); padding: 6px 12px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; transition: background 0.13s; }
 .btn-review:hover:not(:disabled) { background: var(--accent-subtle); }
 .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
