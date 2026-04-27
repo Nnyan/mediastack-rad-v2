@@ -262,7 +262,7 @@ onUnmounted(() => {
 <style scoped>
 .section-title {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-2);
@@ -272,25 +272,25 @@ onUnmounted(() => {
 .status-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 .status-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 5px;
+  padding: 3px 7px;
   background: var(--bg-0);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   flex: 1 1 180px;
-  min-height: 24px;
-  font-size: 12px;
+  min-height: 22px;
+  font-size: 11px;
 }
 
 .badge-status {
   font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 8px;
+  font-size: 10px;
+  padding: 1px 6px;
   border-radius: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -321,7 +321,7 @@ onUnmounted(() => {
 .card-row .card {
   flex: 1 1 320px;
   margin-bottom: 0;
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 .status-card,
 .tools-card {
@@ -331,64 +331,75 @@ onUnmounted(() => {
 }
 .tools-card p {
   margin: 0;
-  line-height: 1.25;
-  font-size: 11.5px;
+  line-height: 1.2;
+  font-size: 11px;
 }
 .tool-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 5px;
 }
 .tool-actions button {
   flex: 1 1 50%;
   white-space: nowrap;
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 3px 7px;
+  font-size: 11px;
 }
 .routes-card { margin-top: 0; }
+.routes-card table { width: 100%; border-collapse: collapse; }
+.routes-card thead th {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+}
+.routes-card tbody td {
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+}
 
 .route-map-card { margin-bottom: var(--space-3); }
 .route-map-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .route-map-head p { margin: 0; }
-.route-map { display: grid; gap: 8px; }
+.route-map { display: grid; gap: 6px; }
 .route-lane {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(160px, 240px) 1fr;
+  gap: 10px;
   align-items: center;
-  padding: 10px;
+  padding: 8px;
   border-radius: var(--radius);
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border);
   background: var(--bg-0);
 }
 .route-lane.ok { border-color: rgba(22,163,74,0.28); background: linear-gradient(90deg, var(--ok-bg), var(--bg-0)); }
 .route-lane.warn { border-color: rgba(217,119,6,0.35); background: linear-gradient(90deg, var(--warn-bg), var(--bg-0)); }
 .route-lane.err { border-color: rgba(220,38,38,0.35); background: linear-gradient(90deg, var(--err-bg), var(--bg-0)); }
 .route-host { min-width: 0; }
-.route-host strong { display: block; font-size: 13px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.route-host span { display: block; margin-top: 3px; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topology-flow { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 5px; min-width: 0; }
+.route-host strong { display: block; font-size: 12px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-host span { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topology-flow { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 4px; min-width: 0; }
 .topo-node {
-  min-width: 72px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
+  min-width: 64px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
   background: var(--bg-1);
   text-align: center;
   box-shadow: var(--shadow-1);
 }
-.topo-node span { display: block; font-size: 9px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.06em; }
-.topo-node strong { display: block; margin-top: 2px; font-size: 11px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+.topo-node span { display: block; font-size: 8.5px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.topo-node strong { display: block; margin-top: 1px; font-size: 10.5px; color: var(--fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
 .topo-node.ok { border-color: rgba(22,163,74,0.45); background: var(--ok-bg); }
 .topo-node.warn { border-color: rgba(217,119,6,0.5); background: var(--warn-bg); }
 .topo-node.err { border-color: rgba(220,38,38,0.5); background: var(--err-bg); }
 .topo-node.off { opacity: 0.65; }
-.topo-link { height: 4px; border-radius: 999px; background: var(--border-strong); min-width: 24px; position: relative; overflow: hidden; }
+.topo-link { height: 3px; border-radius: 999px; background: var(--border-strong); min-width: 20px; position: relative; overflow: hidden; }
 .topo-link.ok { background: linear-gradient(90deg, #22c55e, #16a34a); box-shadow: 0 0 8px rgba(22,163,74,0.35); }
 .topo-link.warn { background: linear-gradient(90deg, #f59e0b, #d97706); box-shadow: 0 0 8px rgba(217,119,6,0.25); }
 .topo-link.err { background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 8px rgba(220,38,38,0.25); }
 .topo-link.off { background: var(--border); }
-.route-empty { padding: var(--space-4); text-align: center; }
+.route-empty { padding: var(--space-3); text-align: center; }
 
 @media (max-width: 900px) {
   .route-lane { grid-template-columns: 1fr; }
