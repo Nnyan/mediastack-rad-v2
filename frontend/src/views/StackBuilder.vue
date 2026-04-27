@@ -166,7 +166,7 @@
                     <label class="cfg-field span2">
                       <span class="cfg-label">WireGuard config file</span>
                       <div class="cfg-field-actions">
-                        <button type="button" class="parse-confirm" @click="gluetunConfigInput?.click()">Upload .conf</button>
+                        <button type="button" class="cfg-inline-btn parse-confirm" @click="gluetunConfigInput?.click()">Upload .conf</button>
                         <span class="cfg-hint">{{ gluetunConfigFileName || 'No file selected' }}</span>
                       </div>
                       <span class="cfg-hint">Saved as /gluetun/wireguard/wg0.conf and can replace manual key/address entries.</span>
@@ -196,34 +196,34 @@
                     </label>
                   </template>
 
-                  <label class="cfg-field">
-                    <span class="cfg-label">Server countries</span>
-                    <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional'" :readonly="isFieldPreset('server_countries')" :class="{ 'cfg-readonly': isFieldPreset('server_countries') }" />
+                   <label class="cfg-field">
+                     <span class="cfg-label">Server countries</span>
+                     <input v-model="req.server_countries" :placeholder="req.vpn_type === 'wireguard' ? 'United States' : 'Optional'" :readonly="isFieldPreset('server_countries')" :class="{ 'cfg-readonly': isFieldPreset('server_countries') }" />
                      <span class="cfg-hint">{{ req.vpn_type === 'wireguard' && !Boolean((req.wireguard_config || '').trim()) ? 'Required if no WireGuard config is used.' : 'Optional country filter.' }}<span v-if="fieldPresetHint('server_countries')" class="cfg-hint-saved"> {{ fieldPresetHint('server_countries') }}</span></span>
-                  </label>
-                  <label class="cfg-field">
-                    <span class="cfg-label">Server region</span>
-                    <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldPreset('server_region')" :class="{ 'cfg-readonly': isFieldPreset('server_region') }" />
+                   </label>
+                   <label class="cfg-field">
+                     <span class="cfg-label">Server region</span>
+                     <input v-model="req.server_region" placeholder="us-east" :readonly="isFieldPreset('server_region')" :class="{ 'cfg-readonly': isFieldPreset('server_region') }" />
                      <span class="cfg-hint">Optional region filter.<span v-if="fieldPresetHint('server_region')" class="cfg-hint-saved"> {{ fieldPresetHint('server_region') }}</span></span>
-                  </label>
-                  <label class="cfg-field">
-                    <span class="cfg-label">Server cities</span>
-                    <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldPreset('server_cities')" :class="{ 'cfg-readonly': isFieldPreset('server_cities') }" />
+                   </label>
+                   <label class="cfg-field">
+                     <span class="cfg-label">Server cities</span>
+                     <input v-model="req.server_cities" placeholder="New York,London" :readonly="isFieldPreset('server_cities')" :class="{ 'cfg-readonly': isFieldPreset('server_cities') }" />
                      <span class="cfg-hint">Optional city filter.<span v-if="fieldPresetHint('server_cities')" class="cfg-hint-saved"> {{ fieldPresetHint('server_cities') }}</span></span>
-                  </label>
-                  <label class="cfg-field span2">
-                    <span class="cfg-label">Optional Gluetun switches</span>
-                    <div class="toggle-row-group">
+                   </label>
+                    <label class="cfg-field span2">
+                      <span class="cfg-label">Optional Gluetun switches</span>
+                      <div class="toggle-row-group">
                       <label class="toggle-row">
-                        <input type="checkbox" v-model="req.secure_core_only" />
+                        <input class="cfg-check" type="checkbox" v-model="req.secure_core_only" />
                         <span>Secure-core only</span>
                       </label>
                       <label class="toggle-row">
-                        <input type="checkbox" v-model="req.stream_only" />
+                        <input class="cfg-check" type="checkbox" v-model="req.stream_only" />
                         <span>Stream only</span>
                       </label>
                       <label class="toggle-row">
-                        <input type="checkbox" v-model="req.port_forward_only" />
+                        <input class="cfg-check" type="checkbox" v-model="req.port_forward_only" />
                         <span>Port-forward only</span>
                       </label>
                     </div>
@@ -268,7 +268,7 @@
               <label class="cfg-field span2">
                 <span class="cfg-label">
                   Users
-                  <button class="gen-btn" type="button" @click="generateCredentials">Generate admin</button>
+                  <button class="cfg-inline-btn gen-btn" type="button" @click="generateCredentials">Generate admin</button>
                 </span>
                 <input v-model="req.tinyauth_users" placeholder="admin:$2b$10$..." :readonly="isFieldPreset('tinyauth_users')" :class="{ 'cfg-readonly': isFieldPreset('tinyauth_users') }" />
                 <span class="cfg-hint">Format: <code>username:bcrypt_hash</code> — click Generate admin or separate multiple users with commas<span v-if="fieldPresetHint('tinyauth_users')" class="cfg-hint-saved"> {{ fieldPresetHint('tinyauth_users') }}</span></span>
@@ -394,7 +394,7 @@
                 <span class="parse-result-title">
                   {{ addResult.services.length }} service{{ addResult.services.length !== 1 ? 's' : '' }} found
                 </span>
-                <button class="parse-confirm" @click="confirmCustomApp">
+                <button class="cfg-inline-btn parse-confirm" @click="confirmCustomApp">
                   ✓ Add to stack
                 </button>
               </div>
@@ -476,7 +476,7 @@
             </div>
             <div class="instances-controls">
               <label class="toggle-stopped">
-                <input type="checkbox" v-model="showStoppedContainers" />
+                <input class="cfg-check" type="checkbox" v-model="showStoppedContainers" />
                 <span>Show stopped</span>
               </label>
               <div class="search-wrap instances-search">
@@ -1835,7 +1835,10 @@ onUnmounted(() => {
   color: var(--fg-2);
   white-space: nowrap;
 }
-.toggle-stopped input { cursor: pointer; }
+
+.toggle-stopped input {
+  margin: 0;
+}
 
 .instances-list {
   display: grid;
@@ -2123,6 +2126,35 @@ onUnmounted(() => {
   min-height: 24px;
 }
 .cfg-field-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cfg-check {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.cfg-inline-btn {
+  border: 1px solid var(--accent-dim);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.13s;
+}
+
+.cfg-inline-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
 .toggle-row-group {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2146,15 +2178,6 @@ onUnmounted(() => {
 
 .toggle-row:hover {
   border-color: var(--accent);
-}
-
-.toggle-row input {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
 }
 
 .toggle-row span {
@@ -2187,13 +2210,8 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 
 /* Generate buttons inside label rows */
 .gen-btn {
-  font-size: 10px; font-weight: 600; font-family: var(--font-sans);
-  padding: 1px 8px; border-radius: 20px; cursor: pointer;
-  background: var(--accent-subtle); color: var(--accent);
-  border: 1px solid var(--accent-dim); transition: all 0.13s;
-  flex-shrink: 0; white-space: nowrap;
+  padding: 3px 10px;
 }
-.gen-btn:hover { background: var(--accent); color: #fff; }
 
 /* Generated password reveal box */
 .generated-password-box {
@@ -2263,9 +2281,15 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
 }
 .parse-result-title { font-size: 12px; font-weight: 600; color: var(--ok); }
 .parse-confirm {
-  font-size: 11.5px; font-weight: 600; font-family: var(--font-sans);
-  padding: 3px 10px; border-radius: 5px;
-  background: var(--ok); color: #fff; border: none; cursor: pointer;
+  border-color: var(--ok);
+  color: var(--ok);
+  background: rgba(22, 163, 74, 0.14);
+}
+
+.parse-confirm:hover {
+  background: var(--ok);
+  color: #fff;
+  border-color: var(--ok);
 }
 .parse-svc {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
