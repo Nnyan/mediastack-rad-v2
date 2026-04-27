@@ -12,8 +12,10 @@
             <h2>Tailscale</h2>
             <p>Private access into the stack from enrolled devices.</p>
           </div>
-          <span class="status-pill" :class="tailscaleState">{{ tailscaleLabel }}</span>
+          <span class="status-pill" :class="tailscaleState" :title="tailscalePrimaryReason">{{ tailscaleLabel }}</span>
         </div>
+
+        <div v-if="tailscaleState !== 'ok'" class="attention-note">{{ tailscalePrimaryReason }}</div>
 
         <div class="signal-row">
           <div class="signal" :class="okClass(ts.present)"><span>Container</span><strong>{{ ts.status || 'missing' }}</strong></div>
@@ -31,8 +33,8 @@
           <div class="wide"><span>Active Routes</span><strong>{{ list(ts.active_routes) }}</strong></div>
         </div>
 
-        <div v-if="ts.issues?.length" class="issues">
-          <div v-for="issue in ts.issues" :key="issue">{{ issue }}</div>
+        <div v-if="tailscaleReasons.length" class="issues">
+          <div v-for="issue in tailscaleReasons" :key="issue">{{ issue }}</div>
         </div>
       </section>
 
@@ -101,6 +103,24 @@ const tailscaleState = computed(() => {
   return 'ok'
 })
 const tailscaleLabel = computed(() => tailscaleState.value === 'ok' ? 'connected' : tailscaleState.value === 'warn' ? 'attention' : 'offline')
+const tailscaleReasons = computed(() => {
+  const reasons = []
+  if (!ts.value.present) reasons.push('Tailscale container is missing from the stack.')
+  else if (ts.value.status !== 'running') reasons.push(`Tailscale container is ${ts.value.status || 'not running'}.`)
+
+  if (!ts.value.kernel_mode) reasons.push('Kernel mode is off (running userspace networking).')
+  if (!ts.value.has_net_admin || !ts.value.has_net_raw || !ts.value.has_tun_device) {
+    reasons.push('TUN access is incomplete (NET_ADMIN/NET_RAW and /dev/net/tun are required).')
+  }
+  if (ts.value.online === false) reasons.push('Node is not currently online in the tailnet.')
+  if (!Array.isArray(ts.value.tailscale_ips) || !ts.value.tailscale_ips.length) reasons.push('No Tailscale IP address is assigned yet.')
+
+  for (const issue of ts.value.issues || []) {
+    if (issue && !reasons.includes(issue)) reasons.push(issue)
+  }
+  return reasons
+})
+const tailscalePrimaryReason = computed(() => tailscaleReasons.value[0] || 'Tailscale checks are healthy.')
 const tunnelLabel = computed(() => (ts.value.tailscale_ips || []).length ? 'connected' : 'not connected')
 const tunLabel = computed(() => ts.value.has_net_admin && ts.value.has_net_raw && ts.value.has_tun_device ? 'ready' : 'missing')
 const egressState = computed(() => eg.value.status === 'running' ? 'ok' : eg.value.present ? 'warn' : 'off')
@@ -151,6 +171,14 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .info-grid > div { background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; }
 .info-grid .wide { grid-column: 1 / -1; }
 .issues { color: var(--warn); font-size: 10.5px; display: grid; gap: 3px; }
+.attention-note {
+  color: var(--warn);
+  font-size: 10.5px;
+  background: rgba(217,119,6,0.08);
+  border: 1px solid rgba(217,119,6,0.28);
+  border-radius: var(--radius-sm);
+  padding: 5px 7px;
+}
 .provider-list { display: grid; gap: 5px; }
 .provider-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; }
 .provider-row span:not(.provider-dot) { display: block; color: var(--fg-2); font-size: 11px; margin-top: 2px; }
