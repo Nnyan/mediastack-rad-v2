@@ -72,11 +72,15 @@ def _labels_of(by_name: dict, name: str) -> dict[str, str]:
     return c.attrs.get("Config", {}).get("Labels") or {}
 
 
-async def _traefik_routers() -> dict[str, dict]:
-    """Fetch Traefik routers with caching. Hard 2s timeout — never blocks."""
+async def _traefik_routers(force: bool = False) -> dict[str, dict]:
+    """Fetch Traefik routers with caching. Hard 2s timeout — never blocks.
+
+    Args:
+        force: bypass cached data and force a fresh fetch.
+    """
     global _routers_cache_time, _routers_cache
     now = time.monotonic()
-    if now - _routers_cache_time < _cache_ttl:
+    if not force and now - _routers_cache_time < _cache_ttl:
         return _routers_cache
 
     for url in ("http://traefik:8081/api/http/routers",

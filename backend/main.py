@@ -446,6 +446,12 @@ async def api_stack_deploy(req: StackRequest) -> dict:
     except ValueError as e:
         raise HTTPException(400, f"Generation failed: {e}")
 
+    selected_service_names = {
+        svc.key
+        for svc in req.services
+        if getattr(svc, "enabled", True)
+    }
+
     # Also write traefik.yml if this deploy includes Traefik.
     has_traefik = any(s.key == "traefik" and s.enabled for s in req.services)
     if has_traefik or req.domain:
@@ -508,12 +514,37 @@ async def api_stack_deploy(req: StackRequest) -> dict:
                 if name and name not in conflicts:
                     conflicts.append(name)
 
+    route_warnings: list[dict[str, object]] = []
+    if returncode == 0 and selected_service_names:
+        # Best-effort guardrail: confirm new/selected web services have visible
+        # Traefik routers after deploy. Non-blocking and warning-only.
+        missing_services: list[dict[str, object]] = []
+        for attempt in range(3):
+            missing_services = await _services_missing_traefik_routes(path, selected_service_names)
+            if not missing_services:
+                break
+            # Allow Traefik to warm up and reload before giving up.
+            if attempt < 2:
+                await asyncio.sleep(1)
+
+        if missing_services:
+            route_warnings = []
+            for item in missing_services:
+                svc = str(item.get("service") or "")
+                routes = sorted(set(item.get("routes", []))) if isinstance(item.get("routes"), list) else []
+                route_warnings.append({
+                    "service": svc,
+                    "routes": routes,
+                    "message": "Traefik router is not yet reported as enabled after deploy.",
+                })
+
     return {
         "ok": returncode == 0,
         "stdout": stdout,
         "stderr": stderr,
         "path": str(path),
         "conflicts": conflicts,
+        "route_warnings": route_warnings,
     }
 
 
@@ -1047,6 +1078,87 @@ def _services_in_compose() -> set[str]:
         return set((doc.get("services") or {}).keys())
     except Exception:
         return set()
+
+
+def _router_names_from_labels(labels: object) -> list[str]:
+    """Extract Traefik router names declared with `*.rule` labels."""
+    lines: list[str] = []
+    if isinstance(labels, dict):
+        lines = [str(k) for k in labels.keys() if str(k).startswith("traefik.http.routers.")]
+    elif isinstance(labels, list):
+        lines = [str(v) for v in labels if isinstance(v, str)]
+    if not lines:
+        return []
+
+    found: list[str] = []
+    for item in lines:
+        if not item.startswith("traefik.http.routers."):
+            continue
+        marker = ".rule=" if "=" in item else ".rule"
+        idx = item.find(marker)
+        if idx < 0:
+            continue
+        router_name = item[len("traefik.http.routers."):idx]
+        if router_name and router_name not in found:
+            found.append(router_name)
+    return found
+
+
+async def _services_missing_traefik_routes(compose_path: Path, selected_services: set[str] | None = None) -> list[dict[str, object]]:
+    """Return services with expected Traefik routers that are not enabled yet.
+
+    This is a non-blocking, best-effort post-deploy guardrail. It helps catch cases
+    where a service was added with Traefik labels but Traefik API does not expose
+    matching enabled routers after deployment.
+    """
+    if not compose_path.exists():
+        return []
+
+    try:
+        import yaml as _yaml
+        doc = _yaml.safe_load(compose_path.read_text()) or {}
+        services = doc.get("services") or {}
+    except Exception:
+        return []
+
+    if not isinstance(services, dict):
+        return []
+
+    selected = set(selected_services or set())
+    if not selected:
+        selected = set(services.keys())
+
+    skip = {"traefik", "cloudflared", "tailscale", "tinyauth", "mediastack-rad"}
+    try:
+        routers = await checklist_mod._traefik_routers(force=True)
+    except Exception:
+        return []
+    if not isinstance(routers, dict):
+        return []
+
+    missing: list[dict[str, object]] = []
+    for name, cfg in services.items():
+        if name in skip:
+            continue
+        if name not in selected and name not in cfg.get("container_name", name):
+            continue
+        if not isinstance(cfg, dict):
+            continue
+        expected_routes = _router_names_from_labels(cfg.get("labels"))
+        if not expected_routes:
+            continue
+        not_found = [
+            route
+            for route in expected_routes
+            if not routers.get(f"{route}@docker", {}).get("status") == "enabled"
+        ]
+        if not_found:
+            missing.append({
+                "service": name,
+                "routes": sorted(set(not_found)),
+            })
+
+    return missing
 
 
 @app.get("/api/settings/secrets")

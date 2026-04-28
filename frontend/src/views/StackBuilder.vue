@@ -585,25 +585,32 @@
 
     <!-- ── Deploy output ────────────────────────────────────────────────── -->
     <div v-if="deployOutput" class="deploy-output-area">
+      <div v-if="deployWarnings.length" class="deploy-warnings preview-warnings">
+        <div v-for="warn in deployWarnings" :key="`${warn.service}-${warn.message}`" class="preview-warn-row">
+          <span class="preview-warn-icon">⚠</span>
+          <span class="preview-warn-svc" v-if="warn.service">{{ warn.service }}</span>
+          <span class="preview-warn-msg">{{ warn.message }}</span>
+        </div>
+      </div>
       <div :class="['output-block', deployOk ? 'ok' : 'err']">
         <div class="output-label">{{ deployOk ? 'Deploy output' : 'Deploy errors' }}</div>
         <pre class="output">{{ deployOutput }}</pre>
       </div>
-        <div v-if="deployConflicts.length" class="conflict-banner">
-          <div class="conflict-banner-head">
-            <span class="conflict-icon">⚠</span>
-            <span class="conflict-title">{{ deployConflicts.length }} container conflict(s)</span>
-          </div>
-          <div class="conflict-names">
-            <span v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</span>
-          </div>
-          <div class="conflict-actions">
-            <span class="conflict-warn">Removing these containers will allow the deploy to proceed.</span>
-            <button class="cfg-inline-btn cfg-inline-btn-warn" :disabled="deploying" @click="purgeAndRetry">
-              {{ deploying ? 'Purging…' : 'Remove conflicts & retry' }}
-            </button>
-          </div>
+      <div v-if="deployConflicts.length" class="conflict-banner">
+        <div class="conflict-banner-head">
+          <span class="conflict-icon">⚠</span>
+          <span class="conflict-title">{{ deployConflicts.length }} container conflict(s)</span>
         </div>
+        <div class="conflict-names">
+          <span v-for="name in deployConflicts" :key="name" class="conflict-name">{{ name }}</span>
+        </div>
+        <div class="conflict-actions">
+          <span class="conflict-warn">Removing these containers will allow the deploy to proceed.</span>
+          <button class="cfg-inline-btn cfg-inline-btn-warn" :disabled="deploying" @click="purgeAndRetry">
+            {{ deploying ? 'Purging…' : 'Remove conflicts & retry' }}
+          </button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -646,6 +653,7 @@ const deployOutput    = ref('')
 const deployOk        = ref(false)
 const deploying       = ref(false)
 const deployConflicts = ref([])   // container names blocking the deploy
+const deployWarnings  = ref([])
 
 // Containers merged view
 const containers = ref([])
@@ -1584,6 +1592,28 @@ function buildRequest() {
 
 const previewWarnings = ref([])
 
+function normalizeWarnings(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(w => {
+      if (typeof w === 'string') {
+        return { service: '', message: w }
+      }
+      const routes = Array.isArray(w?.routes)
+        ? w.routes.filter(r => typeof r === 'string' && r.trim())
+        : []
+      const routeText = routes.length
+        ? ` (missing routes: ${routes.join(', ')})`
+        : ''
+      return {
+        service: w?.service || '',
+        routes,
+        message: `${w?.message || w?.msg || 'Route check warning'}${routeText}`,
+      }
+    })
+    .filter(w => w.message)
+}
+
 async function preview() {
   previewLoading.value = true
   previewText.value = ''
@@ -1644,6 +1674,7 @@ async function deploy() {
   deployOutput.value = ''
   previewText.value = ''
   previewWarnings.value = []
+  deployWarnings.value = []
   expanded.deploy = true
   try {
     const r = await fetch('/api/stack/deploy', {
@@ -1668,10 +1699,14 @@ async function deploy() {
     }
     deployOk.value = data.ok
     deployConflicts.value = data.conflicts || []
+    deployWarnings.value = normalizeWarnings(data.route_warnings)
     deployOutput.value = [data.stdout, data.stderr ? '--- stderr ---\n' + data.stderr : '']
       .filter(Boolean).join('\n').trim()
     if (data.ok) {
       showToast('Deploy complete', 'ok', 5000)
+      if (deployWarnings.value.length) {
+        showToast(`${deployWarnings.value.length} service(s) may not be exposed by Traefik yet`, 'warn', 8000)
+      }
       // Clear selections — deployed stack is now running; live dots show status
       Object.keys(pick).forEach(k => { pick[k] = false })
     } else if (deployConflicts.value.length) {
