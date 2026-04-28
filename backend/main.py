@@ -22,6 +22,7 @@ import logging
 import re
 import socket
 import os
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -65,6 +66,84 @@ def _can_write_directory(path: Path) -> bool:
         return True
     except OSError:
         return False
+
+
+def _build_docker_env() -> dict[str, str]:
+    """Prepare a stable environment for docker CLI invocations inside RAD."""
+
+    env = os.environ.copy()
+    # Avoid noisy/permission-denied reads from /root/.docker when running as
+    # a non-root container user with HOME=/root.
+    home = env.get("HOME")
+    if not home or home.startswith("/root"):
+        home = tempfile.gettempdir()
+        env["HOME"] = home
+    env["DOCKER_CONFIG"] = f"{home}/.docker"
+    return env
+
+
+def _compose_not_supported(stderr: str) -> bool:
+    """Detect CLI outputs that indicate docker-compose command is unavailable."""
+
+    text = stderr.lower()
+    return (
+        "'compose' is not a docker command" in text
+        or "unknown shorthand flag: '-f'" in text
+        or "unknown shorthand flag: \"-f\"" in text
+        or "unknown command: compose" in text
+        or "unknown command \"compose\"" in text
+    )
+
+
+async def _run_docker_compose_up(path: Path) -> tuple[str, int, str, str]:
+    """Run docker-compose up using v2 or legacy v1 syntax.
+
+    Returns (command_label, returncode, stdout, stderr).
+    """
+    env = _build_docker_env()
+    argv_list = [
+        ("docker compose", ["docker", "compose", "-f", str(path), "up", "-d"]),
+        ("docker-compose", ["docker-compose", "-f", str(path), "up", "-d"]),
+    ]
+
+    last_error = None
+    for i, (command_label, argv) in enumerate(argv_list):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(), timeout=120
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                raise HTTPException(504, "docker compose up timed out after 2m")
+
+            stdout = stdout_b.decode("utf-8", errors="replace")
+            stderr = stderr_b.decode("utf-8", errors="replace")
+            if proc.returncode == 0:
+                return command_label, proc.returncode, stdout, stderr
+
+            if i < len(argv_list) - 1 and _compose_not_supported(stderr):
+                last_error = stderr
+                continue
+
+            return command_label, proc.returncode, stdout, stderr
+
+        except FileNotFoundError:
+            if i < len(argv_list) - 1:
+                last_error = f"{command_label} not found"
+                continue
+            raise
+
+    if last_error is None:
+        last_error = "docker compose command failed"
+    return "docker-compose", 1, "", last_error
 
 
 # ---------------------------------------------------------------------------
@@ -527,22 +606,8 @@ async def api_stack_deploy(req: StackRequest) -> dict:
     # the event loop. subprocess.run() is synchronous and would freeze all
     # WebSocket connections and health polls for up to 120s during a deploy.
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "docker", "compose", "-f", str(path), "up", "-d",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(), timeout=120
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.communicate()
-            raise HTTPException(504, "docker compose up timed out after 2m")
-        stdout = stdout_b.decode("utf-8", errors="replace")
-        stderr = stderr_b.decode("utf-8", errors="replace")
-        returncode = proc.returncode
+        command_label, returncode, stdout, stderr = await _run_docker_compose_up(path)
+        logger.info("Deploy used %s for compose up", command_label)
     except FileNotFoundError:
         raise HTTPException(500, "docker CLI not available in container")
 
