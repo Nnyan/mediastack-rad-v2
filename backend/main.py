@@ -169,6 +169,23 @@ if config.api_key:
     logger.info("API key authentication enabled")
 
 
+@app.middleware("http")
+async def ensure_json_errors(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unhandled API error at %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "Internal server error",
+                "detail": str(exc),
+            },
+        )
+
+
 # ---------------------------------------------------------------------------
 # API routes — ALL routes starting with /api/ must be declared here,
 # BEFORE the SPA catch-all at the bottom of this file. See module
