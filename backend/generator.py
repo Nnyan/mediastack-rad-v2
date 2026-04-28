@@ -430,7 +430,11 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
     _write_wireguard_conf_file(request)
 
     tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(text)
+    try:
+        tmp.write_text(text)
+    except Exception:
+        logger.exception("Failed to write temp compose file: %s", tmp)
+        raise
 
     # Validate the tmp file before we swap it in. If it's broken, leave
     # the existing compose file alone and raise.
@@ -447,7 +451,17 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
     # Backup the old file before overwriting
     if target.exists():
         bak = target.with_suffix(target.suffix + ".bak")
-        shutil.copy2(target, bak)
+        try:
+            shutil.copy2(target, bak)
+        except OSError as exc:
+            logger.warning(
+                "Could not create compose backup %s from %s: %s",
+                bak,
+                target,
+                exc,
+            )
+            # Backup is best-effort; continue with the compose file rewrite.
+            # A missing backup should not block deployment.
     tmp.replace(target)
 
     logger.info("Wrote compose file: %s (%d bytes)", target, len(text))

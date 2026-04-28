@@ -460,6 +460,9 @@ async def api_stack_deploy(req: StackRequest) -> dict:
         })
     try:
         path = generator_mod.write(req)
+    except PermissionError as exc:
+        logger.error("Deploy failed while writing compose file: %s", exc)
+        raise HTTPException(500, f"Permission denied while writing compose files: {exc}")
     except ValueError as e:
         raise HTTPException(400, f"Generation failed: {e}")
 
