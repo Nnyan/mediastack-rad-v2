@@ -1246,6 +1246,18 @@ def _router_names_from_labels(labels: object) -> list[str]:
     return found
 
 
+def _get_route_status(routers: dict[str, dict], route_name: str) -> str:
+    """Read one router status from Traefik API payload regardless of provider suffix."""
+
+    if not route_name:
+        return ""
+    for key in (f"{route_name}@docker", route_name):
+        data = routers.get(key)
+        if isinstance(data, dict) and "status" in data:
+            return str(data.get("status") or "").lower()
+    return ""
+
+
 async def _services_missing_traefik_routes(compose_path: Path, selected_services: set[str] | None = None) -> list[dict[str, object]]:
     """Return services with expected Traefik routers that are not enabled yet.
 
@@ -1292,7 +1304,7 @@ async def _services_missing_traefik_routes(compose_path: Path, selected_services
         not_found = [
             route
             for route in expected_routes
-            if not routers.get(f"{route}@docker", {}).get("status") == "enabled"
+            if _get_route_status(routers, route) != "enabled"
         ]
         if not_found:
             missing.append({
