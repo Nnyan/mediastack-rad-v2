@@ -569,7 +569,7 @@
     </div><!-- /builder-layout -->
 
     <!-- ── Preview output ───────────────────────────────────────────────── -->
-    <div v-if="previewText" class="deploy-output-area">
+    <div v-if="previewText" ref="previewOutputEl" class="deploy-output-area">
       <div v-if="previewTokenSources && Object.keys(previewTokenSources).length" class="token-sources">
         <div class="output-label">Cloudflare token sources</div>
         <div v-for="item in tokenSourceRows(previewTokenSources)" :key="item.key" class="token-source-row">
@@ -631,7 +631,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, inject, nextTick } from 'vue'
 
 const showToast = inject('showToast')
 
@@ -663,6 +663,7 @@ const gluetunConfigFileName = ref('')
 const customYaml   = ref('')     // confirmed YAML to include in deploy
 const previewText  = ref('')
 const previewLoading = ref(false)
+const previewOutputEl = ref(null)
 const deployOutput    = ref('')
 const deployOk        = ref(false)
 const deploying       = ref(false)
@@ -1717,7 +1718,6 @@ async function preview() {
   previewText.value = ''
   previewWarnings.value = []
   previewTokenSources.value = {}
-  expanded.deploy = true
   try {
     const r = await fetch('/api/stack/generate', {
       method: 'POST',
@@ -1731,6 +1731,8 @@ async function preview() {
     previewTokenSources.value = data.token_sources || {}
     const warnCount = previewWarnings.value.length
     showToast(`Generated — ${data.bytes} bytes${warnCount ? ` · ${warnCount} warning(s)` : ''}`)
+    await nextTick()
+    previewOutputEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (e) {
     const msg = typeof e === 'object' && e.errors
       ? e.errors.map(x => x.message).join(' | ')
@@ -1776,7 +1778,6 @@ async function deploy() {
     previewWarnings.value = []
     deployWarnings.value = []
     deployTokenSources.value = {}
-    expanded.deploy = true
 
     const deployNotice = window.setTimeout(() => {
       if (deploying.value) {
@@ -2648,3 +2649,4 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
   
 }
 </style>
+
