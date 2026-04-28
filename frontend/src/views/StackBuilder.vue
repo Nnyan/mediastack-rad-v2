@@ -795,10 +795,23 @@ const ENV_TO_FIELD = {
   PLEX_CLAIM: 'plex_claim', PLEX_TOKEN: 'plex_token',
 }
 
+function containerHasLiveStatus(c) {
+  const state = String(c.state || '').toLowerCase()
+  if (state === 'running') return true
+  const status = String(c.status || '').toLowerCase()
+  return status.startsWith('up')
+}
+
+function runningServiceNamesFromContainers() {
+  return (containers.value || [])
+    .filter(containerHasLiveStatus)
+    .map(c => c.name)
+    .filter(Boolean)
+}
+
 async function loadRunningServices() {
   try {
-    const running = await fetch('/api/containers/running').then(r => r.json())
-    const names = Array.isArray(running) ? running : []
+    const names = runningServiceNamesFromContainers()
     liveServices.value = new Set(names)
     if (names.length) {
       try {
@@ -808,9 +821,13 @@ async function loadRunningServices() {
       } catch (e) {
         console.warn('Could not load running env:', e)
       }
+    } else {
+      liveEnv.value = {}
     }
   } catch (e) {
     console.warn('Could not load running services:', e)
+    liveServices.value = new Set()
+    liveEnv.value = {}
   }
 }
 
@@ -1304,6 +1321,7 @@ function clearSelection() {
 async function refreshContainers() {
   try {
     containers.value = await fetch('/api/containers').then(r => r.json())
+    await loadRunningServices()
   } catch (e) {
     console.error('Containers refresh failed:', e)
   }
@@ -1837,15 +1855,11 @@ watch(() => ({ ...pick }), (cur, prev) => {
 watch(addInput, () => { addResult.value = null })
 watch(addTab,   () => { addResult.value = null; addInput.value = ''; addFileName.value = '' })
 watch(selectedServices, schedulePortCheck)
-let runningPollTimer = null
-
 onMounted(() => {
   localStorage.removeItem('rad-stack-builder-pick')
   loadCatalog()
-  loadRunningServices()
   loadSecretStatus()
   loadSettingsMeta()
-  runningPollTimer = setInterval(loadRunningServices, 15000)
   refreshContainers()
   containersPollTimer = setInterval(refreshContainers, 10000)
   statsWsActive = true
@@ -1853,7 +1867,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (runningPollTimer) clearInterval(runningPollTimer)
   if (containersPollTimer) clearInterval(containersPollTimer)
   statsWsActive = false
   if (statsWs) statsWs.close()
