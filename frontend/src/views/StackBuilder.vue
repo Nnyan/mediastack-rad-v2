@@ -1614,6 +1614,15 @@ function normalizeWarnings(raw) {
     .filter(w => w.message)
 }
 
+async function parseApiResponse(response) {
+  const raw = await response.text()
+  try {
+    return { data: raw ? JSON.parse(raw) : null, raw }
+  } catch (e) {
+    return { data: null, raw }
+  }
+}
+
 async function preview() {
   previewLoading.value = true
   previewText.value = ''
@@ -1682,7 +1691,13 @@ async function deploy() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildRequest()),
     })
-    const data = await r.json()
+    const { data, raw } = await parseApiResponse(r)
+    if (!data) {
+      deployOk.value = false
+      deployOutput.value = raw || `HTTP ${r.status}: ${r.statusText || 'No response body'}`
+      showToast('Deploy response was not valid JSON. Check backend logs.', 'err', 8000)
+      return
+    }
     if (!r.ok) {
       deployOk.value = false
       const validationErrors = (data.errors || [])
