@@ -57,6 +57,25 @@ logging.basicConfig(
 logger = logging.getLogger("rad")
 
 
+def _compose_up_timeout_seconds() -> int:
+    """Maximum seconds to wait for `docker compose up -d` to finish."""
+
+    raw = os.environ.get("RAD_COMPOSE_UP_TIMEOUT", "600")
+    try:
+        return max(30, int(raw))
+    except ValueError:
+        logger.warning(
+            "Invalid RAD_COMPOSE_UP_TIMEOUT=%s. Falling back to 600s.",
+            raw,
+        )
+        return 600
+
+
+COMPOSE_UP_TIMEOUT_SECONDS = _compose_up_timeout_seconds()
+ROUTE_CHECK_ATTEMPTS = 15
+ROUTE_CHECK_BASE_DELAY_SECONDS = 1.0
+
+
 def _can_write_directory(path: Path) -> bool:
     probe = path / f".rad-meta-probe-{os.getpid()}"
     try:
@@ -117,12 +136,17 @@ async def _run_docker_compose_up(path: Path) -> tuple[str, int, str, str]:
             )
             try:
                 stdout_b, stderr_b = await asyncio.wait_for(
-                    proc.communicate(), timeout=120
+                    proc.communicate(), timeout=COMPOSE_UP_TIMEOUT_SECONDS
                 )
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.communicate()
-                raise HTTPException(504, "docker compose up timed out after 2m")
+                raise HTTPException(
+                    504,
+                    f"docker compose up timed out after {COMPOSE_UP_TIMEOUT_SECONDS}s. "
+                    "Large image pulls or slow disks are common causes. "
+                    "Increase RAD_COMPOSE_UP_TIMEOUT if needed.",
+                )
 
             stdout = stdout_b.decode("utf-8", errors="replace")
             stderr = stderr_b.decode("utf-8", errors="replace")
@@ -636,13 +660,14 @@ async def api_stack_deploy(req: StackRequest) -> dict:
         # Best-effort guardrail: confirm new/selected web services have visible
         # Traefik routers after deploy. Non-blocking and warning-only.
         missing_services: list[dict[str, object]] = []
-        for attempt in range(3):
+        for attempt in range(ROUTE_CHECK_ATTEMPTS):
             missing_services = await _services_missing_traefik_routes(path, selected_service_names)
             if not missing_services:
                 break
             # Allow Traefik to warm up and reload before giving up.
-            if attempt < 2:
-                await asyncio.sleep(1)
+            delay = ROUTE_CHECK_BASE_DELAY_SECONDS * (2 ** attempt / 2)
+            if attempt < ROUTE_CHECK_ATTEMPTS - 1:
+                await asyncio.sleep(min(delay, 8.0))
 
         if missing_services:
             route_warnings = []

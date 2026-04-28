@@ -282,6 +282,7 @@ This is the SPA catch-all route ordering bug from the original build. Fixed in v
 | `RAD_BIND_PORT` | `8090` | Port to listen on |
 | `RAD_HEALTH_INTERVAL` | `30` | Background health check interval (seconds) |
 | `RAD_STATS_INTERVAL` | `2.0` | WebSocket stats push interval (seconds) |
+| `RAD_COMPOSE_UP_TIMEOUT` | `600` | Seconds to wait for `docker compose up -d` before returning timeout |
 
 ### Traefik container (in the managed stack)
 

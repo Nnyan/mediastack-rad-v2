@@ -1678,19 +1678,26 @@ async function purgeAndRetry() {
 }
 
 async function deploy() {
-  if (!ensureRequiredConfig()) return
-  deploying.value = true
-  deployOutput.value = ''
-  previewText.value = ''
-  previewWarnings.value = []
-  deployWarnings.value = []
-  expanded.deploy = true
-  try {
-    const r = await fetch('/api/stack/deploy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildRequest()),
-    })
+    if (!ensureRequiredConfig()) return
+    deploying.value = true
+    deployOutput.value = ''
+    previewText.value = ''
+    previewWarnings.value = []
+    deployWarnings.value = []
+    expanded.deploy = true
+
+    const deployNotice = window.setTimeout(() => {
+      if (deploying.value) {
+        showToast('Deploy is still running — image pulls can take a while first time.', 'warn', 10000)
+      }
+    }, 25000)
+
+    try {
+      const r = await fetch('/api/stack/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildRequest()),
+      })
     const { data, raw } = await parseApiResponse(r)
     if (!data) {
       deployOk.value = false
@@ -1729,14 +1736,15 @@ async function deploy() {
     } else {
       showToast('Deploy failed — see output below', 'err', 5000)
     }
-  } catch (e) {
-    deployOk.value = false
-    deployOutput.value = String(e)
-    showToast(`Deploy error: ${e.message}`, 'err')
-  } finally {
-    deploying.value = false
+    } catch (e) {
+      deployOk.value = false
+      deployOutput.value = String(e)
+      showToast(`Deploy error: ${e.message}`, 'err')
+    } finally {
+      clearTimeout(deployNotice)
+      deploying.value = false
+    }
   }
-}
 
 // Auto-expand the config section when a service with one is first selected
 const SERVICE_CFG = { cloudflared: 'cloudflare', traefik: 'cloudflare', tailscale: 'tailscale', gluetun: 'gluetun', tinyauth: 'tinyauth', plex: 'plex' }
