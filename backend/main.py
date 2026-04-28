@@ -1302,31 +1302,51 @@ def _iter_traefik_rule_hosts(labels: object) -> list[str]:
 
 
 # Mapping from .env key → StackRequest field name.
-# Used by _backfill_req_from_env to restore secrets from a previous deploy
-# so users never have to re-enter CF tokens, WireGuard keys, etc. when
-# adding a new service to an already-running stack.
+# Maps every .env key that can persist across deploys to the corresponding
+# StackRequest field.  Used by _backfill_req_from_env.
+#
+# Keys intentionally NOT listed here (baked directly into compose YAML,
+# never written to .env): PUID, PGID, TZ, config_root, media_root.
 _ENV_KEY_TO_REQ_FIELD: dict[str, str] = {
+    # Cloudflare
     "CF_DNS_API_TOKEN":      "cloudflare_token",
     "CLOUDFLARED_TOKEN":     "cloudflare_tunnel_token",
-    "TUNNEL_TOKEN":          "cloudflare_tunnel_token",
+    "TUNNEL_TOKEN":          "cloudflare_tunnel_token",   # legacy key name
+    # Tailscale
     "TS_AUTHKEY":            "tailscale_auth_key",
     "TS_HOSTNAME":           "tailscale_hostname",
     "TS_ROUTES":             "tailscale_routes",
+    # Tinyauth
     "TINYAUTH_AUTH_USERS":   "tinyauth_users",
     "TINYAUTH_APPURL":       "tinyauth_app_url",
     "TINYAUTH_LAN_SUBNET":   "lan_subnet",
+    # Plex
     "PLEX_CLAIM":            "plex_claim",
     "PLEX_TOKEN":            "plex_token",
+    "PLEX_URL":              "plex_url",
+    # Gluetun - WireGuard
     "WIREGUARD_PRIVATE_KEY": "wireguard_private_key",
     "WIREGUARD_ADDRESSES":   "wireguard_addresses",
+    # Gluetun - OpenVPN
     "OPENVPN_USER":          "openvpn_user",
     "OPENVPN_PASSWORD":      "openvpn_password",
+    # Gluetun - shared
     "VPN_SERVICE_PROVIDER":  "vpn_service_provider",
     "VPN_TYPE":              "vpn_type",
     "SERVER_COUNTRIES":      "server_countries",
     "SERVER_REGION":         "server_region",
     "SERVER_CITIES":         "server_cities",
+    # Gluetun - boolean flags stored as "on"/"off" strings
+    "SECURE_CORE_ONLY":      "secure_core_only",
+    "STREAM_ONLY":           "stream_only",
+    "PORT_FORWARD_ONLY":     "port_forward_only",
 }
+
+# Fields whose .env representation is "on"/"off"/"true"/"false" rather than
+# a plain string.  Backfill coerces these to Python bool.
+_BOOL_FIELDS: frozenset[str] = frozenset({
+    "secure_core_only", "stream_only", "port_forward_only",
+})
 
 
 def _backfill_req_from_env(req: "StackRequest") -> None:
@@ -1336,6 +1356,10 @@ def _backfill_req_from_env(req: "StackRequest") -> None:
     adding a new service to a running stack never requires re-entering
     credentials that are already stored on disk.  Fields that the caller
     has explicitly provided are never overwritten.
+
+    Fields baked directly into compose YAML (PUID, PGID, TZ, config_root,
+    media_root) are intentionally excluded -- they are never written to .env
+    so there is nothing to read back.
     """
     env = _read_env_file()
     if not env:
@@ -1348,17 +1372,27 @@ def _backfill_req_from_env(req: "StackRequest") -> None:
         value = _unquote_env_value(raw)
         if not value:
             continue
-        current = getattr(req, field, None)
-        # Only backfill if the caller left the field empty
-        if current:
-            continue
-        try:
-            setattr(req, field, value)
-            logger.debug("backfill_req: %s → req.%s (from .env)", env_key, field)
-        except Exception:
-            pass  # Pydantic will validate on use; skip silently
 
-    # Also restore domain from .env TZ / core fields if missing
+        current = getattr(req, field, None)
+        # Never overwrite a value the caller already provided.
+        # For bool fields the empty sentinel is None (False is a valid value).
+        if field in _BOOL_FIELDS:
+            if current is not None:
+                continue
+        else:
+            if current is not None and current != "":
+                continue
+
+        try:
+            if field in _BOOL_FIELDS:
+                setattr(req, field, value.lower() in ("on", "true", "1", "yes"))
+            else:
+                setattr(req, field, value)
+            logger.debug("backfill_req: %s -> req.%s (from .env)", env_key, field)
+        except Exception:
+            pass  # Field type mismatch - skip silently; Pydantic validates on use
+
+    # Restore domain from compose labels if the caller left it blank
     if not req.domain:
         domain = _extract_core_domain_from_compose(
             config.stack_dir / "docker-compose.yml"
@@ -1687,5 +1721,6 @@ def _verify_route_order() -> None:
 
 
 _verify_route_order()
+
 
 
