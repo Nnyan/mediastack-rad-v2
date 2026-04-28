@@ -21,6 +21,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Any
+import os
 
 import yaml
 
@@ -53,6 +54,19 @@ def _env_file_values() -> dict[str, str]:
     except OSError:
         return {}
     return values
+
+
+def _ensure_stack_dir_writable(target: Path) -> None:
+    """Fail early with a clear error if the compose directory is not writable."""
+
+    parent = target.parent
+    probe = parent / f".rad-write-probe-{os.getpid()}"
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        raise PermissionError(f"Stack directory is not writable: {parent}. {exc}") from exc
 
 
 def _esc(value: str) -> str:
@@ -424,6 +438,7 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
     """
     target = target or (config.stack_dir / "docker-compose.yml")
     target.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_stack_dir_writable(target)
 
     text = generate(request)
 
@@ -462,7 +477,14 @@ def write(request: StackRequest, target: Path | None = None) -> Path:
             )
             # Backup is best-effort; continue with the compose file rewrite.
             # A missing backup should not block deployment.
-    tmp.replace(target)
+    try:
+        tmp.replace(target)
+    except OSError as exc:
+        # Try to keep exception context and provide a targeted hint.
+        raise PermissionError(
+            f"Failed to replace compose file {target}: {exc}. "
+            f"Check that RAD can write to the mount at {target.parent}."
+        ) from exc
 
     logger.info("Wrote compose file: %s (%d bytes)", target, len(text))
     return target

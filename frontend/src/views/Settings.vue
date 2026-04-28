@@ -2,7 +2,7 @@
   <div class="settings">
 
     <!-- ── Secrets ─────────────────────────────────────────────────────── -->
-      <div class="section-head">
+    <div class="section-head">
         <div>
           <div class="title-line">
             <h2 class="section-title">Secrets</h2>
@@ -10,6 +10,12 @@
               stored in <code>.env</code>
             </button>
           </div>
+          <p class="section-sub">
+            compose path: <code>{{ composePath || '/compose/docker-compose.yml' }}</code>
+            <span class="dot-meta">·</span>
+            <span v-if="stackDirWritable === null" class="meta-unknown">stack dir writability unknown</span>
+            <span v-else :class="stackDirWritable === false ? 'meta-warn' : 'meta-ok'">stack dir {{ stackDirWritable === false ? 'not writable' : 'writable' }}</span>
+          </p>
         </div>
         <p class="secret-help">Values are masked until you click the eye icon to load each secret for inspection.</p>
         <div class="secrets-actions" v-if="secrets.length">
@@ -167,6 +173,8 @@ const saving         = ref(false)
 const saveMsg        = ref('')
 const saveOk         = ref(true)
 const envPath        = ref('')
+const composePath    = ref('')
+const stackDirWritable = ref(null)
 
 const SERVICE_ICONS  = { cloudflared: '☁️', tinyauth: '🔒', tailscale: '🔗', plex: '🎬' }
 const SERVICE_LABELS = { cloudflared: 'Cloudflare Tunnel', tinyauth: 'Tinyauth', tailscale: 'Tailscale', plex: 'Plex' }
@@ -275,8 +283,16 @@ async function loadSettingsMeta() {
   try {
     const meta = await fetch('/api/settings/meta').then(r => r.json())
     envPath.value = meta.env_path || '/compose/.env'
+    composePath.value = meta.compose_path || '/compose/docker-compose.yml'
+    if (typeof meta.stack_dir_writable === 'boolean') {
+      stackDirWritable.value = meta.stack_dir_writable
+    } else {
+      stackDirWritable.value = null
+    }
   } catch (e) {
     envPath.value = '/compose/.env'
+    composePath.value = '/compose/docker-compose.yml'
+    stackDirWritable.value = null
     console.error('Settings metadata load failed:', e)
   }
 }
@@ -419,6 +435,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .section-title { font-size: 14.5px; font-weight: 700; margin: 0; }
 .section-sub { font-size: 11.5px; color: var(--fg-2); margin: 0; }
 .section-sub code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-2); padding: 1px 5px; border-radius: 3px; }
+.dot-meta { color: var(--border-strong); }
+.meta-warn { color: var(--warn); }
+.meta-ok { color: var(--ok); }
+.meta-unknown { color: var(--fg-2); }
 .env-path-link {
   border: none;
   background: none;

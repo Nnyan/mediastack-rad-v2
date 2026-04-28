@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import socket
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -55,6 +56,17 @@ logging.basicConfig(
 logger = logging.getLogger("rad")
 
 
+def _can_write_directory(path: Path) -> bool:
+    probe = path / f".rad-meta-probe-{os.getpid()}"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Lifespan — start and stop the health checker loop cleanly
 # ---------------------------------------------------------------------------
@@ -71,6 +83,14 @@ async def lifespan(app: FastAPI):
     logger.info("MediaStack-RAD v%s starting", __version__)
     logger.info("Stack dir: %s", config.stack_dir)
     logger.info("Traefik dir: %s", config.traefik_dir)
+    compose_path = config.stack_dir / "docker-compose.yml"
+    logger.info("Compose path: %s", compose_path)
+    if not _can_write_directory(config.stack_dir):
+        logger.warning(
+            "Stack directory is not writable by RAD: %s. Check mount permissions and owner/group, "
+            "then restart after correcting the host path permissions.",
+            config.stack_dir,
+        )
 
     # Auto-connect to the managed stack network so container-to-container
     # calls (Traefik API proxy, Tinyauth) work without manual intervention.
@@ -462,7 +482,19 @@ async def api_stack_deploy(req: StackRequest) -> dict:
         path = generator_mod.write(req)
     except PermissionError as exc:
         logger.error("Deploy failed while writing compose file: %s", exc)
-        raise HTTPException(500, f"Permission denied while writing compose files: {exc}")
+        hint = (
+            "Set RAD_STACK_DIR and RAD_TRAEFIK_DIR to writable host paths and "
+            "ensure the compose mount is not read-only."
+        )
+        if exc.filename:
+            raise HTTPException(
+                500,
+                f"Permission denied while writing compose files at {exc.filename}. {hint}",
+            )
+        raise HTTPException(
+            500,
+            f"Permission denied while writing compose files: {exc}. {hint}",
+        )
     except ValueError as e:
         raise HTTPException(400, f"Generation failed: {e}")
 
@@ -1231,7 +1263,14 @@ async def api_secret_value(key: str) -> SecretValue:
 @app.get("/api/settings/meta")
 async def api_settings_meta() -> dict:
     """Return non-secret settings metadata for display in the UI."""
-    return {"env_path": str(config.stack_dir / ".env")}
+    stack_dir = config.stack_dir
+    compose_path = stack_dir / "docker-compose.yml"
+    return {
+        "env_path": str(stack_dir / ".env"),
+        "compose_path": str(compose_path),
+        "stack_dir": str(stack_dir),
+        "stack_dir_writable": _can_write_directory(stack_dir),
+    }
 
 
 _ALLOWED_ENV_KEYS: set[str] = {
