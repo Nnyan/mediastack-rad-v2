@@ -556,8 +556,7 @@ async def api_stack_generate(req: StackRequest) -> dict:
     Runs pre-generation validation and returns any issues alongside the YAML.
     Errors block generation; warnings are advisory.
     """
-    if not req.domain:
-        req.domain = _extract_core_domain_from_compose(config.stack_dir / "docker-compose.yml")
+    _backfill_req_from_env(req)
 
     validation = generator_mod.validate_request(req)
     if not validation.valid:
@@ -581,8 +580,7 @@ async def api_stack_generate(req: StackRequest) -> dict:
 @app.post("/api/stack/deploy")
 async def api_stack_deploy(req: StackRequest) -> dict:
     """Generate, write, and bring up the stack."""
-    if not req.domain:
-        req.domain = _extract_core_domain_from_compose(config.stack_dir / "docker-compose.yml")
+    _backfill_req_from_env(req)
 
     validation = generator_mod.validate_request(req)
     if not validation.valid:
@@ -1302,6 +1300,73 @@ def _iter_traefik_rule_hosts(labels: object) -> list[str]:
     return hosts
 
 
+
+# Mapping from .env key → StackRequest field name.
+# Used by _backfill_req_from_env to restore secrets from a previous deploy
+# so users never have to re-enter CF tokens, WireGuard keys, etc. when
+# adding a new service to an already-running stack.
+_ENV_KEY_TO_REQ_FIELD: dict[str, str] = {
+    "CF_DNS_API_TOKEN":      "cloudflare_token",
+    "CLOUDFLARED_TOKEN":     "cloudflare_tunnel_token",
+    "TUNNEL_TOKEN":          "cloudflare_tunnel_token",
+    "TS_AUTHKEY":            "tailscale_auth_key",
+    "TS_HOSTNAME":           "tailscale_hostname",
+    "TS_ROUTES":             "tailscale_routes",
+    "TINYAUTH_AUTH_USERS":   "tinyauth_users",
+    "TINYAUTH_APPURL":       "tinyauth_app_url",
+    "TINYAUTH_LAN_SUBNET":   "lan_subnet",
+    "PLEX_CLAIM":            "plex_claim",
+    "PLEX_TOKEN":            "plex_token",
+    "WIREGUARD_PRIVATE_KEY": "wireguard_private_key",
+    "WIREGUARD_ADDRESSES":   "wireguard_addresses",
+    "OPENVPN_USER":          "openvpn_user",
+    "OPENVPN_PASSWORD":      "openvpn_password",
+    "VPN_SERVICE_PROVIDER":  "vpn_service_provider",
+    "VPN_TYPE":              "vpn_type",
+    "SERVER_COUNTRIES":      "server_countries",
+    "SERVER_REGION":         "server_region",
+    "SERVER_CITIES":         "server_cities",
+}
+
+
+def _backfill_req_from_env(req: "StackRequest") -> None:
+    """Fill any empty secret/config fields on req from the existing .env file.
+
+    Called at the start of both the generate and deploy endpoints so that
+    adding a new service to a running stack never requires re-entering
+    credentials that are already stored on disk.  Fields that the caller
+    has explicitly provided are never overwritten.
+    """
+    env = _read_env_file()
+    if not env:
+        return
+
+    for env_key, field in _ENV_KEY_TO_REQ_FIELD.items():
+        raw = env.get(env_key)
+        if not raw:
+            continue
+        value = _unquote_env_value(raw)
+        if not value:
+            continue
+        current = getattr(req, field, None)
+        # Only backfill if the caller left the field empty
+        if current:
+            continue
+        try:
+            setattr(req, field, value)
+            logger.debug("backfill_req: %s → req.%s (from .env)", env_key, field)
+        except Exception:
+            pass  # Pydantic will validate on use; skip silently
+
+    # Also restore domain from .env TZ / core fields if missing
+    if not req.domain:
+        domain = _extract_core_domain_from_compose(
+            config.stack_dir / "docker-compose.yml"
+        )
+        if domain:
+            req.domain = domain
+
+
 def _extract_core_domain_from_compose(compose_path: Path) -> str:
     if not compose_path.exists():
         return ""
@@ -1622,4 +1687,5 @@ def _verify_route_order() -> None:
 
 
 _verify_route_order()
+
 
