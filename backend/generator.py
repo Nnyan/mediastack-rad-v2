@@ -810,7 +810,7 @@ def _render_service(
 
     # *arr apps + Bazarr: inject PLEX_URL and PLEX_TOKEN so they can
     # connect to Plex for library scanning, health checks, etc.
-    PLEX_CONSUMERS = {"sonarr", "radarr", "lidarr", "readarr", "bazarr", "prowlarr"}
+    PLEX_CONSUMERS = {"sonarr", "radarr", "lidarr", "bazarr", "prowlarr"}
     if svc.key in PLEX_CONSUMERS:
         if _plex_url:
             svc_dict["environment"]["PLEX_URL"] = _plex_url

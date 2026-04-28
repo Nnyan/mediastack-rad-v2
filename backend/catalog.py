@@ -120,18 +120,6 @@ CATALOG: dict[str, ServiceDef] = {
         config_volumes=["/config"],
         media_volumes=["/data"],
     ),
-    "readarr": ServiceDef(
-        key="readarr",
-        display_name="Readarr",
-        # Note: the :develop tag lacks amd64 builds — we saw this bug
-        # during setup. Use :latest to avoid platform mismatch errors.
-        description="Book/audiobook collection manager",
-        image="lscr.io/linuxserver/readarr:latest",
-        category="indexers",
-        web_port=8787,
-        config_volumes=["/config"],
-        media_volumes=["/data"],
-    ),
     "bazarr": ServiceDef(
         key="bazarr",
         display_name="Bazarr",

@@ -761,7 +761,7 @@ const CAT_COLORS = {
 const SHORT_DESCS = {
   plex: 'Media server', jellyfin: 'Open-source media server',
   sonarr: 'TV manager', radarr: 'Movie manager', lidarr: 'Music manager',
-  readarr: 'Books & audiobooks', bazarr: 'Subtitle manager', prowlarr: 'Index manager',
+  bazarr: 'Subtitle manager', prowlarr: 'Index manager',
   qbittorrent: 'BitTorrent client', sabnzbd: 'Usenet downloader', nzbget: 'Usenet (lite)',
   seerr: 'Request manager (Plex/Jellyfin/Emby)',
   traefik: 'Reverse proxy & HTTPS', tinyauth: 'Auth gateway',
@@ -770,7 +770,7 @@ const SHORT_DESCS = {
 
 const ICONS = {
   plex: '🎬', jellyfin: '🎞️', sonarr: '📺', radarr: '🎥', lidarr: '🎵',
-  readarr: '📚', bazarr: '💬', prowlarr: '🔍', qbittorrent: '⬇️',
+  bazarr: '💬', prowlarr: '🔍', qbittorrent: '⬇️',
   sabnzbd: '📰', nzbget: '📥', seerr: '🙋',
   traefik: '🔀', tinyauth: '🔒', tailscale: '🔗', cloudflared: '☁️', gluetun: '🛡️',
 }

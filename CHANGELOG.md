@@ -182,9 +182,6 @@ on lessons learned during real-world deployment.
   individually in `COPY` statements. Any new module not added to the list
   was silently omitted from the image. Fixed by `COPY backend/*.py`.
 
-- **`readarr:develop` has no amd64 build** — the `:develop` tag is
-  arm64-only. Catalog now uses `:latest` for Readarr.
-
 - **`cloudflared` requires explicit `command:`** — the default entrypoint
   alone doesn't run the tunnel. Generator now always includes
   `command: tunnel --no-autoupdate run`.
