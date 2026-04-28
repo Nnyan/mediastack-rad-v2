@@ -23,6 +23,7 @@ import re
 import socket
 import os
 import tempfile
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -1197,36 +1198,52 @@ def _quote_env_value(value: str) -> str:
     return value
 
 
+# Serialises all reads + writes to the stack .env file.
+# Without this, a concurrent deploy and a settings save can interleave
+# their read-then-write cycles and silently corrupt the file.
+_env_file_lock = threading.Lock()
+
+
 def _write_env_file(updates: dict[str, str]) -> None:
-    """Write/update key=value pairs in the stack .env file."""
+    """Write/update key=value pairs in the stack .env file.
+
+    The module-level _env_file_lock is held for the entire read-modify-write
+    cycle so concurrent calls (e.g. a deploy and a settings save arriving at
+    the same time) cannot interleave and corrupt the file.
+    """
     env_path = config.stack_dir / ".env"
     env_path.parent.mkdir(parents=True, exist_ok=True)
 
-    existing_lines: list[str] = []
-    if env_path.exists():
-        existing_lines = env_path.read_text().splitlines()
+    with _env_file_lock:
+        existing_lines: list[str] = []
+        if env_path.exists():
+            existing_lines = env_path.read_text().splitlines()
 
-    updated: set[str] = set()
-    new_lines: list[str] = []
+        updated: set[str] = set()
+        new_lines: list[str] = []
 
-    for line in existing_lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            new_lines.append(line)
-            continue
-        key, _, _ = stripped.partition("=")
-        key = key.strip()
-        if key in updates:
-            new_lines.append(f"{key}={_quote_env_value(updates[key])}")
-            updated.add(key)
-        else:
-            new_lines.append(line)
+        for line in existing_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                new_lines.append(line)
+                continue
+            key, _, _ = stripped.partition("=")
+            key = key.strip()
+            if key in updates:
+                new_lines.append(f"{key}={_quote_env_value(updates[key])}")
+                updated.add(key)
+            else:
+                new_lines.append(line)
 
-    for key, value in updates.items():
-        if key not in updated:
-            new_lines.append(f"{key}={_quote_env_value(value)}")
+        for key, value in updates.items():
+            if key not in updated:
+                new_lines.append(f"{key}={_quote_env_value(value)}")
 
-    env_path.write_text("\n".join(new_lines) + "\n")
+        # Write atomically: temp file + rename so a crash mid-write
+        # never leaves a half-written .env.
+        tmp = env_path.with_suffix(".env.tmp")
+        tmp.write_text("\n".join(new_lines) + "\n")
+        tmp.replace(env_path)
 
 
 def _token_source(value: str | None, env_value: str) -> str:
@@ -1605,3 +1622,4 @@ def _verify_route_order() -> None:
 
 
 _verify_route_order()
+
