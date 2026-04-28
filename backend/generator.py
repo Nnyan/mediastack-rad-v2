@@ -72,6 +72,22 @@ def _has_env_secret_value(values: dict[str, str], key: str) -> bool:
     return bool(raw) and not _is_env_placeholder(raw)
 
 
+def _enabled_catalog_services(request: StackRequest) -> list[ServiceChoice]:
+    """Return only enabled service choices still present in the catalog."""
+
+    return [choice for choice in request.services if choice.enabled and get(choice.key) is not None]
+
+
+def _unknown_service_keys(request: StackRequest) -> list[str]:
+    """Return enabled service keys that are no longer in the catalog."""
+
+    return [
+        choice.key
+        for choice in request.services
+        if choice.enabled and get(choice.key) is None
+    ]
+
+
 def _ensure_stack_dir_writable(target: Path) -> None:
     """Fail early with a clear error if the compose directory is not writable."""
 
@@ -121,7 +137,17 @@ def validate_request(request: StackRequest) -> StackValidation:
     errors: list[ValidationIssue] = []
     warnings: list[ValidationIssue] = []
 
-    enabled_keys = {s.key for s in request.services if s.enabled}
+    enabled_services = _enabled_catalog_services(request)
+    enabled_keys = {s.key for s in enabled_services}
+    for key in _unknown_service_keys(request):
+        warnings.append(ValidationIssue(
+            service=key,
+            severity="warning",
+            message=(
+                f"Service '{key}' is no longer supported and will be ignored "
+                "when generating this stack."
+            ),
+        ))
     env_values = _env_file_values()
 
     # Domain required when any web-facing service is selected
@@ -334,8 +360,9 @@ def check_port_conflicts(
 
     Returns a list of PortConflict objects with suggested alternatives.
     """
-    enabled_keys = {s.key for s in request.services if s.enabled}
-    overrides = {s.key: s.port_override for s in request.services if s.port_override}
+    enabled_services = _enabled_catalog_services(request)
+    enabled_keys = {s.key for s in enabled_services}
+    overrides = {s.key: s.port_override for s in enabled_services if s.port_override}
 
     # Ports already claimed within THIS request (accumulate as we go)
     claimed_by_request: set[int] = set()
@@ -396,17 +423,12 @@ def generate(request: StackRequest) -> str:
     Does not write to disk — the caller chooses when to persist.
     Raises ValueError on invalid input (unknown service keys, etc.).
     """
-    # Validate service keys up front so errors are clear.
-    for choice in request.services:
-        if choice.enabled and get(choice.key) is None:
-            raise ValueError(f"Unknown service: {choice.key}")
+    enabled_services = _enabled_catalog_services(request)
 
     services_section: dict[str, Any] = {}
     domain = (request.domain or "").strip() or None
 
-    for choice in request.services:
-        if not choice.enabled:
-            continue
+    for choice in enabled_services:
         svc_def = get(choice.key)
         if svc_def is None:
             continue

@@ -956,6 +956,8 @@ const svcByKey = computed(() => {
   return map
 })
 
+const knownServiceKeys = computed(() => new Set(Object.keys(svcByKey.value)))
+
 const filteredServices = computed(() => {
   const q = search.value.toLowerCase()
   const filtered = flatServices.value.filter(svc => {
@@ -976,7 +978,9 @@ const tileMinWidth = computed(() => {
 })
 
 const selectedServices = computed(() =>
-  Object.entries(pick).filter(([, on]) => on).map(([k]) => k)
+  Object.entries(pick)
+    .filter(([k, on]) => on && knownServiceKeys.value.has(k))
+    .map(([k]) => k)
 )
 
 const webSelected = computed(() =>
