@@ -967,26 +967,28 @@ const configSteps = computed(() => {
     steps.push({
       id: 'traefik', section: 'cloudflare', label: 'Traefik', icon: '🔀',
       note: 'Required for HTTPS certificates through Cloudflare DNS-01.',
-      fields: [{
-        key: 'cloudflare_token', envKey: 'CF_DNS_API_TOKEN', label: 'Cloudflare DNS API token', secret: true,
-        placeholder: 'Token with Zone:DNS:Edit + Zone:Zone:Read',
-        hint: 'Create in Cloudflare Profile → API Tokens.',
-        link: 'https://dash.cloudflare.com/profile/api-tokens',
-      }],
-    })
-  }
-  if (pick.cloudflared) {
+        fields: [{
+          key: 'cloudflare_token', envKey: 'CF_DNS_API_TOKEN', label: 'Cloudflare DNS API token', secret: true,
+          placeholder: 'Token with Zone:DNS:Edit + Zone:Zone:Read',
+          hint: 'Create in Cloudflare Profile → API Tokens.',
+          required: false,
+          link: 'https://dash.cloudflare.com/profile/api-tokens',
+        }],
+      })
+    }
+    if (pick.cloudflared) {
     steps.push({
       id: 'cloudflared', section: 'cloudflare', label: 'Cloudflare Tunnel', icon: '☁️',
       note: 'Required for public tunnel access without router port forwarding.',
-      fields: [{
-        key: 'cloudflare_tunnel_token', envKey: 'CLOUDFLARED_TOKEN', label: 'Tunnel token', secret: true,
-        placeholder: 'Token from Zero Trust → Networks → Tunnels',
-        hint: 'Create or copy the tunnel token in Cloudflare Zero Trust.',
-        link: 'https://one.dash.cloudflare.com/',
-      }],
-    })
-  }
+        fields: [{
+          key: 'cloudflare_tunnel_token', envKey: 'CLOUDFLARED_TOKEN', label: 'Tunnel token', secret: true,
+          placeholder: 'Token from Zero Trust → Networks → Tunnels',
+          hint: 'Create or copy the tunnel token in Cloudflare Zero Trust.',
+          required: false,
+          link: 'https://one.dash.cloudflare.com/',
+        }],
+      })
+    }
   if (pick.tailscale) {
     steps.push({
       id: 'tailscale', section: 'tailscale', label: 'Tailscale', icon: '🔗',
