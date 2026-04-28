@@ -56,6 +56,22 @@ def _env_file_values() -> dict[str, str]:
     return values
 
 
+def _is_env_placeholder(value: str) -> bool:
+    """True when a value is a placeholder rather than a real secret."""
+
+    if not value:
+        return True
+    s = value.strip()
+    return bool(re.fullmatch(r"\$\{[A-Z0-9_]+(?::-[^}]*)?\}", s))
+
+
+def _has_env_secret_value(values: dict[str, str], key: str) -> bool:
+    """Return True when the env file stores a concrete value for key."""
+
+    raw = values.get(key, "")
+    return bool(raw) and not _is_env_placeholder(raw)
+
+
 def _ensure_stack_dir_writable(target: Path) -> None:
     """Fail early with a clear error if the compose directory is not writable."""
 
@@ -118,8 +134,11 @@ def validate_request(request: StackRequest) -> StackValidation:
             message="Domain is required — at least one selected service needs a domain for HTTPS routing.",
         ))
 
-    # Cloudflare token — warning if not provided (may be in .env)
-    if "cloudflared" in enabled_keys and not request.cloudflare_token:
+    # Cloudflare token — warning if not provided in request or .env
+    has_cf_dns_api_token = bool(request.cloudflare_token) or _has_env_secret_value(env_values, "CF_DNS_API_TOKEN")
+    has_cf_tunnel_token = bool(request.cloudflare_tunnel_token) or _has_env_secret_value(env_values, "CLOUDFLARED_TOKEN")
+
+    if "cloudflared" in enabled_keys and not has_cf_dns_api_token:
         warnings.append(ValidationIssue(
             service="cloudflared", field="cloudflare_token",
             severity="warning",
@@ -128,13 +147,22 @@ def validate_request(request: StackRequest) -> StackValidation:
                     "Generate at dash.cloudflare.com → My Profile → API Tokens "
                     "(Zone:DNS:Edit + Zone:Zone:Read).",
         ))
+
     # Traefik also needs the token for DNS-01 when any web service is selected
-    elif _has_web_service(request) and not request.cloudflare_token:
+    elif _has_web_service(request) and not has_cf_dns_api_token:
         warnings.append(ValidationIssue(
             service="traefik", field="cloudflare_token",
             severity="warning",
             message="CF_DNS_API_TOKEN not provided — HTTPS cert issuance will fail unless the token "
                     "is set in your .env file (Settings → Secrets).",
+        ))
+
+    if "cloudflared" in enabled_keys and not has_cf_tunnel_token:
+        warnings.append(ValidationIssue(
+            service="cloudflared", field="cloudflare_tunnel_token",
+            severity="warning",
+            message="CLOUDFLARED_TOKEN not provided — Cloudflare Tunnel cannot start without it. "
+                    "Set it in Settings → Secrets or supply it in the builder form.",
         ))
 
     # Plex claim — warning only (it's optional after first boot)

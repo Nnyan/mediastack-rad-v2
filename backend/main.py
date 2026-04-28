@@ -555,6 +555,9 @@ async def api_stack_generate(req: StackRequest) -> dict:
     Runs pre-generation validation and returns any issues alongside the YAML.
     Errors block generation; warnings are advisory.
     """
+    if not req.domain:
+        req.domain = _extract_core_domain_from_compose(config.stack_dir / "docker-compose.yml")
+
     validation = generator_mod.validate_request(req)
     if not validation.valid:
         raise HTTPException(400, {
@@ -565,16 +568,21 @@ async def api_stack_generate(req: StackRequest) -> dict:
         text = generator_mod.generate(req)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    token_sources = _token_sources_for_request(req)
     return {
         "yaml": text,
         "bytes": len(text),
         "warnings": [w.model_dump() for w in validation.warnings],
+        "token_sources": token_sources,
     }
 
 
 @app.post("/api/stack/deploy")
 async def api_stack_deploy(req: StackRequest) -> dict:
     """Generate, write, and bring up the stack."""
+    if not req.domain:
+        req.domain = _extract_core_domain_from_compose(config.stack_dir / "docker-compose.yml")
+
     validation = generator_mod.validate_request(req)
     if not validation.valid:
         raise HTTPException(400, {
@@ -600,6 +608,8 @@ async def api_stack_deploy(req: StackRequest) -> dict:
         )
     except ValueError as e:
         raise HTTPException(400, f"Generation failed: {e}")
+
+    token_sources = _token_sources_for_request(req)
 
     selected_service_names = {
         svc.key
@@ -687,6 +697,7 @@ async def api_stack_deploy(req: StackRequest) -> dict:
         "path": str(path),
         "conflicts": conflicts,
         "route_warnings": route_warnings,
+        "token_sources": token_sources,
     }
 
 
@@ -1148,6 +1159,15 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+def _env_value_is_set(raw: str) -> bool:
+    """Return True when an environment value should be treated as present."""
+
+    value = _unquote_env_value(raw).strip()
+    if not value:
+        return False
+    return not bool(re.fullmatch(r"\$\{[A-Z0-9_]+(?::-[^}]*)?\}", value))
+
+
 def _unquote_env_value(value: str) -> str:
     """Return an env value without surrounding quotes used by _write_env_file."""
     if len(value) >= 2 and ((value[0] == value[-1] == '"') or (value[0] == value[-1] == "'")):
@@ -1207,6 +1227,95 @@ def _write_env_file(updates: dict[str, str]) -> None:
             new_lines.append(f"{key}={_quote_env_value(value)}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
+
+
+def _token_source(value: str | None, env_value: str) -> str:
+    if value and str(value).strip():
+        return "request"
+    if _env_value_is_set(env_value):
+        return "env"
+    return "missing"
+
+
+def _token_sources_for_request(req: StackRequest) -> dict[str, str]:
+    env = _read_env_file()
+    return {
+        "CF_DNS_API_TOKEN": _token_source(req.cloudflare_token, env.get("CF_DNS_API_TOKEN", "")),
+        "CLOUDFLARED_TOKEN": _token_source(req.cloudflare_tunnel_token, env.get("CLOUDFLARED_TOKEN", "")),
+    }
+
+
+def _extract_domain_from_host_like(value: str) -> str:
+    if not value:
+        return ""
+    candidate = str(value).strip()
+    if candidate.startswith("*"):
+        candidate = candidate[2:] if candidate.startswith("*.") else candidate[1:]
+    candidate = re.sub(r"^https?://", "", candidate, flags=re.IGNORECASE)
+    candidate = candidate.split("?", 1)[0].split("/", 1)[0].split(":", 1)[0].strip()
+    if not candidate or "." not in candidate:
+        return ""
+    return candidate.lower()
+
+
+def _iter_traefik_rule_hosts(labels: object) -> list[str]:
+    hosts: list[str] = []
+    if labels is None:
+        return hosts
+
+    if isinstance(labels, dict):
+        entries = list(labels.items())
+    elif isinstance(labels, list):
+        entries = []
+        for item in labels:
+            if not isinstance(item, str) or "=" not in item:
+                continue
+            key, _, value = item.partition("=")
+            entries.append((key, value))
+    else:
+        return hosts
+
+    for key, value in entries:
+        if not isinstance(key, str):
+            continue
+        if key.startswith("traefik.http.routers.") and ".rule" in key:
+            host = _extract_host_rule(str(value))
+            if host:
+                hosts.append(host)
+    return hosts
+
+
+def _extract_core_domain_from_compose(compose_path: Path) -> str:
+    if not compose_path.exists():
+        return ""
+
+    try:
+        import yaml as _yaml
+
+        doc = _yaml.safe_load(compose_path.read_text()) or {}
+        services = doc.get("services") or {}
+    except Exception:
+        return ""
+
+    if not isinstance(services, dict):
+        return ""
+
+    for cfg in services.values():
+        if not isinstance(cfg, dict):
+            continue
+        for host in _iter_traefik_rule_hosts(cfg.get("labels")):
+            domain = _extract_domain_from_host_like(host)
+            if domain:
+                return domain
+
+    env = _read_env_file()
+    app_url = env.get("TINYAUTH_APPURL")
+    if app_url:
+        domain = _extract_domain_from_host_like(_unquote_env_value(app_url))
+        if domain:
+            return domain
+
+    return ""
 
 
 def _services_in_compose() -> set[str]:
@@ -1372,6 +1481,7 @@ async def api_settings_meta() -> dict:
         "compose_path": str(compose_path),
         "stack_dir": str(stack_dir),
         "stack_dir_writable": _can_write_directory(stack_dir),
+        "core_domain": _extract_core_domain_from_compose(compose_path),
     }
 
 

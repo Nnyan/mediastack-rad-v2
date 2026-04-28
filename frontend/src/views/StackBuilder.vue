@@ -570,6 +570,13 @@
 
     <!-- ── Preview output ───────────────────────────────────────────────── -->
     <div v-if="previewText" class="deploy-output-area">
+      <div v-if="previewTokenSources && Object.keys(previewTokenSources).length" class="token-sources">
+        <div class="output-label">Cloudflare token sources</div>
+        <div v-for="item in tokenSourceRows(previewTokenSources)" :key="item.key" class="token-source-row">
+          <span class="token-source-name">{{ item.label }}</span>
+          <span class="token-source-state">{{ item.source }}</span>
+        </div>
+      </div>
       <div v-if="previewWarnings.length" class="preview-warnings">
         <div v-for="w in previewWarnings" :key="w.message" class="preview-warn-row">
           <span class="preview-warn-icon">⚠</span>
@@ -585,6 +592,13 @@
 
     <!-- ── Deploy output ────────────────────────────────────────────────── -->
     <div v-if="deployOutput" class="deploy-output-area">
+      <div v-if="deployTokenSources && Object.keys(deployTokenSources).length" class="token-sources">
+        <div class="output-label">Cloudflare token sources</div>
+        <div v-for="item in tokenSourceRows(deployTokenSources)" :key="item.key" class="token-source-row">
+          <span class="token-source-name">{{ item.label }}</span>
+          <span class="token-source-state">{{ item.source }}</span>
+        </div>
+      </div>
       <div v-if="deployWarnings.length" class="deploy-warnings preview-warnings">
         <div v-for="warn in deployWarnings" :key="`${warn.service}-${warn.message}`" class="preview-warn-row">
           <span class="preview-warn-icon">⚠</span>
@@ -654,6 +668,9 @@ const deployOk        = ref(false)
 const deploying       = ref(false)
 const deployConflicts = ref([])   // container names blocking the deploy
 const deployWarnings  = ref([])
+const previewTokenSources = ref({})
+const deployTokenSources  = ref({})
+const coreDomain          = ref('')
 
 // Containers merged view
 const containers = ref([])
@@ -1548,7 +1565,7 @@ async function loadCatalog() {
 
 function buildRequest() {
   return {
-    domain:                    req.domain,
+    domain:                    req.domain || coreDomain.value || undefined,
     timezone:                  req.timezone,
     puid:                      req.puid,
     pgid:                      req.pgid,
@@ -1614,6 +1631,36 @@ function normalizeWarnings(raw) {
     .filter(w => w.message)
 }
 
+function tokenSourceLabel(rawSource) {
+  switch (rawSource) {
+    case 'env':
+      return 'from .env'
+    case 'request':
+      return 'from builder request'
+    case 'missing':
+    default:
+      return 'not set'
+  }
+}
+
+function tokenSourceRows(sources) {
+  const rows = []
+  if (!sources || typeof sources !== 'object') return rows
+  const map = {
+    CF_DNS_API_TOKEN: 'Cloudflare DNS API token',
+    CLOUDFLARED_TOKEN: 'Cloudflare Tunnel token',
+  }
+  for (const [key, label] of Object.entries(map)) {
+    if (!Object.prototype.hasOwnProperty.call(sources, key)) continue
+    rows.push({
+      key,
+      label,
+      source: tokenSourceLabel(sources[key]),
+    })
+  }
+  return rows
+}
+
 async function parseApiResponse(response) {
   const raw = await response.text()
   try {
@@ -1623,10 +1670,24 @@ async function parseApiResponse(response) {
   }
 }
 
+async function loadSettingsMeta() {
+  try {
+    const meta = await fetch('/api/settings/meta').then(r => r.json())
+    const incomingDomain = (meta?.core_domain || '').trim()
+    coreDomain.value = incomingDomain
+    if (!req.domain && incomingDomain) {
+      req.domain = incomingDomain
+    }
+  } catch (e) {
+    console.warn('Could not load stack metadata:', e)
+  }
+}
+
 async function preview() {
   previewLoading.value = true
   previewText.value = ''
   previewWarnings.value = []
+  previewTokenSources.value = {}
   expanded.deploy = true
   try {
     const r = await fetch('/api/stack/generate', {
@@ -1638,6 +1699,7 @@ async function preview() {
     const data = await r.json()
     previewText.value = data.yaml
     previewWarnings.value = data.warnings || []
+    previewTokenSources.value = data.token_sources || {}
     const warnCount = previewWarnings.value.length
     showToast(`Generated — ${data.bytes} bytes${warnCount ? ` · ${warnCount} warning(s)` : ''}`)
   } catch (e) {
@@ -1684,6 +1746,7 @@ async function deploy() {
     previewText.value = ''
     previewWarnings.value = []
     deployWarnings.value = []
+    deployTokenSources.value = {}
     expanded.deploy = true
 
     const deployNotice = window.setTimeout(() => {
@@ -1722,6 +1785,7 @@ async function deploy() {
     deployOk.value = data.ok
     deployConflicts.value = data.conflicts || []
     deployWarnings.value = normalizeWarnings(data.route_warnings)
+    deployTokenSources.value = data.token_sources || {}
     deployOutput.value = [data.stdout, data.stderr ? '--- stderr ---\n' + data.stderr : '']
       .filter(Boolean).join('\n').trim()
     if (data.ok) {
@@ -1764,6 +1828,7 @@ onMounted(() => {
   loadCatalog()
   loadRunningServices()
   loadSecretStatus()
+  loadSettingsMeta()
   runningPollTimer = setInterval(loadRunningServices, 15000)
   refreshContainers()
   containersPollTimer = setInterval(refreshContainers, 10000)
@@ -2420,6 +2485,38 @@ input.cfg-readonly { background: var(--bg-2); color: var(--fg-2); opacity: 0.7; 
   padding: 1px 6px; white-space: nowrap;
 }
 .preview-warn-msg { font-size: 12px; color: var(--fg-1); }
+
+.token-sources {
+  border: 1.5px solid rgba(37, 99, 235, 0.25);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+
+.token-sources .output-label {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.token-source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-top: 1px solid rgba(37, 99, 235, 0.12);
+  font-size: 12px;
+}
+
+.token-source-name {
+  color: var(--fg-0);
+}
+
+.token-source-state {
+  color: var(--fg-1);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
 
 /* Port conflict banner (service grid) */
 .port-conflict-banner {

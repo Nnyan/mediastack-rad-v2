@@ -112,6 +112,14 @@ docker compose -f /home/stack/msrad/docker-compose.yml up -d
 6. Click **Deploy Stack** to write the file and run `docker compose up -d`
 7. Follow the **Checklist** tab for remaining setup steps
 
+When you generate or deploy, RAD now shows a quick token-source check in the output
+area so you can confirm each Cloudflare secret is coming from the current request
+or from `.env`.
+
+If a domain is already configured in your current stack (for example in an existing
+Traefik route or `TINYAUTH_APPURL`), the Builder Core settings domain field defaults
+to that value when left empty.
+
 ### Custom app routing
 
 Custom apps added in Stack Builder are merged as-is into the generated compose.
