@@ -229,6 +229,41 @@ docker compose -f /home/stack/mediacenter/docker-compose.yml up -d
 
 The health checker flags ghost containers automatically and offers auto-removal.
 
+### Readarr removed from catalog but old UI config still selected
+
+If you upgraded from an older version that had `readarr`, that stale key may still
+exist in browser localStorage. RAD now handles this safely:
+
+- generation/deploy still succeeds,
+- a warning is shown: `Service 'readarr' is no longer supported and will be ignored`, and
+- no `readarr` service is added to generated compose output.
+
+This keeps existing users' deployments intact without forcing immediate local
+state cleanup.
+
+### Permission denied while writing compose files at runtime
+
+If deploy returns:
+
+```text
+Permission denied while writing compose files at /compose
+```
+
+that means `RAD_STACK_DIR` / `RAD_TRAEFIK_DIR` are mounted read-only or point to
+an unwritable path. Set them to writable host paths in the RAD container:
+
+```bash
+RAD_STACK_DIR=/home/stack/msrad
+RAD_TRAEFIK_DIR=/home/stack/msrad/traefik
+```
+
+Then restart RAD and confirm with:
+
+```bash
+curl -s http://127.0.0.1:8090/api/settings/meta
+```
+`stack_dir_writable` should report `true`.
+
 ### Traefik `yaml: line N: mapping values are not allowed in this context`
 
 Indentation error in `traefik.yml`. The correct indent for `dnsChallenge` options is:

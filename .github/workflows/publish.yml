@@ -86,6 +86,33 @@ jobs:
           print('OK: SPA catch-all is last')
           "
 
+      - name: Smoke test — stale service selections are ignored with warning
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from backend.models import StackRequest, ServiceChoice
+          from backend.generator import validate_request, generate
+          req = StackRequest(
+              domain='example.com',
+              services=[
+                  ServiceChoice(key='readarr', enabled=True),
+                  ServiceChoice(key='sonarr', enabled=True),
+              ],
+          )
+          validation = validate_request(req)
+          assert validation.valid
+          stale = [
+              issue for issue in validation.warnings
+              if issue.severity == 'warning' and issue.service == 'readarr'
+          ]
+          assert stale, 'Expected warning for stale service readarr'
+          text = generate(req)
+          assert 'readarr:' not in text
+          assert 'sonarr:' in text
+          assert 'Service \'readarr\' is no longer supported' in stale[0].message
+          print('OK: stale service warning + compose filtering')
+          "
+
   # ── Automated semantic version bump ─────────────────────────────────────────
   version-bump:
     runs-on: ubuntu-latest

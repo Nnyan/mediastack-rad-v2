@@ -1665,6 +1665,13 @@ function tokenSourceRows(sources) {
   return rows
 }
 
+function permissionHintFromError(detail) {
+  if (!detail || typeof detail !== 'string') return ''
+  const text = detail.toLowerCase()
+  if (!text.includes('permission denied while writing compose files')) return ''
+  return '💡 Tip: Set RAD_STACK_DIR and RAD_TRAEFIK_DIR to writable host paths for RAD, and ensure the compose mount is not read-only.'
+}
+
 async function parseApiResponse(response) {
   const raw = await response.text()
   try {
@@ -1780,10 +1787,15 @@ async function deploy() {
         return `✗ ${prefix} ${e.message || e}`
       })
       const detail = data.detail || data.message || ''
-      deployOutput.value = lines.length
-        ? lines.join('\n')
-        : detail || `HTTP ${r.status}`
+      const hint = permissionHintFromError(detail)
+      deployOutput.value = [
+        lines.length ? lines.join('\n') : detail || `HTTP ${r.status}`,
+        hint,
+      ].filter(Boolean).join('\n')
       showToast(lines.length ? lines[0] : (detail || 'Deploy failed'), 'err', 7000)
+      if (hint) {
+        showToast(hint, 'warn', 9000)
+      }
       return
     }
     deployOk.value = data.ok
